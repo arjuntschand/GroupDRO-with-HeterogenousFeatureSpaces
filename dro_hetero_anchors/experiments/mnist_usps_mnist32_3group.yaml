@@ -1,0 +1,66 @@
+seed: 1337
+run_dir: runs/mnist_usps_mnist32_3group
+
+# data
+root: ./data
+num_workers: 4
+batch_size: 128
+
+# Use skewed 3-group loaders: MNIST28 + USPS16 + MNIST32
+use_skewed_mnist_usps_mnist32: true
+mnist28_size: 15000
+usps_size: 2000
+mnist32_size: 15000
+# Majority digit blocks per group (80% from these classes)
+mnist28_majority: [0, 1, 2, 3]
+usps_majority: [4, 5, 6]
+mnist32_majority: [7, 8, 9]
+
+# groups (for model/encoders)
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+  - name: mnist32
+    type: image
+    in_shape: [1, 32, 32]
+    encoder: cnn32
+
+# model
+latent_dim: 64
+num_classes: 10
+head_hidden: 0   # 0=linear head; >0 => one hidden layer of this size
+
+# anchors
+anchor_eps: 1.0e-4
+sep_samples_per_class: 16
+
+# GroupDRO: disabled for baseline
+groupdro_enabled: false
+groupdro_eta: 0.1
+
+# debug
+debug_one_batch: false
+
+# anchor separation method
+sep_method: "classifier"
+sep_margin: 2.0
+
+# loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+
+# optim
+lr: 1.0e-3
+weight_decay: 0.0
+epochs: 5
+grad_clip: 1.0
+
+# logging
+log_interval: 50
+save_every: 5

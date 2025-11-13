@@ -1,0 +1,58 @@
+seed: 1337
+run_dir: runs/mnist_usps_smoke
+
+# data
+root: ./data
+num_workers: 4
+batch_size: 128
+
+# Use skewed MNIST+USPS loaders
+use_skewed_mnist_usps: true
+mnist_size: 30000
+usps_size: 1000
+mnist_majority: [0, 1, 2, 3, 4]
+usps_majority: [5, 6, 7, 8, 9]
+
+# groups (for model building; loaders ignore this and use skewed)
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+
+# model
+latent_dim: 64
+num_classes: 10
+head_hidden: 0
+
+# anchors
+anchor_eps: 1.0e-4
+sep_samples_per_class: 16
+
+# baseline: no GroupDRO
+groupdro_enabled: false
+
+# debug
+debug_one_batch: false
+
+# separation method
+sep_method: "classifier"
+sep_margin: 2.0
+
+# loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+
+# optim
+lr: 1.0e-3
+weight_decay: 0.0
+epochs: 1
+grad_clip: 1.0
+
+# logging
+log_interval: 50
+save_every: 1

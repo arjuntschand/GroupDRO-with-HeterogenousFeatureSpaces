@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Debug script to check USPS learning on specific classes"""
+"""(Moved to testFiles/) Minimal binary classification sanity check on USPS.
+
+Validates that classes are learnable (e.g., 1 vs 5) independent of anchor framework.
+"""
 
 import torch
 import torch.nn as nn

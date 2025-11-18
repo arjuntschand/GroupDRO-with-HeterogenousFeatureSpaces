@@ -2,7 +2,7 @@ from typing import Dict, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .wasserstein import gaussian_w2, psd_sqrt
+from .wasserstein import gaussian_w2
 
 def per_class_batch_moments(z: torch.Tensor, y: torch.Tensor, num_classes: int, eps: float) -> Dict[int, Tuple[torch.Tensor, torch.Tensor]]:
     out = {}

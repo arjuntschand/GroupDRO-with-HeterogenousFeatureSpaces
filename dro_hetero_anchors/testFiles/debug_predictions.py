@@ -1,3 +1,8 @@
+"""(Moved to testFiles/) Debug predictions on USPS test split for specific classes.
+
+Rebuilds model from checkpoint and reproduces split logic to analyze per-class confusion.
+"""
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Subset

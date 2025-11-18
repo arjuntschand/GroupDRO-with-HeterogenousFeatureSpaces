@@ -5,7 +5,6 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, ConcatDataset, Subset, random_split
 from torchvision import datasets, transforms
 import ssl
-import urllib.request
 
 # Disable SSL verification for downloading datasets (Python 3.13 macOS certificate issue)
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -78,7 +77,8 @@ def build_loaders(root: str, groups_cfg: List[dict], batch_size: int, num_worker
 def build_skewed_mnist_usps_loaders(root: str, batch_size: int, num_workers: int, 
                                      mnist_size: int = 30000, usps_size: int = 1000,
                                      mnist_majority: List[int] = None, usps_majority: List[int] = None,
-                                     seed: int = 1337) -> Tuple[DataLoader, DataLoader]:
+                                     seed: int = 1337,
+                                     majority_frac: float = 0.8) -> Tuple[DataLoader, DataLoader]:
     """
     Build train and test loaders with skewed MNIST and USPS datasets.
     
@@ -114,77 +114,13 @@ def build_skewed_mnist_usps_loaders(root: str, batch_size: int, num_workers: int
     usps_full = datasets.USPS(root=root, train=True, transform=transforms.ToTensor(), download=True)
     usps_targets = np.array(usps_full.targets)
     
-    # NEW: First split into train/test with balanced classes, THEN apply skew to train only
-    def split_balanced_then_skew(targets, train_size, majority_classes, train_ratio=0.8):
-        """
-        1. Split data 80/20 train/test with EQUAL class proportions
-        2. Within train set, apply skewed sampling: 80% to majority, 20% to minority
-        
-        Args:
-            targets: array of labels
-            train_size: target number of training samples
-            majority_classes: which classes get 80% of train samples
-            train_ratio: what fraction of TOTAL data to use for training (default 0.8)
-        
-        Returns:
-            train_indices, test_indices
-        """
-        class_indices = {c: np.where(targets == c)[0] for c in range(10)}
-        minority_classes = [c for c in range(10) if c not in majority_classes]
-        
-        # Step 1: For each class, split into train_ratio and (1-train_ratio) for test
-        train_pool = {c: [] for c in range(10)}
-        test_indices = []
-        
-        for c in range(10):
-            available = class_indices[c]
-            n_train = int(len(available) * train_ratio)
-            np.random.shuffle(available)
-            train_pool[c] = available[:n_train].tolist()
-            test_indices.extend(available[n_train:].tolist())
-        
-        # Step 2: From train_pool, sample train_size with 80% majority, 20% minority
-        num_majority = int(0.8 * train_size)
-        num_minority = train_size - num_majority
-        
-        train_indices = []
-        
-        # Sample from majority classes
-        for c in majority_classes:
-            n_per_class = num_majority // len(majority_classes)
-            available = train_pool[c]
-            sampled = min(n_per_class, len(available))
-            train_indices.extend(np.random.choice(available, size=sampled, replace=False).tolist())
-        
-        # Fill remaining majority slots
-        remaining = num_majority - len(train_indices)
-        if remaining > 0:
-            all_majority = [idx for c in majority_classes for idx in train_pool[c]]
-            if len(all_majority) > 0:
-                train_indices.extend(np.random.choice(all_majority, size=remaining, replace=True).tolist())
-        
-        # Sample from minority classes
-        for c in minority_classes:
-            n_per_class = num_minority // len(minority_classes)
-            available = train_pool[c]
-            sampled = min(n_per_class, len(available))
-            train_indices.extend(np.random.choice(available, size=sampled, replace=False).tolist())
-        
-        # Fill remaining minority slots
-        current_minority = len(train_indices) - num_majority
-        remaining = num_minority - current_minority
-        if remaining > 0:
-            all_minority = [idx for c in minority_classes for idx in train_pool[c]]
-            if len(all_minority) > 0:
-                train_indices.extend(np.random.choice(all_minority, size=remaining, replace=True).tolist())
-        
-        return train_indices[:train_size], test_indices
+    # Shared helper split function (defined once below)
     
     # Sample with balanced test split, then skewed train
     mnist_train_indices, mnist_test_indices = split_balanced_then_skew(
-        mnist_targets, mnist_size, mnist_majority, train_ratio=0.8)
+        mnist_targets, mnist_size, mnist_majority, train_ratio=0.8, majority_frac=majority_frac)
     usps_train_indices, usps_test_indices = split_balanced_then_skew(
-        usps_targets, usps_size, usps_majority, train_ratio=0.8)
+        usps_targets, usps_size, usps_majority, train_ratio=0.8, majority_frac=majority_frac)
     
     # Create train datasets with transforms (MNIST 28x28, USPS 16x16)
     mnist_train_tfm = transforms.ToTensor()
@@ -231,6 +167,7 @@ def build_skewed_mnist_usps_mnist32_loaders(
     usps_majority: Optional[List[int]] = None,
     mnist32_majority: Optional[List[int]] = None,
     seed: int = 1337,
+    majority_frac: float = 0.8,
 ) -> Tuple[DataLoader, DataLoader]:
     """
     Build train/test loaders for 3 groups: MNIST 28x28, USPS 16x16, MNIST 32x32.
@@ -250,60 +187,7 @@ def build_skewed_mnist_usps_mnist32_loaders(
     mnist_full = datasets.MNIST(root=root, train=True, transform=transforms.ToTensor(), download=True)
     usps_full = datasets.USPS(root=root, train=True, transform=transforms.ToTensor(), download=True)
 
-    # Reuse the split_balanced_then_skew function from the 2-group loader
-    # (Copy it here as a nested function)
-    def split_balanced_then_skew(targets, train_size, majority_classes, train_ratio=0.8):
-        """Split data 80/20 train/test with balanced classes, then apply skew to train only"""
-        class_indices = {c: np.where(targets == c)[0] for c in range(10)}
-        minority_classes = [c for c in range(10) if c not in majority_classes]
-        
-        # Step 1: For each class, split into train_ratio and (1-train_ratio) for test
-        train_pool = {c: [] for c in range(10)}
-        test_indices = []
-        
-        for c in range(10):
-            available = class_indices[c]
-            n_train = int(len(available) * train_ratio)
-            np.random.shuffle(available)
-            train_pool[c] = available[:n_train].tolist()
-            test_indices.extend(available[n_train:].tolist())
-        
-        # Step 2: From train_pool, sample train_size with 80% majority, 20% minority
-        num_majority = int(0.8 * train_size)
-        num_minority = train_size - num_majority
-        
-        train_indices = []
-        
-        # Sample from majority classes
-        for c in majority_classes:
-            n_per_class = num_majority // len(majority_classes)
-            available = train_pool[c]
-            sampled = min(n_per_class, len(available))
-            train_indices.extend(np.random.choice(available, size=sampled, replace=False).tolist())
-        
-        # Fill remaining majority slots
-        remaining = num_majority - len(train_indices)
-        if remaining > 0:
-            all_majority = [idx for c in majority_classes for idx in train_pool[c]]
-            if len(all_majority) > 0:
-                train_indices.extend(np.random.choice(all_majority, size=remaining, replace=True).tolist())
-        
-        # Sample from minority classes
-        for c in minority_classes:
-            n_per_class = num_minority // len(minority_classes)
-            available = train_pool[c]
-            sampled = min(n_per_class, len(available))
-            train_indices.extend(np.random.choice(available, size=sampled, replace=False).tolist())
-        
-        # Fill remaining minority slots
-        current_minority = len(train_indices) - num_majority
-        remaining = num_minority - current_minority
-        if remaining > 0:
-            all_minority = [idx for c in minority_classes for idx in train_pool[c]]
-            if len(all_minority) > 0:
-                train_indices.extend(np.random.choice(all_minority, size=remaining, replace=True).tolist())
-        
-        return train_indices, test_indices
+    # Use shared helper defined below
 
     # Use the fixed split_balanced_then_skew for each group
     # For MNIST, we need to split the total (mnist28_size + mnist32_size) and then divide
@@ -314,6 +198,7 @@ def build_skewed_mnist_usps_mnist32_loaders(
         targets=np.array(mnist_full.targets),
         train_size=total_mnist_size,
         majority_classes=mnist28_majority,  # Use mnist28_majority as default for splitting
+        majority_frac=majority_frac,
     )
     
     # Split MNIST train/test between 28x28 and 32x32 proportionally
@@ -334,6 +219,7 @@ def build_skewed_mnist_usps_mnist32_loaders(
         targets=np.array(usps_full.targets),
         train_size=usps_size,
         majority_classes=usps_majority,
+        majority_frac=majority_frac,
     )
 
     # Create train datasets with transforms
@@ -373,5 +259,141 @@ def build_skewed_mnist_usps_mnist32_loaders(
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False,
                              num_workers=num_workers, pin_memory=True, collate_fn=pad_to_max_collate)
 
+    return train_loader, test_loader
+
+
+def split_balanced_then_skew(
+    targets: np.ndarray,
+    train_size: int,
+    majority_classes: List[int],
+    train_ratio: float = 0.8,
+    majority_frac: float = 0.8,
+) -> Tuple[list, list]:
+    """
+    Shared helper: First split into train/test with balanced per-class proportions,
+    then skew the TRAIN selection so that 80% of train_size comes from majority classes
+    and 20% from minority classes.
+
+    Returns train_indices, test_indices
+    """
+    class_indices = {c: np.where(targets == c)[0] for c in range(10)}
+    minority_classes = [c for c in range(10) if c not in majority_classes]
+
+    # Step 1: For each class, split into train_ratio and (1-train_ratio) for test
+    train_pool = {c: [] for c in range(10)}
+    test_indices = []
+
+    for c in range(10):
+        available = class_indices[c]
+        n_train = int(len(available) * train_ratio)
+        np.random.shuffle(available)
+        train_pool[c] = available[:n_train].tolist()
+        test_indices.extend(available[n_train:].tolist())
+
+    # Step 2: From train_pool, sample train_size with majority_frac majority, remainder minority
+    majority_frac = float(majority_frac)
+    majority_frac = max(0.0, min(1.0, majority_frac))  # clamp
+    num_majority = int(majority_frac * train_size)
+    num_minority = train_size - num_majority
+
+    train_indices = []
+
+    # Sample from majority classes
+    for c in majority_classes:
+        n_per_class = max(1, num_majority // max(1, len(majority_classes)))
+        available = train_pool[c]
+        sampled = min(n_per_class, len(available))
+        if sampled > 0:
+            train_indices.extend(np.random.choice(available, size=sampled, replace=False).tolist())
+
+    # Fill remaining majority slots
+    remaining = num_majority - len(train_indices)
+    if remaining > 0:
+        all_majority = [idx for c in majority_classes for idx in train_pool[c]]
+        if len(all_majority) > 0:
+            train_indices.extend(np.random.choice(all_majority, size=remaining, replace=True).tolist())
+
+    # Sample from minority classes
+    for c in minority_classes:
+        n_per_class = max(1, num_minority // max(1, len(minority_classes)))
+        available = train_pool[c]
+        sampled = min(n_per_class, len(available))
+        if sampled > 0:
+            train_indices.extend(np.random.choice(available, size=sampled, replace=False).tolist())
+
+    # Fill remaining minority slots
+    current_minority = len(train_indices) - num_majority
+    remaining = num_minority - current_minority
+    if remaining > 0:
+        all_minority = [idx for c in minority_classes for idx in train_pool[c]]
+        if len(all_minority) > 0:
+            train_indices.extend(np.random.choice(all_minority, size=remaining, replace=True).tolist())
+
+    return train_indices[:train_size], test_indices
+
+
+def build_usps_only_balanced_loaders(
+    root: str,
+    batch_size: int,
+    num_workers: int,
+    usps_size: int = 5000,
+    seed: int = 1337,
+    train_ratio: float = 0.8,
+) -> Tuple[DataLoader, DataLoader]:
+    """Build USPS-only loaders with a balanced train subset.
+
+    We select exactly ``usps_size`` training samples with (near) equal per-class counts.
+    Remaining samples serve as the test set. If ``usps_size`` is not divisible by 10,
+    leftover samples are distributed one per class until exhausted.
+
+    Args:
+        root: dataset root directory
+        batch_size: batch size
+        num_workers: dataloader workers
+        usps_size: number of USPS training samples desired (default 5000)
+        seed: RNG seed
+        train_ratio: UNUSED for now (kept for potential future extension)
+
+    Returns:
+        train_loader, test_loader
+    """
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    usps_full = datasets.USPS(root=root, train=True, transform=transforms.ToTensor(), download=True)
+    targets = np.array(usps_full.targets)
+    class_indices = {c: np.where(targets == c)[0] for c in range(10)}
+
+    # Determine per-class quota
+    base_quota = usps_size // 10  # integer division
+    remainder = usps_size - base_quota * 10
+    per_class_quota = {c: base_quota for c in range(10)}
+    # Distribute remainder across lowest digit classes for determinism
+    for c in range(remainder):
+        per_class_quota[c] += 1
+
+    train_indices = []
+    test_indices = []
+    for c in range(10):
+        idxs = class_indices[c]
+        np.random.shuffle(idxs)
+        take = min(per_class_quota[c], len(idxs))
+        train_cls = idxs[:take].tolist()
+        test_cls = idxs[take:].tolist()
+        train_indices.extend(train_cls)
+        test_indices.extend(test_cls)
+
+    # Subsets
+    usps_train_subset = Subset(usps_full, train_indices)
+    usps_test_subset = Subset(usps_full, test_indices)
+
+    # Wrap with single group id 0
+    train_ds = GroupWrapped(usps_train_subset, 0)
+    test_ds = GroupWrapped(usps_test_subset, 0)
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
+                              num_workers=num_workers, pin_memory=True, collate_fn=pad_to_max_collate)
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False,
+                             num_workers=num_workers, pin_memory=True, collate_fn=pad_to_max_collate)
     return train_loader, test_loader
 

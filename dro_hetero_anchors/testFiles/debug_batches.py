@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Debug script to check batch class distribution in USPS diagnostic"""
+"""(Moved to testFiles/) Debug script to check batch class distribution in USPS diagnostic.
+
+Purpose: Inspect early training batches for class presence to detect skew-induced omissions.
+"""
 
 import sys
 import os

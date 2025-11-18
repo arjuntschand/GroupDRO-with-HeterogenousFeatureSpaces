@@ -8,7 +8,12 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from .utils import set_seed, ensure_dir, Meter, console
 from .results_logger import ResultsLogger
-from .datasets import build_loaders, build_skewed_mnist_usps_loaders, build_skewed_mnist_usps_mnist32_loaders
+from .datasets import (
+    build_loaders,
+    build_skewed_mnist_usps_loaders,
+    build_skewed_mnist_usps_mnist32_loaders,
+    build_usps_only_balanced_loaders,
+)
 from .encoders import ENCODER_REGISTRY
 from .model.head import LinearHead, MLPHead
 from .model.anchors import AnchorModule
@@ -160,7 +165,8 @@ def train(cfg):
             mnist28_majority=cfg.get("mnist28_majority", [0, 1, 2, 3]),
             usps_majority=cfg.get("usps_majority", [4, 5, 6]),
             mnist32_majority=cfg.get("mnist32_majority", [7, 8, 9]),
-            seed=cfg["seed"]
+            seed=cfg["seed"],
+            majority_frac=cfg.get("majority_frac", 0.8),
         )
     elif cfg.get("use_skewed_mnist_usps", False):
         console.log("Loading skewed MNIST+USPS datasets...")
@@ -170,7 +176,15 @@ def train(cfg):
             usps_size=cfg.get("usps_size", 1000),
             mnist_majority=cfg.get("mnist_majority", [0, 1, 2, 3, 4]),
             usps_majority=cfg.get("usps_majority", [5, 6, 7, 8, 9]),
-            seed=cfg["seed"]
+            seed=cfg["seed"],
+            majority_frac=cfg.get("majority_frac", 0.8),
+        )
+    elif cfg.get("use_usps_only_balanced", False):
+        console.log("Loading balanced USPS-only dataset (single group)...")
+        train_loader, test_loader = build_usps_only_balanced_loaders(
+            cfg["root"], cfg["batch_size"], cfg["num_workers"],
+            usps_size=cfg.get("usps_size", 5000),
+            seed=cfg["seed"],
         )
     else:
         train_loader, test_loader = build_loaders(
@@ -343,6 +357,7 @@ def train(cfg):
 
         # Persist results for this epoch
         results_logger.log_epoch({
+            "metrics_version": "1.0",
             **run_meta,
             "epoch": epoch,
             "train_loss": float(loss_meter.avg),

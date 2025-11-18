@@ -1,3 +1,8 @@
+"""(Moved to testFiles/) Smoke test: run a short training config and assert checkpoint creation.
+
+This is not a unit test harness; consider replacing with pytest-based tests under `tests/`.
+"""
+
 import os
 import subprocess
 

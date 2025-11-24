@@ -1,0 +1,42 @@
+seed: 1337
+run_dir: runs/usps_only_80_20
+# data
+root: ./datasets
+num_workers: 4
+batch_size: 128
+use_usps_only_balanced: true
+# Request larger size so loader uses per-class caps directly (80%)
+usps_size: 20000  # > total so cap logic engages
+max_train_frac: 0.8
+# single group
+groups:
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+# model
+latent_dim: 64
+num_classes: 10
+head_hidden: 0
+# anchors
+anchor_eps: 1.0e-4
+sep_samples_per_class: 16
+# GroupDRO disabled baseline
+groupdro_enabled: false
+groupdro_eta: 0.1
+# debug
+debug_one_batch: false
+# separation
+sep_method: "classifier"
+sep_margin: 2.0
+# loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+# optim
+lr: 0.001
+weight_decay: 0.0
+epochs: 5
+grad_clip: 1.0
+# logging
+log_interval: 50
+save_every: 5

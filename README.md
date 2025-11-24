@@ -1,7 +1,7 @@
 GroupDRO with Heterogeneous Feature Spaces & Latent Anchors
 ===========================================================
 
-Unified README consolidating prior guides (README.md, REPO_OVERVIEW.md, COMPLETE_GUIDE.md, MAPPING.md). This is now the single entry point for purpose, architecture, directory map, configuration, and usage.
+Authoritative README for purpose, architecture, directory map, configuration, and usage.
 
 ## 1. Purpose
 
@@ -40,7 +40,7 @@ Input batch (mixed groups)
 │   │   ├── MAPPING.md
 │   │   └── REPO_OVERVIEW.md
 ├── dro_hetero_anchors/      # Core package
-│   ├── experiments/         # YAML configs (INDEX.csv auto-generated)
+│   ├── experiments/         # (moved to repo root)
 │   ├── src/
 │   │   ├── train.py         # Training loop + evaluation + logging
 │   │   ├── eval.py          # Standalone checkpoint evaluation
@@ -53,7 +53,7 @@ Input batch (mixed groups)
 │   ├── testFiles/           # Relocated debug & test utility scripts
 │   └── tests/               # Formal unit tests (to expand)
 ├── runs/                    # Aggregated run outputs (metrics, ckpts, index.csv, metrics.sqlite)
-├── data/                    # Downloaded datasets (MNIST, USPS, etc.)
+├── datasets/                # Downloaded datasets (MNIST, USPS, etc.)
 ├── requirements.txt         # Python dependencies
 └── .venv/                   # Primary virtual environment (keep only one)
 ```
@@ -71,13 +71,13 @@ pip install -r requirements.txt
 
 # List experiments
 python -m dro_hetero_anchors.src.tools.index_experiments
-cat dro_hetero_anchors/experiments/INDEX.csv | head
+cat experiments/INDEX.csv | head
 
 # Run a config
-python -m dro_hetero_anchors.src.train --config dro_hetero_anchors/experiments/mnist_usps_25k_2k.yaml
+python -m dro_hetero_anchors.src.train --config experiments/mnist_usps_25k_2k.yaml
 
 # Evaluate latest checkpoint
-python -m dro_hetero_anchors.src.eval --config dro_hetero_anchors/experiments/mnist_usps_25k_2k.yaml --ckpt runs/last.ckpt
+python -m dro_hetero_anchors.src.eval --config experiments/mnist_usps_25k_2k.yaml --ckpt runs/last.ckpt
 
 # Aggregate runs catalog (CSV + SQLite)
 python -m dro_hetero_anchors.src.tools.aggregate_runs
@@ -89,7 +89,7 @@ Data / Groups:
 - Flags: `use_skewed_mnist_usps`, `use_skewed_mnist_usps_mnist32`, `use_usps_only_balanced`
 - Sizes: `mnist_size`, `usps_size`, `mnist28_size`, `mnist32_size`
 - Majority classes: `mnist_majority`, `usps_majority`, `mnist28_majority`, `mnist32_majority`
-- (Future) `majority_frac` – parameterize skew (currently implicit 0.8)
+- `majority_frac`: fraction of TRAIN samples drawn from specified majority classes after creating a balanced per-class TEST split (omit to use default 0.8)
 
 Model:
 - `latent_dim`, `num_classes`, `head_hidden` (0 → linear head, >0 → MLP)
@@ -145,36 +145,20 @@ Moved for clarity:
 
 These are development aids, not part of the core library API.
 
-## 10. Duplicate Directories & Cleanup Recommendations
+## 10. Canonical Directories
 
-Virtual environments:
-- Keep only root `.venv/`. Remove `dro_hetero_anchors/.venv` manually to eliminate ambiguity (`rm -rf dro_hetero_anchors/.venv`).
+Virtual environment: root `.venv/`.
+Runs output: root `runs/` (metrics, checkpoints, indices).
+Datasets: root `datasets/`.
 
-Runs:
-- Root `runs/` is canonical (contains metrics, checkpoints, aggregated index). The nested `dro_hetero_anchors/runs/` had a stray event file; recommend deleting or merging its contents.
-
-Data:
-- Root `data/` centralizes datasets; no need for nested package `data/` copies unless isolating experiments. Consolidate to root.
-
-## 11. Planned Enhancements
-
-Short-term:
-- Parameterize skew ratio via `majority_frac` in configs.
-- Add unit tests: split invariants, padding correctness, small anchor loss numerical stability.
-- Add config validation (pydantic) to catch missing keys early.
-
-Medium-term:
-- Extend to new heterogeneous dataset (e.g., TextCaps) with resolution-based groups.
-- Add simple visualization CLI for worst‑group trend comparisons.
-
-## 12. Glossary
+## 11. Glossary
 
 - Worst‑group accuracy: Minimum accuracy across groups per epoch (robust objective).
 - Anchor fit loss: W₂ distance aligning batch latent moments to anchor Gaussians.
 - Anchor separation loss: Encourages distinct anchors (classification of synthetic samples or enforced W₂ margin).
 - GroupDRO: Adaptive group reweighting focusing optimization on underperforming groups.
 
-## 13. FAQ
+## 12. FAQ
 
 Q: Why anchors instead of prototypes?  
 A: Anchors model covariance, letting W₂ capture shape differences, not just mean shifts.
@@ -185,9 +169,5 @@ A: Mixed resolutions in one batch require uniform tensor shape; we pad smaller i
 Q: Can I add a new dataset group?  
 A: Implement a loader returning `(train_loader, test_loader)` with `(x,y,g)` tuples, add a config flag, and update `train.py` to branch on it.
 
-## 14. Attribution & License
-
-Include a license file (e.g., MIT) and citation block here in a future pass.
-
 ---
-Single-source README established. Legacy docs archived under `documentation/archive/` for historical reference.
+End of README.

@@ -1,0 +1,46 @@
+# MNIST extremely underrepresented in TRAIN (100) but large TEST (1000) vs USPS 6000 balanced.
+# Achieve via total MNIST subset of 1100 with train_frac ~ 100/1100.
+
+run_name: mnist_usps_mnist100train_1ktest_6k_usps
+seed: 1337
+root: datasets
+run_dir: runs/mnist_usps_mnist100train_1ktest_6k_usps
+use_mnist_usps_balanced: true
+mnist_total_size: 1100        # -> 110/class
+usps_total_size: 6000         # -> 600/class
+train_frac: 0.090909          # 10 train / 100 test per class for MNIST; 54/546 for USPS (approx)
+mnist_use_full_pool: true
+usps_use_full_pool: true
+
+num_classes: 10
+batch_size: 64
+num_workers: 0
+epochs: 5
+lr: 0.001
+weight_decay: 0.0
+optimizer: adam
+
+# Groups
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+
+latent_dim: 64
+head_hidden: 0
+anchor_eps: 0.0001
+sep_samples_per_class: 8   # Reduced due to only 10 MNIST train per class
+sep_method: "classifier"
+sep_margin: 2.0
+lambda_fit: 0.001
+lambda_sep: 0.001
+
+debug_one_batch: false
+grad_clip: 1.0
+log_interval: 50
+save_every: 5

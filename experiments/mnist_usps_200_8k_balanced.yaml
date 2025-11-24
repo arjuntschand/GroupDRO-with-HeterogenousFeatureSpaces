@@ -1,0 +1,53 @@
+# Balanced MNIST(200) + USPS(8000) subset with 80/20 train/test per class.
+# Uses full USPS pool (train+test) to avoid per-class scarcity.
+
+run_name: mnist_usps_200_8k_balanced
+seed: 1337
+root: datasets
+run_dir: runs/mnist_usps_200_8k_balanced
+use_mnist_usps_balanced: true
+mnist_total_size: 200    # ~20/class
+usps_total_size: 8000    # ~800/class
+train_frac: 0.8
+mnist_use_full_pool: true
+usps_use_full_pool: true
+
+# Model/training hyperparams
+num_classes: 10
+batch_size: 64
+num_workers: 0
+epochs: 5
+lr: 0.001
+weight_decay: 0.0
+optimizer: adam
+
+# Groups (MNIST 28x28, USPS 16x16)
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+
+# Anchor & latent configuration
+latent_dim: 64
+head_hidden: 0
+anchor_eps: 0.0001
+sep_samples_per_class: 16
+sep_method: "classifier"
+sep_margin: 2.0
+
+# Loss weights
+lambda_fit: 0.001
+lambda_sep: 0.001
+
+# Debug / safety
+debug_one_batch: false
+grad_clip: 1.0
+
+# Logging
+log_interval: 50
+save_every: 5

@@ -18,7 +18,8 @@ def list_experiment_files(exp_dir: Path) -> List[Path]:
 def main() -> None:
     here = Path(__file__).resolve()
     repo_root = find_repo_root(here)
-    exp_dir = repo_root / "dro_hetero_anchors" / "experiments"
+    # Experiments now live at the repository root for symmetry with `runs/`
+    exp_dir = repo_root / "experiments"
     out_csv = exp_dir / "INDEX.csv"
 
     files = list_experiment_files(exp_dir)

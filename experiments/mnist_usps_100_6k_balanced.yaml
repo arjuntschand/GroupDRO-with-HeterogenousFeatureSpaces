@@ -1,0 +1,44 @@
+# Balanced MNIST(100) + USPS(6000) subset with 80/20 train/test per class.
+# Expect USPS to outperform MNIST given large USPS majority and tiny MNIST.
+
+run_name: mnist_usps_100_6k_balanced
+seed: 1337
+root: datasets
+run_dir: runs/mnist_usps_100_6k_balanced
+use_mnist_usps_balanced: true
+mnist_total_size: 100    # ~10/class
+usps_total_size: 6000    # ~600/class
+train_frac: 0.8
+mnist_use_full_pool: true
+usps_use_full_pool: true
+
+num_classes: 10
+batch_size: 64
+num_workers: 0
+epochs: 5
+lr: 0.001
+weight_decay: 0.0
+optimizer: adam
+
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+
+latent_dim: 64
+head_hidden: 0
+anchor_eps: 0.0001
+sep_samples_per_class: 16
+sep_method: "classifier"
+sep_margin: 2.0
+lambda_fit: 0.001
+lambda_sep: 0.001
+debug_one_batch: false
+grad_clip: 1.0
+log_interval: 50
+save_every: 5

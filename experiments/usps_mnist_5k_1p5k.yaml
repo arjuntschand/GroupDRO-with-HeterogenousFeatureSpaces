@@ -1,20 +1,19 @@
 seed: 1337
-run_dir: runs/mnist_usps_smoke
+run_dir: runs/usps_mnist_5k_1p5k
 
 # data
-root: ./data
+root: ./datasets
 num_workers: 4
 batch_size: 128
 
-# Use skewed MNIST+USPS loaders
+# Use skewed MNIST+USPS loaders - USPS MAJORITY
 use_skewed_mnist_usps: true
-mnist_size: 30000
-usps_size: 1000
-mnist_majority: [0, 1, 2, 3, 4]
-usps_majority: [5, 6, 7, 8, 9]
-majority_frac: 0.8  # fraction of TRAIN samples drawn from majority classes (post balanced test split)
+mnist_size: 1500
+usps_size: 5000
+mnist_majority: [0, 1, 2, 3, 4]  # MNIST gets 80% from these classes
+usps_majority: [5, 6, 7, 8, 9]   # USPS gets 80% from these classes
 
-# groups (for model building; loaders ignore this and use skewed)
+# groups (for model building)
 groups:
   - name: mnist28
     type: image
@@ -34,13 +33,14 @@ head_hidden: 0
 anchor_eps: 1.0e-4
 sep_samples_per_class: 16
 
-# baseline: no GroupDRO
+# GroupDRO: disabled for baseline
 groupdro_enabled: false
+groupdro_eta: 0.1
 
 # debug
 debug_one_batch: false
 
-# separation method
+# anchor separation method
 sep_method: "classifier"
 sep_margin: 2.0
 
@@ -51,9 +51,9 @@ lambda_sep: 1.0e-3
 # optim
 lr: 1.0e-3
 weight_decay: 0.0
-epochs: 1
+epochs: 10
 grad_clip: 1.0
 
 # logging
 log_interval: 50
-save_every: 1
+save_every: 10

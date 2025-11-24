@@ -262,6 +262,107 @@ def build_skewed_mnist_usps_mnist32_loaders(
     return train_loader, test_loader
 
 
+def build_mnist_usps_balanced_subset_loaders(
+    root: str,
+    batch_size: int,
+    num_workers: int,
+    mnist_total_size: int = 200,
+    usps_total_size: int = 6000,
+    train_frac: float = 0.8,
+    seed: int = 1337,
+    mnist_use_full_pool: bool = False,
+    usps_use_full_pool: bool = False,
+) -> Tuple[DataLoader, DataLoader]:
+    """Build MNIST + USPS loaders from *balanced per-class subsets* then 80/20 split.
+
+    Enhancements vs earlier version:
+    - Optional concatenation of official train+test splits as the sampling pool ("full pool")
+      to reduce per-class scarcity for large uniform requests (e.g. USPS 600/class).
+    - Maintains guarantee of at least one test example per class when per-class subset > 1.
+
+    Args:
+        root: dataset directory
+        batch_size: batch size
+        num_workers: dataloader workers
+        mnist_total_size: total MNIST subset size (train+test combined)
+        usps_total_size: total USPS subset size (train+test combined)
+        train_frac: fraction of each class subset allocated to train (default 0.8)
+        seed: RNG seed
+        mnist_use_full_pool: if True, sample MNIST from train+test concatenated pool
+        usps_use_full_pool: if True, sample USPS from train+test concatenated pool
+    Returns:
+        train_loader, test_loader
+    """
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    def _load_pool(ds_class, use_full: bool):
+        if not use_full:
+            d_train = ds_class(root=root, train=True, transform=transforms.ToTensor(), download=True)
+            targets = np.array(d_train.targets)
+            return d_train, targets
+        d_train = ds_class(root=root, train=True, transform=transforms.ToTensor(), download=True)
+        d_test = ds_class(root=root, train=False, transform=transforms.ToTensor(), download=True)
+        targets = np.concatenate([np.array(d_train.targets), np.array(d_test.targets)])
+        concat = ConcatDataset([d_train, d_test])
+        return concat, targets
+
+    mnist_pool, mnist_targets = _load_pool(datasets.MNIST, mnist_use_full_pool)
+    usps_pool, usps_targets = _load_pool(datasets.USPS, usps_use_full_pool)
+
+    mnist_class_indices = {c: np.where(mnist_targets == c)[0] for c in range(10)}
+    usps_class_indices = {c: np.where(usps_targets == c)[0] for c in range(10)}
+
+    def sample_subset(class_indices: dict, total_size: int) -> dict:
+        base = total_size // 10
+        remainder = total_size - base * 10
+        per_class = {c: base for c in range(10)}
+        for c in range(remainder):
+            per_class[c] += 1
+        sampled = {}
+        for c in range(10):
+            idxs = class_indices[c].copy()
+            np.random.shuffle(idxs)
+            take = min(per_class[c], len(idxs))
+            sampled[c] = idxs[:take]
+        return sampled
+
+    mnist_subset = sample_subset(mnist_class_indices, mnist_total_size)
+    usps_subset = sample_subset(usps_class_indices, usps_total_size)
+
+    def split_train_test(subset: dict, frac: float) -> Tuple[List[int], List[int]]:
+        train_idx = []
+        test_idx = []
+        for c in range(10):
+            idxs = subset[c]
+            n = len(idxs)
+            if n == 0:
+                continue
+            train_count = int(np.floor(frac * n))
+            if n - train_count == 0 and n > 1:  # ensure at least one test example
+                train_count -= 1
+            train_idx.extend(idxs[:train_count].tolist())
+            test_idx.extend(idxs[train_count:].tolist())
+        return train_idx, test_idx
+
+    mnist_train_idx, mnist_test_idx = split_train_test(mnist_subset, train_frac)
+    usps_train_idx, usps_test_idx = split_train_test(usps_subset, train_frac)
+
+    mnist_train_ds = GroupWrapped(Subset(mnist_pool, mnist_train_idx), 0)
+    usps_train_ds = GroupWrapped(Subset(usps_pool, usps_train_idx), 1)
+    mnist_test_ds = GroupWrapped(Subset(mnist_pool, mnist_test_idx), 0)
+    usps_test_ds = GroupWrapped(Subset(usps_pool, usps_test_idx), 1)
+
+    train_concat = ConcatDataset([mnist_train_ds, usps_train_ds])
+    test_concat = ConcatDataset([mnist_test_ds, usps_test_ds])
+
+    train_loader = DataLoader(train_concat, batch_size=batch_size, shuffle=True,
+                              num_workers=num_workers, pin_memory=True, collate_fn=pad_to_max_collate)
+    test_loader = DataLoader(test_concat, batch_size=batch_size, shuffle=False,
+                             num_workers=num_workers, pin_memory=True, collate_fn=pad_to_max_collate)
+    return train_loader, test_loader
+
+
 def split_balanced_then_skew(
     targets: np.ndarray,
     train_size: int,
@@ -338,7 +439,8 @@ def build_usps_only_balanced_loaders(
     num_workers: int,
     usps_size: int = 5000,
     seed: int = 1337,
-    train_ratio: float = 0.8,
+    train_ratio: float = 0.8,  # UNUSED legacy param
+    max_train_frac: float = 0.9,  # per-class cap (e.g. keep at most 90% of each class for train)
 ) -> Tuple[DataLoader, DataLoader]:
     """Build USPS-only loaders with a balanced train subset.
 
@@ -364,20 +466,41 @@ def build_usps_only_balanced_loaders(
     targets = np.array(usps_full.targets)
     class_indices = {c: np.where(targets == c)[0] for c in range(10)}
 
-    # Determine per-class quota
-    base_quota = usps_size // 10  # integer division
-    remainder = usps_size - base_quota * 10
-    per_class_quota = {c: base_quota for c in range(10)}
-    # Distribute remainder across lowest digit classes for determinism
-    for c in range(remainder):
-        per_class_quota[c] += 1
+    # Per-class maximum allowed for training (cap) and global allocation respecting usps_size
+    per_class_cap = {c: int(min(len(class_indices[c]), np.floor(max_train_frac * len(class_indices[c]))))
+                     for c in range(10)}
+    # Ensure at least 1 test sample remains if class has >1 sample
+    for c in range(10):
+        if len(class_indices[c]) > 1 and per_class_cap[c] == len(class_indices[c]):
+            per_class_cap[c] -= 1
+
+    total_cap = sum(per_class_cap.values())
+    effective_usps_size = min(usps_size, total_cap)
+
+    # If requesting at least the capped total, use exact per-class caps (preserves original distribution 80/20)
+    if effective_usps_size == total_cap:
+        alloc = per_class_cap.copy()
+    else:
+        # Otherwise balanced allocation under caps to reach effective_usps_size
+        base = effective_usps_size // 10
+        remainder = effective_usps_size - base * 10
+        alloc = {c: min(base, per_class_cap[c]) for c in range(10)}
+        # Distribute remainder round-robin among classes with remaining capacity
+        c_iter = 0
+        while remainder > 0:
+            if alloc[c_iter] < per_class_cap[c_iter]:
+                alloc[c_iter] += 1
+                remainder -= 1
+            c_iter = (c_iter + 1) % 10
+            if c_iter == 0 and all(alloc[c] == per_class_cap[c] for c in range(10)):
+                break
 
     train_indices = []
     test_indices = []
     for c in range(10):
         idxs = class_indices[c]
         np.random.shuffle(idxs)
-        take = min(per_class_quota[c], len(idxs))
+        take = alloc[c]
         train_cls = idxs[:take].tolist()
         test_cls = idxs[take:].tolist()
         train_indices.extend(train_cls)
@@ -394,6 +517,124 @@ def build_usps_only_balanced_loaders(
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
                               num_workers=num_workers, pin_memory=True, collate_fn=pad_to_max_collate)
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False,
+                             num_workers=num_workers, pin_memory=True, collate_fn=pad_to_max_collate)
+    return train_loader, test_loader
+
+
+def build_skewed_mnist_usps_train_subset_loaders(
+    root: str,
+    batch_size: int,
+    num_workers: int,
+    mnist_train_size: int,
+    usps_train_size: int,
+    low_digits: List[int] = None,
+    high_digits: List[int] = None,
+    mnist_high_ratio: float = 0.7,
+    usps_high_ratio: float = 0.3,
+    use_full_pool: bool = True,
+    seed: int = 1337,
+) -> Tuple[DataLoader, DataLoader]:
+    """Skewed MNIST+USPS loaders where provided sizes are TRAIN sizes only; TEST is the remainder.
+
+    For MNIST we allocate ``mnist_high_ratio`` of the MNIST training subset to the high digits (``high_digits``)
+    and the remainder to low digits (``low_digits``). For USPS we flip the ratios using ``usps_high_ratio``.
+
+    Args:
+        root: dataset root
+        batch_size: dataloader batch size
+        num_workers: dataloader workers
+        mnist_train_size: number of MNIST samples to use for training (only)
+        usps_train_size: number of USPS samples to use for training (only)
+        low_digits: list of low digit classes (default [0,1,2,3,4])
+        high_digits: list of high digit classes (default [5,6,7,8,9])
+        mnist_high_ratio: fraction of MNIST training subset drawn from high_digits (default 0.7)
+        usps_high_ratio: fraction of USPS training subset drawn from high_digits (default 0.3 -> flipped)
+        use_full_pool: if True, sample from train+test concatenated pools for broader remainder test coverage
+        seed: RNG seed
+    Returns:
+        train_loader, test_loader
+    """
+    if low_digits is None:
+        low_digits = [0, 1, 2, 3, 4]
+    if high_digits is None:
+        high_digits = [5, 6, 7, 8, 9]
+
+    assert set(low_digits).isdisjoint(high_digits), "low_digits and high_digits sets must be disjoint"
+    assert len(low_digits) + len(high_digits) == 10, "Must cover all 10 digits"
+
+    rng = np.random.default_rng(seed)
+    torch.manual_seed(seed)
+
+    def _load_pool(ds_class):
+        if not use_full_pool:
+            d_train = ds_class(root=root, train=True, transform=transforms.ToTensor(), download=True)
+            targets = np.array(d_train.targets)
+            return d_train, targets
+        d_train = ds_class(root=root, train=True, transform=transforms.ToTensor(), download=True)
+        d_test = ds_class(root=root, train=False, transform=transforms.ToTensor(), download=True)
+        concat = ConcatDataset([d_train, d_test])
+        targets = np.concatenate([np.array(d_train.targets), np.array(d_test.targets)])
+        return concat, targets
+
+    mnist_pool, mnist_targets = _load_pool(datasets.MNIST)
+    usps_pool, usps_targets = _load_pool(datasets.USPS)
+
+    mnist_class_indices = {c: np.where(mnist_targets == c)[0] for c in range(10)}
+    usps_class_indices = {c: np.where(usps_targets == c)[0] for c in range(10)}
+
+    def _alloc(train_size: int, high_ratio: float, low_set: List[int], high_set: List[int], class_indices: dict):
+        high_total = int(round(train_size * high_ratio))
+        low_total = train_size - high_total
+        # Even per-class distribution with remainder handling
+        def _split(total: int, classes: List[int]):
+            base = total // len(classes)
+            rem = total - base * len(classes)
+            alloc = {c: base for c in classes}
+            # distribute remainder deterministically by class order
+            for c in classes[:rem]:
+                alloc[c] += 1
+            # clip to available counts if scarcity
+            for c in classes:
+                alloc[c] = min(alloc[c], len(class_indices[c]))
+            return alloc
+        high_alloc = _split(high_total, high_set)
+        low_alloc = _split(low_total, low_set)
+        # sample indices without replacement
+        chosen = []
+        for c, n in {**high_alloc, **low_alloc}.items():
+            idxs = class_indices[c].copy()
+            rng.shuffle(idxs)
+            chosen.extend(idxs[:n].tolist())
+        return chosen
+
+    mnist_train_indices = _alloc(mnist_train_size, mnist_high_ratio, low_digits, high_digits, mnist_class_indices)
+    usps_train_indices = _alloc(usps_train_size, usps_high_ratio, low_digits, high_digits, usps_class_indices)
+
+    mnist_train_set = Subset(mnist_pool, mnist_train_indices)
+    usps_train_set = Subset(usps_pool, usps_train_indices)
+
+    # TEST = remainder of pool (excluding training indices)
+    mnist_all = set(range(sum(len(s.dataset) if isinstance(s, Subset) else len(mnist_pool) for s in [mnist_pool]) if isinstance(mnist_pool, ConcatDataset) else len(mnist_pool)))
+    usps_all = set(range(sum(len(s.dataset) if isinstance(s, Subset) else len(usps_pool) for s in [usps_pool]) if isinstance(usps_pool, ConcatDataset) else len(usps_pool)))
+    mnist_test_indices = list(mnist_all - set(mnist_train_indices))
+    usps_test_indices = list(usps_all - set(usps_train_indices))
+
+    mnist_test_set = Subset(mnist_pool, mnist_test_indices)
+    usps_test_set = Subset(usps_pool, usps_test_indices)
+
+    # Wrap with group IDs
+    train_concat = ConcatDataset([
+        GroupWrapped(mnist_train_set, 0),
+        GroupWrapped(usps_train_set, 1),
+    ])
+    test_concat = ConcatDataset([
+        GroupWrapped(mnist_test_set, 0),
+        GroupWrapped(usps_test_set, 1),
+    ])
+
+    train_loader = DataLoader(train_concat, batch_size=batch_size, shuffle=True,
+                              num_workers=num_workers, pin_memory=True, collate_fn=pad_to_max_collate)
+    test_loader = DataLoader(test_concat, batch_size=batch_size, shuffle=False,
                              num_workers=num_workers, pin_memory=True, collate_fn=pad_to_max_collate)
     return train_loader, test_loader
 

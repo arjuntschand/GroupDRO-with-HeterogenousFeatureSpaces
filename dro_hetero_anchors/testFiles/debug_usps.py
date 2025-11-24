@@ -9,13 +9,15 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
+from pathlib import Path
 import numpy as np
 
 def simple_test():
     """Test if USPS classes 1-4 can be learned with a simple setup"""
     
-    # Load USPS
-    usps_full = datasets.USPS(root='./data', train=True, transform=transforms.ToTensor(), download=True)
+    # Load USPS from repo root datasets/
+    data_root = str(Path(__file__).resolve().parents[2] / 'datasets')
+    usps_full = datasets.USPS(root=data_root, train=True, transform=transforms.ToTensor(), download=True)
     
     # Create a simple binary classification: class 1 vs class 5
     # Class 1 has 1005 samples, class 5 has 556 samples

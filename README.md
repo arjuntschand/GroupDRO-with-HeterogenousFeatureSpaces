@@ -60,7 +60,7 @@ Input batch (mixed groups)
 
 ## 4. Virtual Environments
 
-Keep a single `.venv/` at the repository root. A nested `dro_hetero_anchors/.venv` existed and is redundant—remove it to avoid PATH confusion.
+Keep a single `.venv/` at the repository root. A nested `dro_hetero_anchors/.venv` existed before and was removed to avoid PATH confusion.
 
 ## 5. Installation & Quickstart
 
@@ -135,30 +135,20 @@ Flattened CSV mirrors JSONL for spreadsheet ingestion. Run catalog: `runs/index.
 | GroupDRO weighting | `src/model/groupdro.py` |
 | Per-class moments | `src/model/losses.py` (`per_class_batch_moments`) |
 
-## 9. Debug & Utility Scripts (now in `testFiles/`)
-
-Moved for clarity:
-- `debug_batches.py`: Inspect early batch class composition & detect missing classes.
-- `debug_predictions.py`: Reconstruct train/test split, evaluate confusion per USPS class.
-- `debug_usps.py`: Minimal binary USPS classification sanity check (class 1 vs 5) to validate feature learnability.
-- `test_train.py`: Smoke test: purge `runs/`, execute a short training run, assert checkpoint creation.
-
-These are development aids, not part of the core library API.
-
-## 10. Canonical Directories
+## 9. Canonical Directories
 
 Virtual environment: root `.venv/`.
 Runs output: root `runs/` (metrics, checkpoints, indices).
 Datasets: root `datasets/`.
 
-## 11. Glossary
+## 10. Glossary
 
 - Worst‑group accuracy: Minimum accuracy across groups per epoch (robust objective).
 - Anchor fit loss: W₂ distance aligning batch latent moments to anchor Gaussians.
 - Anchor separation loss: Encourages distinct anchors (classification of synthetic samples or enforced W₂ margin).
 - GroupDRO: Adaptive group reweighting focusing optimization on underperforming groups.
 
-## 12. FAQ
+## 11. FAQ
 
 Q: Why anchors instead of prototypes?  
 A: Anchors model covariance, letting W₂ capture shape differences, not just mean shifts.

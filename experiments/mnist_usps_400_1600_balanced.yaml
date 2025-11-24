@@ -1,0 +1,46 @@
+seed: 1337
+run_dir: runs/mnist_usps_400_1600_balanced
+# data
+root: ./datasets
+num_workers: 4
+batch_size: 128
+use_mnist_usps_balanced: true
+mnist_total_size: 400      # 40 per class -> 32 train / 8 test
+usps_total_size: 1600      # 160 per class -> 128 train / 32 test
+train_frac: 0.8
+# groups
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+# model
+latent_dim: 64
+num_classes: 10
+head_hidden: 0
+# anchors
+anchor_eps: 1.0e-4
+sep_samples_per_class: 16
+# GroupDRO disabled
+groupdro_enabled: false
+groupdro_eta: 0.1
+# debug
+debug_one_batch: false
+# separation
+sep_method: "classifier"
+sep_margin: 2.0
+# loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+# optim
+lr: 0.001
+weight_decay: 0.0
+epochs: 5
+grad_clip: 1.0
+# logging
+log_interval: 20
+save_every: 5

@@ -1,0 +1,50 @@
+# Minimal fix attempt - create a true USPS-only config without any MNIST
+seed: 1337
+run_dir: runs/usps_only_fixed
+# data
+root: ./datasets
+num_workers: 4
+batch_size: 128
+# Use skewed MNIST+USPS loaders but set MNIST size very small and different classes
+use_skewed_mnist_usps: true
+mnist_size: 10  # Very small
+usps_size: 7291  # All USPS
+# CRITICAL FIX: Make sure MNIST and USPS don't overlap in classes that fail
+mnist_majority: [7, 8, 9]  # MNIST only gets classes 7,8,9 (working classes)
+usps_majority: [0, 1, 2, 3, 4]   # USPS gets the problematic classes 1-4 as majority
+# groups (for model building)
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+# model
+latent_dim: 64
+num_classes: 10
+head_hidden: 0   # 0=linear head
+# anchors
+anchor_eps: 1.0e-4
+sep_samples_per_class: 16
+# GroupDRO: disabled for baseline
+groupdro_enabled: false
+groupdro_eta: 0.1
+# debug
+debug_one_batch: false
+# anchor separation method
+sep_method: "classifier"
+sep_margin: 2.0
+# loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+# optim
+lr: 0.001
+weight_decay: 0.0
+epochs: 5
+grad_clip: 1.0
+# logging
+log_interval: 50
+save_every: 5

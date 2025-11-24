@@ -13,6 +13,8 @@ from .datasets import (
     build_skewed_mnist_usps_loaders,
     build_skewed_mnist_usps_mnist32_loaders,
     build_usps_only_balanced_loaders,
+    build_mnist_usps_balanced_subset_loaders,
+    build_skewed_mnist_usps_train_subset_loaders,
 )
 from .encoders import ENCODER_REGISTRY
 from .model.head import LinearHead, MLPHead
@@ -185,20 +187,58 @@ def train(cfg):
             cfg["root"], cfg["batch_size"], cfg["num_workers"],
             usps_size=cfg.get("usps_size", 5000),
             seed=cfg["seed"],
+            max_train_frac=cfg.get("max_train_frac", 0.9),
+        )
+    elif cfg.get("use_skewed_mnist_usps_train_subset", False):
+        console.log("Loading skewed MNIST+USPS with fixed train subset sizes and flipped 30/70 per-class ratios...")
+        train_loader, test_loader = build_skewed_mnist_usps_train_subset_loaders(
+            root=cfg["root"],
+            batch_size=cfg["batch_size"],
+            num_workers=cfg["num_workers"],
+            mnist_train_size=cfg.get("mnist_train_size", 200),
+            usps_train_size=cfg.get("usps_train_size", 4000),
+            mnist_high_ratio=cfg.get("mnist_high_ratio", 0.7),
+            usps_high_ratio=cfg.get("usps_high_ratio", 0.3),
+            use_full_pool=cfg.get("use_full_pool", True),
+            seed=cfg.get("seed", 1337),
+        )
+    elif cfg.get("use_mnist_usps_balanced", False):
+        console.log("Loading balanced MNIST+USPS subset with per-class 80/20 splits (enhanced pools)...")
+        train_loader, test_loader = build_mnist_usps_balanced_subset_loaders(
+            root=cfg["root"],
+            batch_size=cfg["batch_size"],
+            num_workers=cfg["num_workers"],
+            mnist_total_size=cfg.get("mnist_total_size", 200),
+            usps_total_size=cfg.get("usps_total_size", 6000),
+            train_frac=cfg.get("train_frac", 0.8),
+            seed=cfg.get("seed", 1337),
+            mnist_use_full_pool=cfg.get("mnist_use_full_pool", False),
+            usps_use_full_pool=cfg.get("usps_use_full_pool", False),
         )
     else:
         train_loader, test_loader = build_loaders(
             cfg["root"], cfg["groups"], cfg["batch_size"], cfg["num_workers"])
     
-    # Compute and print training dataset summary
+    # Compute and print training & test dataset summaries for verification
     console.rule("Training Dataset Summary")
-    dataset_summary = compute_dataset_summary(train_loader, cfg["num_classes"], len(cfg["groups"]))
-    print_dataset_summary(dataset_summary, cfg["num_classes"], len(cfg["groups"]))
+    train_summary = compute_dataset_summary(train_loader, cfg["num_classes"], len(cfg["groups"]))
+    print_dataset_summary(train_summary, cfg["num_classes"], len(cfg["groups"]))
+    console.rule("Test Dataset Summary")
+    test_summary = compute_dataset_summary(test_loader, cfg["num_classes"], len(cfg["groups"]))
+    print_dataset_summary(test_summary, cfg["num_classes"], len(cfg["groups"]))
     console.rule("")
 
     # Initialize results logger in run dir
     results_logger = ResultsLogger(cfg["run_dir"]) 
     # Static run metadata
+    # Normalize group descriptors: allow simple int or str entries instead of dicts
+    normalized_groups = []
+    for i, g in enumerate(cfg["groups"]):
+        if isinstance(g, dict):
+            normalized_groups.append(g.get("name", str(i)))
+        else:
+            normalized_groups.append(str(g))
+
     run_meta = {
         "mnist_size": cfg.get("mnist_size"),
         "usps_size": cfg.get("usps_size"),
@@ -207,8 +247,9 @@ def train(cfg):
         "num_epochs": cfg.get("epochs"),
         "batch_size": cfg.get("batch_size"),
         "seed": cfg.get("seed"),
-        "groups": [g.get("name", str(i)) for i, g in enumerate(cfg["groups"])],
-        "dataset_summary": dataset_summary,
+        "groups": normalized_groups,
+        "train_dataset_summary": train_summary,
+        "test_dataset_summary": test_summary,
     }
     
     encoders, head, anchors, groupdro = build_models(cfg)

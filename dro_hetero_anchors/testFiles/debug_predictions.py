@@ -30,7 +30,8 @@ head.load_state_dict(ckpt['head'])
 head.eval()
 
 # Load USPS test data (complement of training)
-usps_full = datasets.USPS(root='./data', train=True, transform=transforms.ToTensor())
+data_root = str(Path(__file__).resolve().parents[2] / 'datasets')
+usps_full = datasets.USPS(root=data_root, train=True, transform=transforms.ToTensor())
 
 # Get training indices from config sampling
 import numpy as np

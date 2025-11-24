@@ -12,6 +12,7 @@ mnist_size: 30000
 usps_size: 1000
 mnist_majority: [0, 1, 2, 3, 4]
 usps_majority: [5, 6, 7, 8, 9]
+majority_frac: 0.8  # fraction of TRAIN samples drawn from majority classes (post balanced test split)
 
 # groups (for model building; loaders ignore this and use skewed)
 groups:

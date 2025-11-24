@@ -5,8 +5,9 @@ Purpose: Inspect early training batches for class presence to detect skew-induce
 """
 
 import sys
-import os
-sys.path.append('src')
+from pathlib import Path
+# Ensure package import works when run from this folder
+sys.path.append(str(Path(__file__).resolve().parents[1] / 'src'))
 
 import torch
 from torch.utils.data import DataLoader
@@ -20,8 +21,9 @@ def debug_batch_distribution():
     np.random.seed(1337)
     torch.manual_seed(1337)
     
+    data_root = str(Path(__file__).resolve().parents[2] / 'datasets')
     train_loader, test_loader = build_skewed_mnist_usps_loaders(
-        root="./data", 
+        root=data_root, 
         batch_size=128, 
         num_workers=4,
         mnist_size=1,

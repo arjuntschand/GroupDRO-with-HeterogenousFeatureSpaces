@@ -1,0 +1,59 @@
+seed: 1337
+run_dir: runs/mnist_usps_25k_2k_batch64
+
+# data
+root: ./datasets
+num_workers: 4
+batch_size: 64
+
+# Use skewed MNIST+USPS loaders - MNIST MAJORITY
+use_skewed_mnist_usps: true
+mnist_size: 25000
+usps_size: 2000
+mnist_majority: [0, 1, 2, 3, 4]  # MNIST gets 80% from these classes
+usps_majority: [5, 6, 7, 8, 9]   # USPS gets 80% from these classes
+
+# groups (for model building)
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+
+# model
+latent_dim: 64
+num_classes: 10
+head_hidden: 0
+
+# anchors
+anchor_eps: 1.0e-4
+sep_samples_per_class: 16
+
+# GroupDRO: disabled for baseline
+groupdro_enabled: false
+groupdro_eta: 0.1
+
+# debug
+debug_one_batch: false
+
+# anchor separation method
+sep_method: "classifier"
+sep_margin: 2.0
+
+# loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+
+# optim
+lr: 1.0e-3
+weight_decay: 0.0
+epochs: 5
+grad_clip: 1.0
+
+# logging
+log_interval: 50
+save_every: 10

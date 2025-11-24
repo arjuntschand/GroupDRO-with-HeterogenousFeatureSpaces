@@ -12,7 +12,7 @@ def test_training():
         subprocess.run(['rm', '-rf', 'runs'])
     # Run training for a few epochs
     result = subprocess.run([
-        'python', '-m', 'src.train', '--config', 'experiments/digits_centralized.yaml'
+        'python', '-m', 'dro_hetero_anchors.src.train', '--config', 'experiments/digits_centralized.yaml'
     ], capture_output=True, text=True)
     print(result.stdout)
     print(result.stderr)

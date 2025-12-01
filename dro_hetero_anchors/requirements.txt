@@ -5,3 +5,4 @@ pyyaml>=6.0
 rich>=13.4
 tqdm>=4.66
 tensorboard>=2.16
+matplotlib>=3.7

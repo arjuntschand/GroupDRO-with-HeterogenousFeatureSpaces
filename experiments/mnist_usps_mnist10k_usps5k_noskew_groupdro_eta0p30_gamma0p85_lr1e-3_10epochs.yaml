@@ -1,0 +1,52 @@
+seed: 1337
+run_dir: runs/mnist_usps_mnist10k_usps5k_noskew_groupdro_eta0p30_gamma0p85_lr1e-3_10epochs
+# data
+root: ./datasets
+num_workers: 4
+batch_size: 128
+use_skewed_mnist_usps_train_subset: true
+mnist_train_size: 10000
+usps_train_size: 5000
+mnist_high_ratio: 0.5
+usps_high_ratio: 0.5
+use_full_pool: true
+# groups
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+# model
+latent_dim: 64
+num_classes: 10
+head_hidden: 0
+# anchors
+anchor_eps: 1.0e-4
+sep_samples_per_class: 16
+# GroupDRO (logsumexp)
+groupdro_enabled: true
+groupdro_eta: 0.30
+groupdro_update_mode: exp_smooth
+groupdro_objective: logsumexp
+groupdro_gamma: 0.85
+groupdro_min_q: 0.0
+# debug
+debug_one_batch: false
+# separation method
+sep_method: "classifier"
+sep_margin: 2.0
+# loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+# optim
+lr: 0.001
+weight_decay: 0.0
+epochs: 10
+grad_clip: 1.0
+# logging
+log_interval: 50
+save_every: 5

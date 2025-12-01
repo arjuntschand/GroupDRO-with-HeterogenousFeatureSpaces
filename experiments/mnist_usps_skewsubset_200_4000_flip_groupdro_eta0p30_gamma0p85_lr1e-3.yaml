@@ -1,0 +1,51 @@
+# Skewed MNIST+USPS (MNIST=200, USPS=4000) flipped high/low ratios with GroupDRO
+run_name: mnist_usps_skewsubset_200_4000_flip_groupdro_eta0p30_gamma0p85_lr1e-3
+seed: 1337
+root: datasets
+run_dir: runs/mnist_usps_skewsubset_200_4000_flip_groupdro_eta0p30_gamma0p85_lr1e-3
+use_skewed_mnist_usps_train_subset: true
+mnist_train_size: 200
+usps_train_size: 4000
+mnist_high_ratio: 0.7
+usps_high_ratio: 0.3
+use_full_pool: true
+
+num_classes: 10
+batch_size: 64
+num_workers: 0
+epochs: 5
+lr: 0.001
+weight_decay: 0.0
+optimizer: adam
+
+# Groups
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+
+latent_dim: 64
+head_hidden: 0
+anchor_eps: 1.0e-4
+sep_samples_per_class: 16
+sep_method: "classifier"
+sep_margin: 2.0
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+
+groupdro_enabled: true
+groupdro_eta: 0.30
+groupdro_gamma: 0.85
+groupdro_update_mode: exp_smooth
+groupdro_objective: logsumexp
+groupdro_min_q: 0.0
+
+debug_one_batch: false
+grad_clip: 1.0
+log_interval: 50
+save_every: 5

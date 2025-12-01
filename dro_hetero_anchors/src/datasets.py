@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, ConcatDataset, Subset, random_split
 from torchvision import datasets, transforms
+from torchvision.transforms import InterpolationMode
 import ssl
 
 # Disable SSL verification for downloading datasets (Python 3.13 macOS certificate issue)
@@ -123,8 +124,9 @@ def build_skewed_mnist_usps_loaders(root: str, batch_size: int, num_workers: int
         usps_targets, usps_size, usps_majority, train_ratio=0.8, majority_frac=majority_frac)
     
     # Create train datasets with transforms (MNIST 28x28, USPS 16x16)
+    # Keep transforms consistent with suites 1 and 2: raw tensors only
     mnist_train_tfm = transforms.ToTensor()
-    usps_train_tfm = transforms.ToTensor()  # USPS is already 16x16
+    usps_train_tfm = transforms.ToTensor()
     
     mnist_train = datasets.MNIST(root=root, train=True, transform=mnist_train_tfm, download=True)
     usps_train = datasets.USPS(root=root, train=True, transform=usps_train_tfm, download=True)
@@ -223,8 +225,9 @@ def build_skewed_mnist_usps_mnist32_loaders(
     )
 
     # Create train datasets with transforms
+    # Keep original transforms: MNIST28 ToTensor, MNIST32 pad→ToTensor, USPS ToTensor
     mnist28_tfm = transforms.ToTensor()
-    mnist32_tfm = transforms.Compose([transforms.Pad(2), transforms.ToTensor()])  # 28 -> 32 by padding
+    mnist32_tfm = transforms.Compose([transforms.Pad(2), transforms.ToTensor()])
     usps_tfm = transforms.ToTensor()
 
     mnist_train_28 = datasets.MNIST(root=root, train=True, transform=mnist28_tfm, download=True)
@@ -348,10 +351,26 @@ def build_mnist_usps_balanced_subset_loaders(
     mnist_train_idx, mnist_test_idx = split_train_test(mnist_subset, train_frac)
     usps_train_idx, usps_test_idx = split_train_test(usps_subset, train_frac)
 
-    mnist_train_ds = GroupWrapped(Subset(mnist_pool, mnist_train_idx), 0)
-    usps_train_ds = GroupWrapped(Subset(usps_pool, usps_train_idx), 1)
-    mnist_test_ds = GroupWrapped(Subset(mnist_pool, mnist_test_idx), 0)
-    usps_test_ds = GroupWrapped(Subset(usps_pool, usps_test_idx), 1)
+    # Use raw tensor transforms to match prior suites
+    mnist28_tfm = transforms.ToTensor()
+    usps_tfm = transforms.ToTensor()
+
+    # Wrap with transforms applied via a TransformDataset wrapper to ensure normalization
+    class TransformDataset(Dataset):
+        def __init__(self, base: Dataset, tfm):
+            self.base = base
+            self.tfm = tfm
+        def __len__(self):
+            return len(self.base)
+        def __getitem__(self, idx):
+            x, y = self.base[idx]
+            x = self.tfm(x)
+            return x, y
+
+    mnist_train_ds = GroupWrapped(TransformDataset(Subset(mnist_pool, mnist_train_idx), mnist28_tfm), 0)
+    usps_train_ds = GroupWrapped(TransformDataset(Subset(usps_pool, usps_train_idx), usps_tfm), 1)
+    mnist_test_ds = GroupWrapped(TransformDataset(Subset(mnist_pool, mnist_test_idx), mnist28_tfm), 0)
+    usps_test_ds = GroupWrapped(TransformDataset(Subset(usps_pool, usps_test_idx), usps_tfm), 1)
 
     train_concat = ConcatDataset([mnist_train_ds, usps_train_ds])
     test_concat = ConcatDataset([mnist_test_ds, usps_test_ds])

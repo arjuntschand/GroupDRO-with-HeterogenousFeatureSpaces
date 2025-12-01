@@ -1,0 +1,46 @@
+# Baseline matching prior high USPS results: MNIST=200, USPS=4500, flipped high/low ratios
+seed: 1337
+run_dir: runs/mnist_usps_skewsubset_200_4500_flip_baseline
+# data
+root: ./datasets
+use_skewed_mnist_usps_train_subset: true
+mnist_train_size: 200
+usps_train_size: 4500
+mnist_high_ratio: 0.7
+usps_high_ratio: 0.3
+use_full_pool: true
+# groups
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+# model
+latent_dim: 64
+num_classes: 10
+head_hidden: 0
+# anchors
+anchor_eps: 1.0e-4
+sep_samples_per_class: 16
+# GroupDRO disabled for baseline
+groupdro_enabled: false
+# separation method
+sep_method: "classifier"
+sep_margin: 2.0
+# loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+# optim
+batch_size: 64
+num_workers: 0
+lr: 0.001
+weight_decay: 0.0
+epochs: 5
+grad_clip: 1.0
+# logging
+log_interval: 50
+save_every: 5

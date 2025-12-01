@@ -1,0 +1,53 @@
+# Balanced MNIST+USPS: per-class balanced subset with 80/20 split for train/test
+# MNIST train=8000, USPS train=5000 (from enhanced balanced pools), 20 epochs
+# Baseline (no GroupDRO), SGD with linear LR decay 0.1 -> 0.001
+
+run_name: mnist_usps_balanced_8k_5k_20e_baseline_lrdecay_lr0p1
+seed: 1337
+root: datasets
+run_dir: runs/mnist_usps_balanced_8k_5k_20e_baseline_lrdecay_lr0p1
+
+# Use balanced MNIST+USPS builder (ensures per-class balanced pools and 80/20 split for test)
+use_mnist_usps_balanced: true
+
+# Effective train sizes (builder will source from balanced pools)
+mnist_train_size: 8000
+usps_train_size: 5000
+
+num_classes: 10
+batch_size: 64
+num_workers: 0
+epochs: 20
+lr: 0.001  # base; overridden by lr_start/lr_end
+lr_start: 0.1
+lr_end: 0.001
+weight_decay: 0.0
+optimizer: sgd
+momentum: 0.9
+nesterov: false
+
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+
+latent_dim: 64
+head_hidden: 0
+anchor_eps: 0.0001
+sep_samples_per_class: 16
+sep_method: "classifier"
+sep_margin: 2.0
+lambda_fit: 0.001
+lambda_sep: 0.001
+
+debug_one_batch: false
+grad_clip: 1.0
+log_interval: 50
+save_every: 5
+
+groupdro_enabled: false

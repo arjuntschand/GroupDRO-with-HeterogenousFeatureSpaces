@@ -1,0 +1,47 @@
+seed: 1338
+run_dir: runs/mnist_usps_mnist20k_usps4k_noskew
+# data
+root: ./datasets
+num_workers: 4
+batch_size: 128
+use_skewed_mnist_usps_train_subset: true  # fixed train sizes; remainder goes to test
+mnist_train_size: 20000
+usps_train_size: 4000
+mnist_high_ratio: 0.5   # no per-class skew
+usps_high_ratio: 0.5    # no per-class skew
+use_full_pool: true
+# groups
+groups:
+  - name: mnist28
+    type: image
+    in_shape: [1, 28, 28]
+    encoder: cnn28
+  - name: usps16
+    type: image
+    in_shape: [1, 16, 16]
+    encoder: cnn28
+# model
+latent_dim: 64
+num_classes: 10
+head_hidden: 0
+# anchors
+anchor_eps: 1.0e-4
+sep_samples_per_class: 16
+# GroupDRO disabled baseline
+groupdro_enabled: false
+# debug
+debug_one_batch: false
+# separation method
+sep_method: "classifier"
+sep_margin: 2.0
+# loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+# optim
+lr: 0.001
+weight_decay: 0.0
+epochs: 10
+grad_clip: 1.0
+# logging
+log_interval: 50
+save_every: 10

@@ -42,13 +42,17 @@ class GroupDRO:
                  device: torch.device = None,
                  update_mode: str = "exp",
                  robust_objective: str = "weighted",
-                 gamma: float = 1.0):
+                 gamma: float = 1.0,
+                 min_group_weight: float = 0.0):
         self.num_groups = num_groups
         self.eta = eta
         self.device = device or torch.device('cpu')
         self.update_mode = update_mode  # 'exp'|'softmax'|'exp_smooth'
         self.robust_objective = robust_objective  # 'weighted'|'max'|'logsumexp'
         self.gamma = gamma  # smoothing factor for exp_smooth
+        # Optional projection to prevent weight collapse (keeps q_g >= min_group_weight).
+        # Set to 0.0 to disable (default).
+        self.min_group_weight = float(min_group_weight)
 
         # initialize uniform group weights (no gradients needed)
         self.q = (torch.ones(num_groups, device=self.device) / num_groups).detach()
@@ -121,7 +125,11 @@ class GroupDRO:
             if self.update_mode not in ('softmax') and q_new.sum() > 0:
                 q_new = q_new / q_new.sum()
 
-            # No min_q projection: follow PDF strictly (smoothing only)
+            # Optional min-q projection to prevent collapse onto a single group.
+            # This is practically useful when losses are noisy / non-stationary.
+            if self.min_group_weight > 0.0:
+                q_new = torch.clamp(q_new, min=self.min_group_weight)
+                q_new = q_new / q_new.sum()
 
             self.q.copy_(q_new)
     

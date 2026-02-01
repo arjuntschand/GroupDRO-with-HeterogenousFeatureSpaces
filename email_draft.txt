@@ -1,0 +1,38 @@
+Subject: GroupDRO TextCaps Progress Update & Task Decision
+
+Hi [Name],
+
+I wanted to give you a quick update on the GroupDRO project progress with the TextCaps dataset.
+
+**Current Status:**
+- Successfully integrated TextCaps dataset (using Hugging Face, ~22k train / ~3k test samples)
+- Implemented multi-modal grouping: Group 0 (visual images) vs Group 1 (OCR text captions)
+- Set up baseline and GroupDRO training pipelines with optimized hyperparameters
+- Currently running classification experiments (predicting top 10 classes from images/text)
+
+**Key Decision Point:**
+TextCaps is designed for caption generation (image → text), but we're currently doing classification (image → class label) because:
+- Fits our existing GroupDRO framework more directly
+- Faster to implement and validate
+- Still demonstrates multi-modal alignment
+
+However, caption generation would be:
+- More authentic to the dataset's purpose
+- More impressive for a conference paper
+- Better test of multi-modal understanding
+
+**Options:**
+A) Keep classification for now (faster results, validate GroupDRO works)
+B) Switch to caption generation (more authentic, requires decoder architecture + sequence losses)
+C) Do both (classification first to validate, then add caption generation for paper)
+
+**Next Steps:**
+- Finish current classification experiments (50 epochs, full dataset)
+- Then decide whether to implement caption generation or move to other datasets
+
+**Question:** What's your preference on the classification vs caption generation decision? I'm leaning toward Option C (do both) to get quick validation results first, then add the more impressive caption generation task.
+
+Let me know your thoughts!
+
+Best,
+[Your name]

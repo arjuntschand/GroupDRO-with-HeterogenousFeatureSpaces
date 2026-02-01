@@ -4,6 +4,9 @@ from .datasets import (
     build_loaders,
     build_skewed_mnist_usps_loaders,
     build_skewed_mnist_usps_mnist32_loaders,
+    build_usps_only_balanced_loaders,
+    build_mnist_usps_balanced_subset_loaders,
+    build_skewed_mnist_usps_train_subset_loaders,
 )
 from .encoders import ENCODER_REGISTRY
 from .model.head import LinearHead, MLPHead
@@ -51,6 +54,34 @@ def main(cfg_path: str, ckpt_path: str):
             usps_majority=cfg.get("usps_majority", [5, 6, 7, 8, 9]),
             seed=cfg.get("seed", 1337),
         )
+    elif cfg.get("use_usps_only_balanced", False):
+        _, test_loader = build_usps_only_balanced_loaders(
+            cfg["root"], cfg["batch_size"], cfg["num_workers"],
+            usps_size=cfg.get("usps_size", 5000),
+            seed=cfg.get("seed", 1337),
+        )
+    elif cfg.get("use_skewed_mnist_usps_train_subset", False):
+        _, test_loader = build_skewed_mnist_usps_train_subset_loaders(
+            root=cfg["root"],
+            batch_size=cfg["batch_size"],
+            num_workers=cfg["num_workers"],
+            mnist_train_size=cfg.get("mnist_train_size", 200),
+            usps_train_size=cfg.get("usps_train_size", 4000),
+            mnist_high_ratio=cfg.get("mnist_high_ratio", 0.7),
+            usps_high_ratio=cfg.get("usps_high_ratio", 0.3),
+            use_full_pool=cfg.get("use_full_pool", True),
+            seed=cfg.get("seed", 1337),
+        )
+    elif cfg.get("use_mnist_usps_balanced", False):
+        _, test_loader = build_mnist_usps_balanced_subset_loaders(
+            root=cfg["root"],
+            batch_size=cfg["batch_size"],
+            num_workers=cfg["num_workers"],
+            mnist_total_size=cfg.get("mnist_total_size", 200),
+            usps_total_size=cfg.get("usps_total_size", 6000),
+            train_frac=cfg.get("train_frac", 0.8),
+            seed=cfg.get("seed", 1337),
+        )
     else:
         _, test_loader = build_loaders(cfg["root"], cfg["groups"], cfg["batch_size"], cfg["num_workers"])
     cfg_ckpt, encoders, head, anchors = load_models(ckpt_path)
@@ -62,12 +93,14 @@ def main(cfg_path: str, ckpt_path: str):
     test_summary = compute_dataset_summary(test_loader, cfg["num_classes"], len(cfg["groups"]))
     print_dataset_summary(test_summary, cfg["num_classes"], len(cfg["groups"]))
 
-    acc, acc_by_group, acc_by_class, acc_by_group_by_class = evaluate(
+    acc, acc_by_group, acc_by_class, acc_by_group_by_class, balanced_acc, loss_by_group = evaluate(
         encoders, head, test_loader, device, len(cfg["groups"]))
     console.rule("Evaluation")
     console.print(f"Overall accuracy: {acc:.4f}")
+    console.print(f"Balanced accuracy: {balanced_acc:.4f}")
+    console.print(f"Worst-group accuracy: {min(acc_by_group):.4f}")
     for gid, a in enumerate(acc_by_group):
-        console.print(f"Group {gid} acc: {a:.4f}")
+        console.print(f"Group {gid} acc: {a:.4f} (loss: {loss_by_group[gid]:.4f})")
     console.print("Per-class accuracies:")
     for cid, a in enumerate(acc_by_class):
         console.print(f"  Class {cid} acc: {a:.4f}")

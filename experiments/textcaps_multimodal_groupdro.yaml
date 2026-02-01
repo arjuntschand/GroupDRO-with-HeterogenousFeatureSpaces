@@ -1,0 +1,76 @@
+# TextCaps Multi-Modal Experiment - GroupDRO Enabled
+# 
+# Groups:
+#   - Group 0: Visual features (ResNet encoder on images)
+#   - Group 1: Text features (CharCNN encoder on OCR captions)
+#
+# Task: Image classification (top 10 most frequent classes)
+# GroupDRO ensures model learns from BOTH modalities, not just the easier one
+
+run_name: textcaps_multimodal_groupdro_25classes
+seed: 1337
+root: datasets
+run_dir: runs/textcaps_multimodal_groupdro_25classes
+
+# Dataset configuration
+use_textcaps_multimodal: true
+textcaps_use_huggingface: true  # Load from HF (recommended) - includes all images!
+textcaps_num_classes: 25  # Top 25 classes for better accuracy
+# Remove sample limits to use FULL dataset
+# textcaps_max_train_samples: 5000
+# textcaps_max_test_samples: 1000
+
+# Batch and workers
+batch_size: 16  # Reduced from 64 to save memory
+num_workers: 0
+
+# Groups configuration (multi-modal)
+groups:
+  - name: visual
+    type: image
+    in_shape: [3, 224, 224]
+    encoder: resnet_visual  # Pretrained ResNet18 for real visual features
+    
+  - name: text_ocr
+    type: text
+    encoder: char_cnn_text  # CharCNN for better text feature extraction (was mlp_text)
+
+# Model architecture
+latent_dim: 64
+num_classes: 100  # Will be auto-updated to match actual number of classes from dataset
+head_hidden: 128
+
+# Anchors configuration
+anchor_eps: 1.0e-4
+sep_samples_per_class: 8  # Reduced from 16 to save memory
+sep_method: "classifier"
+sep_margin: 2.0
+
+# Loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+
+# Optimizer
+optimizer: adam
+lr: 1.0e-3
+weight_decay: 1.0e-4
+epochs: 75  # Increased for better convergence
+grad_clip: 1.0
+
+# Learning rate scheduler (linear decay)
+lr_start: 1.0e-3  # Start LR
+lr_end: 1.0e-4    # End LR - INCREASED from 1e-5 (was decaying too fast!)
+
+# GroupDRO: ENABLED
+groupdro_enabled: true
+groupdro_eta: 0.1            # INCREASED from 0.001 - faster adjustment
+groupdro_gamma: 0.7          # INCREASED from 0.2 - more responsive to loss differences
+groupdro_min_group_weight: 0.1   # INCREASED floor to 10% (prevents collapse)
+groupdro_update_mode: exp_smooth # smoother updates than softmax
+groupdro_objective: weighted
+groupdro_warmup_epochs: 3        # reduced warmup (was 5)
+
+# Logging
+log_interval: 20
+save_every: 5
+debug_one_batch: false

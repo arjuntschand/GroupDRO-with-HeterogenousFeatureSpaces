@@ -1,0 +1,69 @@
+# TextCaps Multi-Modal Experiment - Baseline (No GroupDRO)
+# 
+# Groups:
+#   - Group 0: Visual features (ResNet encoder on images)
+#   - Group 1: Text features (CharCNN encoder on OCR captions)
+#
+# Task: Image classification (top 10 most frequent classes)
+
+run_name: textcaps_multimodal_baseline_25classes
+seed: 1337
+root: datasets
+run_dir: runs/textcaps_multimodal_baseline_25classes
+
+# Dataset configuration
+use_textcaps_multimodal: true
+textcaps_use_huggingface: true  # Load from HF (recommended) - includes all images!
+textcaps_num_classes: 25  # Top 25 classes for better accuracy
+# Remove sample limits to use FULL dataset
+# textcaps_max_train_samples: 5000
+# textcaps_max_test_samples: 1000
+
+# Batch and workers
+batch_size: 16  # Reduced from 64 to save memory
+num_workers: 0  # Set to 0 for debugging, increase later
+
+# Groups configuration (multi-modal)
+groups:
+  - name: visual
+    type: image
+    in_shape: [3, 224, 224]
+    encoder: resnet_visual  # Pretrained ResNet18 for real visual features
+    
+  - name: text_ocr
+    type: text
+    encoder: char_cnn_text  # CharCNN for better text feature extraction (was mlp_text)
+
+# Model architecture
+latent_dim: 64
+num_classes: 100  # Will be auto-updated to match actual number of classes from dataset
+head_hidden: 128  # Use MLP head for multi-modal
+
+# Anchors configuration
+anchor_eps: 1.0e-4
+sep_samples_per_class: 8  # Reduced from 16 to save memory
+sep_method: "classifier"
+sep_margin: 2.0
+
+# Loss weights
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+
+# Optimizer
+optimizer: adam
+lr: 1.0e-3
+weight_decay: 1.0e-4
+epochs: 75  # Increased for better convergence
+grad_clip: 1.0
+
+# Learning rate scheduler (linear decay)
+lr_start: 1.0e-3  # Start LR
+lr_end: 1.0e-4    # End LR - FIXED (was 1e-5, too aggressive decay)
+
+# GroupDRO: DISABLED for baseline
+groupdro_enabled: false
+
+# Logging
+log_interval: 20
+save_every: 5
+debug_one_batch: false

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; }
+table { border-collapse: collapse; margin: 12px 0; }
+th, td { border: 1px solid #333; padding: 6px 10px; text-align: left; }
+th { background: #f0f0f0; }
+</style>
+</head>
+<body>
+
+<p>Hi Xenia,</p>
+
+<p>I hope you're doing well and had a good weekend. I wanted to send an update on the TextCaps experimentation. I finished a new round of runs with the updated GroupDRO and baseline settings we discussed, and added the 3-group setup. All six runs are done. Below are the results in table form, including per-group and per-class accuracies and the final GroupDRO weights for the last epoch.</p>
+
+<h3>Summary (epoch 50)</h3>
+<table>
+<tr><th>Run</th><th>Test acc</th><th>Worst-group acc</th><th>Per-group acc (visual, text, [combined])</th></tr>
+<tr><td>4-class 2-group baseline</td><td>67.9%</td><td>60.3%</td><td>75.4%, 60.3%</td></tr>
+<tr><td>4-class 2-group GroupDRO</td><td>67.4%</td><td>60.9%</td><td>73.9%, 60.9%</td></tr>
+<tr><td>10-class 2-group baseline</td><td>67.8%</td><td>60.6%</td><td>74.9%, 60.6%</td></tr>
+<tr><td>10-class 2-group GroupDRO</td><td>61.9%</td><td>60.4%</td><td>63.4%, 60.4%</td></tr>
+<tr><td>4-class 3-group baseline</td><td>70.1%</td><td>59.7%</td><td>74.9%, 59.7%, 75.8%</td></tr>
+<tr><td>4-class 3-group GroupDRO</td><td>65.6%</td><td>59.7%</td><td>71.9%, 59.7%, 65.3%</td></tr>
+</table>
+
+<h3>GroupDRO final weights (epoch 50)</h3>
+<p>π was (0.5, 0.5) for 2-group and (⅓, ⅓, ⅓) for 3-group.</p>
+<table>
+<tr><th>Run</th><th>Final q (visual, text, [combined])</th></tr>
+<tr><td>4-class 2-group GroupDRO</td><td>0.003, 0.997</td></tr>
+<tr><td>10-class 2-group GroupDRO</td><td>0.0014, 0.9986</td></tr>
+<tr><td>4-class 3-group GroupDRO</td><td>0.0009, 0.993, 0.006</td></tr>
+</table>
+<p>In all GroupDRO runs the weights collapse to the worst (text) group.</p>
+
+<h3>Per-class accuracy by group (epoch 50)</h3>
+<p>Classes: 0 = Bottle, 1 = Car, 2 = Food, 3 = Book (4-class). For 10-class, 0–9 are the top-10 class indices.</p>
+
+<p><b>4-class 2-group baseline</b></p>
+<table>
+<tr><th>Class</th><th>Visual</th><th>Text</th></tr>
+<tr><td>Bottle (0)</td><td>55.2%</td><td>50.0%</td></tr>
+<tr><td>Car (1)</td><td>93.2%</td><td>50.8%</td></tr>
+<tr><td>Food (2)</td><td>51.8%</td><td>33.6%</td></tr>
+<tr><td>Book (3)</td><td>93.5%</td><td>81.9%</td></tr>
+</table>
+
+<p><b>4-class 2-group GroupDRO</b></p>
+<table>
+<tr><th>Class</th><th>Visual</th><th>Text</th></tr>
+<tr><td>Bottle (0)</td><td>53.4%</td><td>43.1%</td></tr>
+<tr><td>Car (1)</td><td>91.5%</td><td>52.5%</td></tr>
+<tr><td>Food (2)</td><td>45.5%</td><td>34.5%</td></tr>
+<tr><td>Book (3)</td><td>94.4%</td><td>86.1%</td></tr>
+</table>
+
+<p><b>10-class 2-group baseline</b></p>
+<table>
+<tr><th>Class</th><th>Visual</th><th>Text</th></tr>
+<tr><td>0</td><td>73.7%</td><td>60.7%</td></tr>
+<tr><td>1</td><td>77.6%</td><td>58.8%</td></tr>
+<tr><td>2</td><td>64.5%</td><td>35.5%</td></tr>
+<tr><td>3</td><td>77.6%</td><td>60.5%</td></tr>
+<tr><td>4</td><td>85.7%</td><td>68.1%</td></tr>
+<tr><td>5</td><td>79.6%</td><td>72.8%</td></tr>
+<tr><td>6</td><td>69.5%</td><td>48.8%</td></tr>
+<tr><td>7</td><td>59.7%</td><td>61.7%</td></tr>
+<tr><td>8</td><td>86.5%</td><td>70.3%</td></tr>
+<tr><td>9</td><td>85.9%</td><td>77.8%</td></tr>
+</table>
+
+<p><b>10-class 2-group GroupDRO</b></p>
+<table>
+<tr><th>Class</th><th>Visual</th><th>Text</th></tr>
+<tr><td>0</td><td>89.2%</td><td>66.5%</td></tr>
+<tr><td>1</td><td>58.8%</td><td>64.7%</td></tr>
+<tr><td>2</td><td>42.0%</td><td>35.5%</td></tr>
+<tr><td>3</td><td>65.3%</td><td>53.1%</td></tr>
+<tr><td>4</td><td>60.5%</td><td>69.7%</td></tr>
+<tr><td>5</td><td>69.4%</td><td>76.2%</td></tr>
+<tr><td>6</td><td>51.8%</td><td>46.3%</td></tr>
+<tr><td>7</td><td>5.4%</td><td>43.6%</td></tr>
+<tr><td>8</td><td>60.4%</td><td>64.0%</td></tr>
+<tr><td>9</td><td>79.8%</td><td>79.8%</td></tr>
+</table>
+
+<p><b>4-class 3-group baseline</b></p>
+<table>
+<tr><th>Class</th><th>Visual</th><th>Text</th><th>Combined</th></tr>
+<tr><td>Bottle (0)</td><td>55.2%</td><td>54.3%</td><td>59.5%</td></tr>
+<tr><td>Car (1)</td><td>91.5%</td><td>37.3%</td><td>86.4%</td></tr>
+<tr><td>Food (2)</td><td>52.7%</td><td>31.8%</td><td>51.8%</td></tr>
+<tr><td>Book (3)</td><td>92.1%</td><td>82.9%</td><td>93.9%</td></tr>
+</table>
+
+<p><b>4-class 3-group GroupDRO</b></p>
+<table>
+<tr><th>Class</th><th>Visual</th><th>Text</th><th>Combined</th></tr>
+<tr><td>Bottle (0)</td><td>52.6%</td><td>52.6%</td><td>53.4%</td></tr>
+<tr><td>Car (1)</td><td>88.1%</td><td>39.0%</td><td>52.5%</td></tr>
+<tr><td>Food (2)</td><td>46.4%</td><td>33.6%</td><td>37.3%</td></tr>
+<tr><td>Book (3)</td><td>90.7%</td><td>82.4%</td><td>89.4%</td></tr>
+</table>
+
+<hr>
+<h3>Changes we made in this round</h3>
+<ol>
+<li><b>Group weight initialization and baseline</b> — We no longer initialize group weights equally. Each group's weight is set proportional to that group's sample size (π_g = #samples in group g / #total samples). As you'd said: in the training set groups appear with a distribution π, and it's better if batches preserve this distribution (stratified batches). The baseline now also uses these π weights for the per-group loss (π-weighted baseline).</li>
+<li><b>GroupDRO weights and warmup</b> — GroupDRO weights can go to 1 with no min/max clamp. We use only 3 epochs of warmup before the GroupDRO updates start.</li>
+<li><b>KL penalty</b> — We added a penalty in the loss: λ_KL × KL(current q || π), with π the initial distribution from group sizes. As you'd described: we learn weights λ so the model isn't tied to π, but a good initialization for λ is π, and the KL penalty keeps us from diverging too much from π. We control this with a coefficient (e.g. 0.1).</li>
+<li><b>Per-class accuracies per group</b> — We now track and print per-class accuracy for each group in the terminal and log it with the rest of the metrics.</li>
+<li><b>Logging and stored results</b> — At the start of training we print and log total samples, per-group sample counts, per-class sample counts, and all hyperparameters. The same information is written to the results file (e.g. metrics.jsonl / metrics.csv) so each run is fully documented.</li>
+</ol>
+<p>Hyperparameters: 50 epochs, batch size 32, Adam lr 1e-3, weight decay 5e-4, head dropout 0.5, visual encoder LR scale 0.01. For GroupDRO: eta 0.01, gamma 0.5, 3-epoch warmup, KL penalty coefficient 0.1, no min/max on group weights.</p>
+
+<hr>
+<p>So far GroupDRO helps a bit in 4-class 2-group (60.3% → 60.9% worst-group) but in 10-class 2-group and 4-class 3-group it doesn't improve worst-group and hurts overall accuracy; the learned weights collapse to the text group in every case. I'm planning to try changing the KL lambda (e.g. stronger so q doesn't collapse as much) and also adding a spurious correlation by skewing class proportions per group, to see if we can get clearer positive results. When are you free to meet to discuss?</p>
+
+<p>Thank you!</p>
+<p>Best,<br>Arjun</p>
+
+</body>
+</html>

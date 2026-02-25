@@ -9,9 +9,12 @@ class LinearHead(nn.Module):
         return self.fc(z)
 
 class MLPHead(nn.Module):
-    def __init__(self, in_dim: int, hidden: int, num_classes: int):
+    def __init__(self, in_dim: int, hidden: int, num_classes: int, dropout: float = 0.3):
         super().__init__()
         self.fc1 = nn.Linear(in_dim, hidden)
+        self.dropout = nn.Dropout(dropout)
         self.fc2 = nn.Linear(hidden, num_classes)
     def forward(self, z: torch.Tensor):
-        return self.fc2(torch.relu(self.fc1(z)))
+        z = torch.relu(self.fc1(z))
+        z = self.dropout(z)
+        return self.fc2(z)

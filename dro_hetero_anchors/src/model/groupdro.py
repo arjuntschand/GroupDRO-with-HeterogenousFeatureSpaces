@@ -30,6 +30,9 @@ class GroupDRO:
         - 'exp' (baseline MWU)
         - 'softmax' (direct projection to softmax of scaled losses)
         - 'exp_smooth' (MWU then convex combination with previous weights via gamma)
+    4. KL divergence penalty to prevent diverging too far from initial distribution π:
+        loss += kl_lambda * KL(q || π)
+       This regularizes the learned weights toward the natural group distribution.
 
     Design goals:
       * Non-in-place modifications until assignment to self.q
@@ -43,19 +46,32 @@ class GroupDRO:
                  update_mode: str = "exp",
                  robust_objective: str = "weighted",
                  gamma: float = 1.0,
-                 min_group_weight: float = 0.0):
+                 group_counts: Optional[List[int]] = None,
+                 kl_lambda: float = 0.0):
         self.num_groups = num_groups
         self.eta = eta
         self.device = device or torch.device('cpu')
         self.update_mode = update_mode  # 'exp'|'softmax'|'exp_smooth'
         self.robust_objective = robust_objective  # 'weighted'|'max'|'logsumexp'
         self.gamma = gamma  # smoothing factor for exp_smooth
-        # Optional projection to prevent weight collapse (keeps q_g >= min_group_weight).
-        # Set to 0.0 to disable (default).
-        self.min_group_weight = float(min_group_weight)
+        self.kl_lambda = kl_lambda  # coefficient for KL(q || π) penalty
 
-        # initialize uniform group weights (no gradients needed)
-        self.q = (torch.ones(num_groups, device=self.device) / num_groups).detach()
+        # Initialize weights based on group distribution π (proportional to group sizes)
+        # If group_counts not provided, fall back to uniform
+        if group_counts is not None and len(group_counts) == num_groups:
+            total = sum(group_counts)
+            if total > 0:
+                pi = torch.tensor([c / total for c in group_counts], 
+                                  device=self.device, dtype=torch.float32)
+            else:
+                pi = torch.ones(num_groups, device=self.device) / num_groups
+        else:
+            pi = torch.ones(num_groups, device=self.device) / num_groups
+        
+        # Store π as the reference distribution for KL penalty
+        self.pi = pi.detach()
+        # Initialize q to π (proportional to group sizes)
+        self.q = pi.clone().detach()
 
         # track statistics for analysis
         self.group_stats = {i: GroupStats([], [], [], []) for i in range(num_groups)}
@@ -74,6 +90,19 @@ class GroupDRO:
             else:
                 losses[gid] = torch.tensor(0.0, device=self.device)
         return losses
+
+    def compute_kl_divergence(self) -> torch.Tensor:
+        """Compute KL(q || π) where π is the initial/reference distribution.
+        
+        KL(q || π) = sum_g q_g * log(q_g / π_g)
+        
+        Returns scalar tensor for adding to the loss.
+        """
+        eps = 1e-8
+        q_safe = self.q.clamp(min=eps)
+        pi_safe = self.pi.clamp(min=eps)
+        kl = (q_safe * (q_safe.log() - pi_safe.log())).sum()
+        return kl
 
     def update_weights(self, group_losses: Dict[int, torch.Tensor],
                        group_counts: Dict[int, int]):
@@ -123,12 +152,6 @@ class GroupDRO:
 
             # normalize (except when already normalized by softmax)
             if self.update_mode not in ('softmax') and q_new.sum() > 0:
-                q_new = q_new / q_new.sum()
-
-            # Optional min-q projection to prevent collapse onto a single group.
-            # This is practically useful when losses are noisy / non-stationary.
-            if self.min_group_weight > 0.0:
-                q_new = torch.clamp(q_new, min=self.min_group_weight)
                 q_new = q_new / q_new.sum()
 
             self.q.copy_(q_new)
@@ -210,5 +233,14 @@ class GroupDRO:
                 final_loss = (1.0 / max(self.eta, 1e-8)) * torch.log(torch.exp(self.eta * losses_stack).sum())
         else:
             final_loss = weighted_loss
+
+        # Add KL divergence penalty: kl_lambda * KL(q || π)
+        # This regularizes learned weights toward the natural group distribution
+        if self.kl_lambda > 0:
+            kl_penalty = self.compute_kl_divergence()
+            final_loss = final_loss + self.kl_lambda * kl_penalty
+            self._last_kl_penalty = kl_penalty.item()
+        else:
+            self._last_kl_penalty = 0.0
 
         return final_loss

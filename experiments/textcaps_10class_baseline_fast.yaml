@@ -1,0 +1,45 @@
+# TextCaps 10-class Baseline - FAST (for quick comparison)
+run_name: textcaps_10class_baseline_fast
+seed: 1337
+root: datasets
+run_dir: runs/textcaps_10class_baseline_fast
+
+use_textcaps_multimodal: true
+textcaps_use_huggingface: true
+textcaps_num_classes: 10
+
+batch_size: 64
+num_workers: 0
+epochs: 20
+
+groups:
+  - name: visual
+    type: image
+    in_shape: [3, 224, 224]
+    encoder: resnet_visual
+  - name: text_ocr
+    type: text
+    encoder: char_cnn_text
+
+latent_dim: 64
+num_classes: 10
+head_hidden: 128
+
+anchor_eps: 1.0e-4
+sep_samples_per_class: 8
+sep_method: "classifier"
+sep_margin: 2.0
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+
+optimizer: adam
+lr: 1.0e-3
+weight_decay: 0.01
+lr_start: 1.0e-3
+lr_end: 2.0e-4
+grad_clip: 1.0
+
+groupdro_enabled: false
+
+log_interval: 50
+save_every: 5

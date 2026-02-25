@@ -1,0 +1,69 @@
+# TextCaps 10-class GROUPDRO — paper-ready
+# Same as baseline + GroupDRO (eta 0.01, gamma 0.5, min_weight 0.05, warmup 5).
+# Compare worst-group acc vs baseline for paper.
+
+run_name: textcaps_10class_groupdro_v2
+seed: 1337
+root: datasets
+run_dir: runs/textcaps_10class_groupdro_v2
+
+# Dataset - 10 classes = top 10 most frequent (no dead classes)
+use_textcaps_multimodal: true
+textcaps_use_huggingface: true
+textcaps_num_classes: 10
+
+# Training
+batch_size: 32
+num_workers: 4   # parallel data loading (use 0 on Mac if you see spawn errors)
+epochs: 50
+
+# Groups (multi-modal)
+groups:
+  - name: visual
+    type: image
+    in_shape: [3, 224, 224]
+    encoder: resnet_visual
+    
+  - name: text_ocr
+    type: text
+    encoder: char_cnn_text
+
+# Model (head_dropout 0.5 to reduce overfitting)
+latent_dim: 64
+num_classes: 10
+head_hidden: 128
+head_dropout: 0.5
+
+# No freeze: both branches train from start. Natural disparity = pretrained ResNet vs from-scratch text.
+freeze_visual_encoder_epochs: 0
+# ResNet uses main_lr * 0.01 so it fine-tunes gently and doesn't dominate
+visual_encoder_lr_scale: 0.01
+
+# Anchors
+anchor_eps: 1.0e-4
+sep_samples_per_class: 8
+sep_method: "classifier"
+sep_margin: 2.0
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+
+# Optimizer (weight_decay 5e-4: curb overfitting)
+optimizer: adam
+lr: 1.0e-3
+weight_decay: 5.0e-4
+lr_start: 1.0e-3
+lr_end: 1.0e-4
+grad_clip: 1.0
+
+# GroupDRO: ENABLED with FIXED hyperparameters
+groupdro_enabled: true
+groupdro_eta: 0.01            # Reduced from 0.1 - prevents weight collapse
+groupdro_gamma: 0.5           # Reduced from 0.7 - less aggressive
+groupdro_min_group_weight: 0.05  # Floor at 5% - allows [0.95, 0.05] but prevents total collapse
+groupdro_update_mode: exp_smooth
+groupdro_objective: weighted
+groupdro_warmup_epochs: 5     # Warmup before GroupDRO kicks in
+
+# Logging (save_every 5 to capture best epoch for paper)
+log_interval: 20
+save_every: 5

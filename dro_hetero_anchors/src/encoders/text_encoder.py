@@ -137,8 +137,12 @@ class TransformerTextEncoder(nn.Module):
         # Assuming 0 is padding token
         padding_mask = (x.sum(dim=-1) == 0)  # (B, L)
         
-        # Transformer encoding
-        x = self.transformer(x, src_key_padding_mask=padding_mask)
+        # Transformer encoding. On MPS, src_key_padding_mask triggers an unimplemented op,
+        # so skip it; we still mask when mean-pooling below.
+        if x.device.type == "mps":
+            x = self.transformer(x, src_key_padding_mask=None)
+        else:
+            x = self.transformer(x, src_key_padding_mask=padding_mask)
         
         # Pool over sequence (mean of non-padded tokens)
         mask = (~padding_mask).unsqueeze(-1).float()  # (B, L, 1)

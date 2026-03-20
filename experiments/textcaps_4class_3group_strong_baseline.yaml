@@ -1,0 +1,65 @@
+# TextCaps 4-class BASELINE — STRONG (for when GroupDRO hurts best group without helping worst)
+# Uses: Transformer text encoder (higher ceiling for text group), latent_dim=128, cross-attention fusion
+# Run this first; then run strong_groupdro. Goal: baseline that doesn't collapse on text group.
+
+run_name: textcaps_4class_3group_strong_baseline
+seed: 1337
+root: datasets
+run_dir: runs/textcaps_4class_3group_strong_baseline
+
+use_textcaps_multimodal: true
+textcaps_use_huggingface: true
+textcaps_num_classes: 4
+textcaps_class_names: ["Bottle", "Car", "Food", "Book"]
+textcaps_train_frac: 0.8
+
+use_stratified_sampling: true
+include_combined_group: true
+fusion_dropout: 0.1
+fusion_type: cross_attn   # cross-attention fusion (visual queries, text k/v)
+fusion_num_heads: 4
+
+batch_size: 32
+num_workers: 4
+epochs: 50
+
+groups:
+  - name: visual
+    type: image
+    in_shape: [3, 224, 224]
+    encoder: resnet_visual
+  - name: text_ocr
+    type: text
+    encoder: transformer_text   # stronger than char_cnn_text
+
+# Stronger transformer (raise text-group ceiling)
+text_encoder_embed_dim: 128
+text_encoder_num_heads: 4
+text_encoder_num_layers: 3
+
+latent_dim: 128
+num_classes: 4
+head_hidden: 256
+head_dropout: 0.5
+
+freeze_visual_encoder_epochs: 0
+visual_encoder_lr_scale: 0.01
+
+anchor_eps: 1.0e-4
+sep_samples_per_class: 8
+sep_method: "classifier"
+sep_margin: 2.0
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+
+optimizer: adam
+lr: 1.0e-3
+weight_decay: 5.0e-4
+lr_start: 1.0e-3
+lr_end: 1.0e-4
+grad_clip: 1.0
+
+groupdro_enabled: false
+
+log_interval: 20
+save_every: 5

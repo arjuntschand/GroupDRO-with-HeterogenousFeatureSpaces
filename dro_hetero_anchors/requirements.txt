@@ -1,9 +1,14 @@
 torch>=2.2
 torchvision>=0.17
 numpy>=1.24
+pandas>=1.5
+scikit-learn>=1.2
 pyyaml>=6.0
 rich>=13.4
 tqdm>=4.66
 tensorboard>=2.16
 matplotlib>=3.7
 datasets>=2.14
+
+# Fed-Heart Disease: optional FLamby (pip install git+https://github.com/owkin/FLamby.git)
+# If not installed, we auto-download UCI data; no flamby needed.

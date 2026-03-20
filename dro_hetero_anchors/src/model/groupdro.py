@@ -1,15 +1,17 @@
 import torch
 import torch.nn as nn
-from typing import Dict, Optional, List
-from dataclasses import dataclass
+from typing import Dict, Optional, List, Any
+from dataclasses import dataclass, field
 
 @dataclass
 class GroupStats:
     """Track per-group statistics for GroupDRO."""
-    losses: List[float]
-    accuracies: List[float]
-    weights: List[float]  # q_g history
-    counts: List[int]     # samples per group per batch
+    losses: List[float] = field(default_factory=list)
+    accuracies: List[float] = field(default_factory=list)
+    weights: List[float] = field(default_factory=list)  # q_g history
+    counts: List[int] = field(default_factory=list)     # samples per group per batch
+    per_class_correct: Dict[int, List[int]] = field(default_factory=dict)  # per-class correct counts
+    per_class_total: Dict[int, List[int]] = field(default_factory=dict)    # per-class total counts
 
 class GroupDRO:
     """Flexible Group Distributionally Robust Optimization module.
@@ -47,7 +49,8 @@ class GroupDRO:
                  robust_objective: str = "weighted",
                  gamma: float = 1.0,
                  group_counts: Optional[List[int]] = None,
-                 kl_lambda: float = 0.0):
+                 kl_lambda: float = 0.0,
+                 uniform_init: bool = False):
         self.num_groups = num_groups
         self.eta = eta
         self.device = device or torch.device('cpu')
@@ -55,9 +58,10 @@ class GroupDRO:
         self.robust_objective = robust_objective  # 'weighted'|'max'|'logsumexp'
         self.gamma = gamma  # smoothing factor for exp_smooth
         self.kl_lambda = kl_lambda  # coefficient for KL(q || π) penalty
+        self.uniform_init = uniform_init  # whether to initialize q uniformly
 
-        # Initialize weights based on group distribution π (proportional to group sizes)
-        # If group_counts not provided, fall back to uniform
+        # Initialize reference π based on group distribution (for KL penalty)
+        # This is always proportional to group sizes for KL regularization
         if group_counts is not None and len(group_counts) == num_groups:
             total = sum(group_counts)
             if total > 0:
@@ -70,14 +74,28 @@ class GroupDRO:
         
         # Store π as the reference distribution for KL penalty
         self.pi = pi.detach()
-        # Initialize q to π (proportional to group sizes)
-        self.q = pi.clone().detach()
+        
+        # Initialize q: uniform if uniform_init=True, else proportional to group sizes
+        if uniform_init:
+            self.q = torch.ones(num_groups, device=self.device) / num_groups
+        else:
+            self.q = pi.clone().detach()
 
         # track statistics for analysis
-        self.group_stats = {i: GroupStats([], [], [], []) for i in range(num_groups)}
+        self.group_stats = {i: GroupStats() for i in range(num_groups)}
         # Track the best observed worst-group accuracy across training. Initialize
         # to -inf so the first observed value replaces it via max().
         self.worst_group_acc = float("-inf")
+        
+        # Track KL penalty history
+        self.kl_penalty_history: List[float] = []
+        
+        # Last batch statistics for logging
+        self._last_group_losses: Dict[int, torch.Tensor] = {}
+        self._last_group_accs: Dict[int, float] = {}
+        self._last_group_counts: Dict[int, int] = {}
+        self._last_per_class_accs: Dict[int, Dict[int, float]] = {}  # group -> class -> acc
+        self._last_kl_penalty: float = 0.0
     
     def compute_group_losses(self, logits: torch.Tensor, y: torch.Tensor, 
                            g: torch.Tensor) -> Dict[int, torch.Tensor]:
@@ -157,20 +175,33 @@ class GroupDRO:
             self.q.copy_(q_new)
     
     def forward(self, logits: torch.Tensor, y: torch.Tensor, 
-                g: torch.Tensor) -> torch.Tensor:
+                g: torch.Tensor, num_classes: Optional[int] = None) -> torch.Tensor:
         """
         Compute GroupDRO weighted loss and update statistics.
-        Returns weighted average of per-group losses.
+        
+        Args:
+            logits: Model predictions (batch_size, num_classes)
+            y: Ground truth labels (batch_size,)
+            g: Group labels (batch_size,)
+            num_classes: Number of classes (inferred from logits if not provided)
+            
+        Returns:
+            Weighted average of per-group losses (with optional KL penalty).
         """
+        if num_classes is None:
+            num_classes = logits.shape[1]
+            
         group_losses = {}
         group_accs = {}
         group_counts = {}
+        per_class_accs = {}  # group -> class -> accuracy
         
         # Compute weighted components
         weighted_loss = torch.tensor(0.0, device=self.device)
         max_loss = torch.tensor(float('-inf'), device=self.device)
         losses_list = []
         present_losses = []
+        
         for gid in range(self.num_groups):
             mask = (g == gid)
             count = mask.sum().item()
@@ -188,6 +219,17 @@ class GroupDRO:
                 group_losses[gid] = loss
                 group_accs[gid] = acc
                 
+                # Compute per-class accuracy for this group
+                per_class_accs[gid] = {}
+                for cid in range(num_classes):
+                    class_mask = (g_y == cid)
+                    class_count = class_mask.sum().item()
+                    if class_count > 0:
+                        class_correct = ((pred == g_y) & class_mask).sum().item()
+                        per_class_accs[gid][cid] = class_correct / class_count
+                    else:
+                        per_class_accs[gid][cid] = None  # No samples of this class
+                
                 weighted_loss = weighted_loss + self.q[gid] * loss
                 losses_list.append(loss)
                 present_losses.append(loss)
@@ -195,6 +237,7 @@ class GroupDRO:
             else:
                 # absent group: still append a zero loss for consistent shapes in logsumexp
                 losses_list.append(torch.tensor(0.0, device=self.device))
+                per_class_accs[gid] = {cid: None for cid in range(num_classes)}
         
         # track statistics
         for gid in range(self.num_groups):
@@ -205,13 +248,15 @@ class GroupDRO:
                 stats.weights.append(self.q[gid].item())
                 stats.counts.append(group_counts[gid])
 
-        # Store last batch losses/counts for deferred weight update.
+        # Store last batch statistics for deferred weight update and logging.
         # We must NOT update self.q here because that would mutate a tensor
         # that was used in the forward pass before the backward call and
         # break autograd. The trainer should call update_weights(...) after
         # loss.backward() / optimizer.step().
         self._last_group_losses = group_losses
         self._last_group_counts = group_counts
+        self._last_group_accs = group_accs
+        self._last_per_class_accs = per_class_accs
 
         # track worst group accuracy
         if len(group_accs) > 0:
@@ -240,7 +285,54 @@ class GroupDRO:
             kl_penalty = self.compute_kl_divergence()
             final_loss = final_loss + self.kl_lambda * kl_penalty
             self._last_kl_penalty = kl_penalty.item()
+            self.kl_penalty_history.append(self._last_kl_penalty)
         else:
             self._last_kl_penalty = 0.0
 
         return final_loss
+    
+    def get_last_batch_stats(self) -> Dict[str, Any]:
+        """Get statistics from the last forward pass for logging.
+        
+        Returns:
+            Dictionary with:
+                - group_losses: Dict[int, float]
+                - group_accs: Dict[int, float]
+                - group_counts: Dict[int, int]
+                - per_class_accs: Dict[int, Dict[int, float]]
+                - weights: List[float]
+                - kl_penalty: float
+        """
+        return {
+            "group_losses": {gid: loss.item() if hasattr(loss, 'item') else loss 
+                           for gid, loss in self._last_group_losses.items()},
+            "group_accs": self._last_group_accs.copy(),
+            "group_counts": self._last_group_counts.copy(),
+            "per_class_accs": self._last_per_class_accs.copy(),
+            "weights": self.q.detach().cpu().tolist(),
+            "kl_penalty": self._last_kl_penalty,
+            "pi": self.pi.detach().cpu().tolist(),
+        }
+    
+    def get_config(self) -> Dict[str, Any]:
+        """Get GroupDRO configuration for logging.
+        
+        Returns:
+            Dictionary with all configuration parameters.
+        """
+        return {
+            "num_groups": self.num_groups,
+            "eta": self.eta,
+            "update_mode": self.update_mode,
+            "robust_objective": self.robust_objective,
+            "gamma": self.gamma,
+            "kl_lambda": self.kl_lambda,
+            "initial_pi": self.pi.detach().cpu().tolist(),
+        }
+    
+    def reset_stats(self):
+        """Reset all statistics (useful between epochs)."""
+        for gid in range(self.num_groups):
+            self.group_stats[gid] = GroupStats()
+        self.kl_penalty_history = []
+        self.worst_group_acc = float("-inf")

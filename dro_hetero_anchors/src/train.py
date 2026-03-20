@@ -1,6 +1,6 @@
 import argparse, yaml
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -23,8 +23,14 @@ from .model.losses import per_class_batch_moments, anchor_fit_loss, anchor_sep_l
 from .model.groupdro import GroupDRO
 import matplotlib.pyplot as plt
 
-def build_models(cfg) -> Tuple[Dict[int, nn.Module], nn.Module, AnchorModule, Optional[GroupDRO]]:
-    """Build all model components and optionally initialize GroupDRO."""
+def build_models(cfg, group_counts: Optional[List[int]] = None) -> Tuple[Dict[int, nn.Module], nn.Module, AnchorModule, Optional[GroupDRO]]:
+    """Build all model components and optionally initialize GroupDRO.
+    
+    Args:
+        cfg: Configuration dictionary
+        group_counts: Optional list of sample counts per group for π initialization.
+                     If provided, GroupDRO weights are initialized proportional to group sizes.
+    """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     latent_dim = cfg["latent_dim"]
     
@@ -48,7 +54,9 @@ def build_models(cfg) -> Tuple[Dict[int, nn.Module], nn.Module, AnchorModule, Op
             device=device,
             update_mode=cfg.get("groupdro_update_mode", "exp"),
             robust_objective=cfg.get("groupdro_objective", "weighted"),
-                    gamma=cfg.get("groupdro_gamma", 1.0),
+            gamma=cfg.get("groupdro_gamma", 1.0),
+            group_counts=group_counts,  # Initialize π proportional to group sizes
+            kl_lambda=cfg.get("groupdro_kl_lambda", 0.0),  # KL divergence penalty
         )
     
     return encoders, head, anchors, groupdro
@@ -250,6 +258,12 @@ def train(cfg):
     print_dataset_summary(test_summary, cfg["num_classes"], len(cfg["groups"]))
     console.rule("")
 
+    # Extract group counts for GroupDRO initialization (proportional to sample sizes)
+    group_counts = train_summary["group_counts"]
+    console.log(f"Group counts for π initialization: {group_counts}")
+    group_proportions = [c / sum(group_counts) for c in group_counts]
+    console.log(f"Group proportions π: {[f'{p:.4f}' for p in group_proportions]}")
+
     # Initialize results logger in run dir
     results_logger = ResultsLogger(cfg["run_dir"]) 
     # Static run metadata
@@ -272,9 +286,12 @@ def train(cfg):
         "groups": normalized_groups,
         "train_dataset_summary": train_summary,
         "test_dataset_summary": test_summary,
+        "group_proportions_pi": group_proportions,
+        "groupdro_enabled": cfg.get("groupdro_enabled", False),
+        "groupdro_kl_lambda": cfg.get("groupdro_kl_lambda", 0.0),
     }
     
-    encoders, head, anchors, groupdro = build_models(cfg)
+    encoders, head, anchors, groupdro = build_models(cfg, group_counts=group_counts)
     
     # Move models to device
     for k in encoders: encoders[k] = encoders[k].to(device)

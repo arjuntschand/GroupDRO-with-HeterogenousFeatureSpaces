@@ -327,6 +327,44 @@ groupdro_objective: weighted
 
 ---
 
+## 🏥 Fed-Heart Disease: Why It’s Fast & How to Improve Results
+
+### Why training is so fast (~30 s)
+
+- **Tiny dataset**: 486 train + 254 test samples, 13 features, 4 groups.
+- **Small model**: MLP encoders + small head; few parameters.
+- **50 epochs × ~15 batches/epoch** ⇒ very few gradient steps.
+
+So 30 seconds is expected. For MNIST/TextCaps/MIMIC you’ll see much longer runs.
+
+### Improvements that help Fed-Heart (and similar small data)
+
+| Change | Config / code | Effect |
+|--------|----------------|--------|
+| **Early stopping** | `early_stopping_patience: 15` | Stops when worst-group acc plateaus; avoids overfitting (best was ~epoch 6). |
+| **Cosine LR decay** | `lr_scheduler: cosine`, `lr_min: 1.0e-5` | Smoother decay; can improve final worst-group. |
+| **Save best every epoch** | (already in `train_fedheart`) | Best checkpoint is no longer tied to `save_every`. |
+| **Tune KL penalty** | `groupdro_kl_lambda: 0.05` or `0.2` | Lower ⇒ more focus on worst group; higher ⇒ stay closer to π. |
+| **Slightly more regularization** | `weight_decay: 0.001`, `dropout: 0.15` | Reduces overfitting on small data. |
+| **Reduce-on-plateau LR** | `lr_scheduler: reduce_on_plateau` | Lowers LR when worst-group acc stops improving. |
+
+### Ready-to-run improved config
+
+```bash
+python -m dro_hetero_anchors.src.train_fedheart --config experiments/fedheart_groupdro_earlystop.yaml
+```
+
+This uses **early stopping** (patience 15) and **cosine LR** so training stops near the best worst-group and you don’t run 50 epochs for nothing.
+
+### Hyperparameters worth sweeping for Fed-Heart
+
+- `groupdro_kl_lambda`: `[0.05, 0.1, 0.2]`
+- `groupdro_eta`: `[0.05, 0.1, 0.2]`
+- `early_stopping_patience`: `[10, 15, 20]`
+- `weight_decay`: `[0.0001, 0.001]`
+
+---
+
 ## 🎯 **Next Steps**
 
 1. **Implement Phase 1 changes** (quick wins)

@@ -1,5 +1,11 @@
 # Complete Model Explanation: GroupDRO with Heterogeneous Feature Spaces
 
+**Method reference.** The formulation (group-specific encoders, shared classifier, class-conditional Gaussian anchors, anchor-fit and separation losses, GroupDRO objective) follows the write-up in  
+**`documentation/ADDEDDRO_GroupDRO_with_HeterogeneousFeatureSpaces (1) (1).pdf`**.  
+That document specifies the algorithm for a generic heterogeneous-feature setting; the digit example there uses latent dimension **k = 64** and a simple CNN. For **TextCaps** we use ResNet (visual) and CharCNN/Transformer (text) encoders; see below for recommended settings.
+
+---
+
 ## 🎯 **What This Model Does**
 
 This model learns to classify images from **TextCaps** (a multi-modal dataset) using **two different modalities**:
@@ -151,15 +157,17 @@ Where:
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
-| `latent_dim` | `64` | Dimension of shared latent space |
+| `latent_dim` | `64` (default) | Dimension of shared latent space. **Optimized**: use `128` for TextCaps (see `experiments/textcaps_4class_3group_optimized_*.yaml`). |
 | `num_classes` | `10` | Number of classification classes |
-| `head_hidden` | `128` | Hidden dim for MLP head (0 = linear head) |
+| `head_hidden` | `128` (default) | Hidden dim for MLP head (0 = linear head). **Optimized**: use `256` when using `latent_dim=128`. |
 | `groups[0].encoder` | `resnet_visual` | Visual encoder type |
-| `groups[1].encoder` | `mlp_text` | Text encoder type |
+| `groups[1].encoder` | `char_cnn_text` (recommended) | Text encoder type |
 
 **Available Encoders**:
 - **Visual**: `resnet_visual` (pretrained ResNet18), `simple_cnn_visual`
 - **Text**: `mlp_text`, `char_cnn_text`, `transformer_text`
+
+**Architecture vs. the ADDEDDRO doc**: The PDF describes the *method* (encoders φ_g, shared classifier, anchors, L_fit, L_sep, GroupDRO). It does not prescribe ResNet or CharCNN; for digits it uses k=64 and a small CNN. For TextCaps we use ResNet18 + CharCNN by default; for better accuracy use the **optimized configs** (latent_dim=128, head_hidden=256) and optionally `transformer_text`. Differential learning rate for the visual encoder (`visual_encoder_lr_scale`) is already implemented.
 
 ### **Anchor Module**
 
@@ -342,13 +350,38 @@ Where:
 
 ---
 
+## ⚠️ **When GroupDRO Doesn’t Help Worst Group (Only Hurts Best)**
+
+If across runs GroupDRO **never improves worst-group accuracy** and only **reduces best-group accuracy**, the worst group likely has a **low ceiling** (e.g. weak text encoder). Upweighting that group then pulls the model away from the strong group without being able to improve the weak one.
+
+**What to do:**
+
+1. **Raise the ceiling of the worst group**
+   - Use **`transformer_text`** instead of `char_cnn_text` (stronger text encoder).
+   - Use **strong configs**: `experiments/textcaps_4class_3group_strong_baseline.yaml` and `textcaps_4class_3group_strong_groupdro.yaml`.
+   - These use: `transformer_text`, `latent_dim=128`, `head_hidden=256`, **cross-attention fusion** (`fusion_type: cross_attn`), and optional `text_encoder_embed_dim: 128`, `text_encoder_num_layers: 3`.
+
+2. **Make GroupDRO actually shift weights**
+   - **Increase `groupdro_eta`** (e.g. `0.01` → `0.05` or `0.1`). With eta too small, q stays near π and you get almost ERM.
+   - **Increase `groupdro_gamma`** (e.g. `0.5` → `0.85`) for more stable weight updates.
+   - **Longer warmup** (`groupdro_warmup_epochs: 5`) so the model learns something before reweighting.
+
+3. **Run strong baseline first**
+   - Run `strong_baseline` and confirm **per-group accuracies** (especially text/combined) are reasonable. Then run `strong_groupdro` and compare **worst-group accuracy**.
+
+4. **If still no gain**
+   - Try **higher eta** (e.g. `0.1`) and/or **different objective** (`groupdro_objective: max` for true worst-group ERM).
+   - Consider a **pretrained language encoder** (e.g. BERT) for the text group if transformer_text is still the bottleneck.
+
+---
+
 ## 🚀 **Next Steps for Experimentation**
 
 1. **Run baseline** (no GroupDRO) to establish baseline accuracies
 2. **Run GroupDRO** and compare worst-group accuracy
-3. **Tune GroupDRO hyperparameters** if weights collapse
-4. **Increase epochs** (10 → 50+) for better convergence
-5. **Experiment with encoders**: Try `transformer_text` for better text encoding
+3. **If GroupDRO doesn’t help worst group**: use **strong** configs (see section above)
+4. **Tune GroupDRO hyperparameters** if weights collapse
+5. **Increase epochs** (10 → 50+) for better convergence
 6. **Try different separation methods**: Switch to `w2_margin` if classifier method fails
 
 ---

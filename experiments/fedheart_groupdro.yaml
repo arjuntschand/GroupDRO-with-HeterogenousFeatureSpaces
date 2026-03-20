@@ -1,0 +1,70 @@
+# Fed-Heart Disease GroupDRO Configuration
+# GroupDRO with KL divergence penalty for robust training
+# 4 hospitals (groups), 13 tabular features, binary classification
+
+run_name: fedheart_groupdro
+seed: 1337
+run_dir: runs/fedheart_groupdro
+
+# Dataset settings
+use_fedheart: true
+num_classes: 2
+stratified_batching: true  # Maintain group proportions π in batches
+
+# Training settings
+batch_size: 32
+num_workers: 0
+epochs: 50
+lr: 0.001
+weight_decay: 0.0001
+optimizer: adam
+grad_clip: 1.0
+
+# Model architecture
+latent_dim: 64
+head_hidden: 32  # Small MLP head for binary classification
+
+# Groups (4 hospitals with same encoder architecture)
+groups:
+  - name: hospital_0
+    encoder: mlp_tabular
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+  - name: hospital_1
+    encoder: mlp_tabular
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+  - name: hospital_2
+    encoder: mlp_tabular
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+  - name: hospital_3
+    encoder: mlp_tabular
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+
+# Anchor settings (for representation alignment)
+anchor_eps: 0.0001
+sep_samples_per_class: 8
+sep_method: classifier
+sep_margin: 1.0
+lambda_fit: 0.001
+lambda_sep: 0.001
+
+# GroupDRO settings
+groupdro_enabled: true
+groupdro_eta: 0.1            # Step size for weight updates
+groupdro_gamma: 0.9          # Smoothing factor (1.0 = no smoothing)
+groupdro_update_mode: exp_smooth  # 'exp', 'softmax', or 'exp_smooth'
+groupdro_objective: weighted      # 'weighted', 'max', or 'logsumexp'
+groupdro_kl_lambda: 0.1      # KL(q||π) penalty coefficient
+# Note: No warmup epochs, no min/max weight constraints
+# Weights initialized proportional to group sample sizes (π)
+
+# Logging
+log_interval: 20
+save_every: 10

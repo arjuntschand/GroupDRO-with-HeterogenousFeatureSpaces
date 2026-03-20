@@ -1,0 +1,66 @@
+# EXTREME CHALLENGE + GroupDRO
+# GroupDRO should dramatically outperform ERM here
+run_name: fedheart_extreme_challenge_groupdro
+seed: 1337
+run_dir: runs/fedheart_extreme_challenge_groupdro
+
+use_fedheart: true
+num_classes: 2
+stratified_batching: true
+
+group_max_train_samples: [null, null, 5, 5]
+label_noise_rate: [0.4, 0.4, 0.0, 0.0]
+
+batch_size: 64
+num_workers: 0
+epochs: 200
+early_stopping_patience: 50
+lr: 0.002
+weight_decay: 0.0005
+optimizer: adamw
+grad_clip: 1.0
+lr_scheduler: cosine
+lr_min: 1.0e-6
+
+latent_dim: 64
+head_hidden: 64
+
+groups:
+  - name: cleveland
+    encoder: mlp_tabular_deep
+    input_dim: 13
+    hidden_dim: 128
+    dropout: 0.15
+  - name: hungarian
+    encoder: mlp_tabular_deep
+    input_dim: 13
+    hidden_dim: 128
+    dropout: 0.15
+  - name: switzerland
+    encoder: mlp_tabular_deep
+    input_dim: 13
+    hidden_dim: 128
+    dropout: 0.15
+  - name: va_long_beach
+    encoder: mlp_tabular_deep
+    input_dim: 13
+    hidden_dim: 128
+    dropout: 0.15
+
+anchor_eps: 0.0001
+sep_samples_per_class: 4
+sep_method: classifier
+sep_margin: 1.0
+lambda_fit: 0.0001
+lambda_sep: 0.0001
+
+groupdro_enabled: true
+groupdro_eta: 2.0              # very aggressive
+groupdro_gamma: 0.95
+groupdro_update_mode: softmax
+groupdro_objective: weighted
+groupdro_kl_lambda: 0.0
+groupdro_uniform_init: true
+
+log_interval: 20
+save_every: 10

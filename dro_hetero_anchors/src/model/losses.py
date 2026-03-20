@@ -1,8 +1,85 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .wasserstein import gaussian_w2
+
+
+class FocalLoss(nn.Module):
+    """Focal Loss for handling class imbalance and focusing on hard examples.
+    
+    FL(p_t) = -alpha_t * (1 - p_t)^gamma * log(p_t)
+    
+    When gamma > 0, reduces the loss for well-classified examples and focuses
+    on hard, misclassified examples. This can help GroupDRO by naturally
+    upweighting difficult samples.
+    
+    Args:
+        gamma: Focusing parameter (default 2.0). Higher = more focus on hard examples.
+        alpha: Class weights (optional). Can be scalar or per-class tensor.
+        reduction: 'mean', 'sum', or 'none'
+    """
+    
+    def __init__(self, gamma: float = 2.0, alpha: Optional[torch.Tensor] = None, reduction: str = 'mean'):
+        super().__init__()
+        self.gamma = gamma
+        self.alpha = alpha
+        self.reduction = reduction
+    
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        ce_loss = F.cross_entropy(logits, targets, reduction='none')
+        pt = torch.exp(-ce_loss)  # probability of correct class
+        focal_weight = (1 - pt) ** self.gamma
+        
+        if self.alpha is not None:
+            if self.alpha.device != logits.device:
+                self.alpha = self.alpha.to(logits.device)
+            alpha_t = self.alpha[targets]
+            focal_weight = alpha_t * focal_weight
+        
+        focal_loss = focal_weight * ce_loss
+        
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        return focal_loss
+
+
+class LabelSmoothingLoss(nn.Module):
+    """Cross entropy with label smoothing.
+    
+    Smoothed targets: y_smooth = (1 - smoothing) * y_onehot + smoothing / num_classes
+    
+    This regularization can prevent overconfidence and help generalization.
+    
+    Args:
+        smoothing: Label smoothing factor (default 0.1)
+        reduction: 'mean', 'sum', or 'none'
+    """
+    
+    def __init__(self, smoothing: float = 0.1, reduction: str = 'mean'):
+        super().__init__()
+        self.smoothing = smoothing
+        self.reduction = reduction
+    
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        num_classes = logits.size(-1)
+        log_probs = F.log_softmax(logits, dim=-1)
+        
+        # Create smoothed targets
+        with torch.no_grad():
+            smooth_targets = torch.zeros_like(log_probs)
+            smooth_targets.fill_(self.smoothing / (num_classes - 1))
+            smooth_targets.scatter_(1, targets.unsqueeze(1), 1.0 - self.smoothing)
+        
+        loss = (-smooth_targets * log_probs).sum(dim=-1)
+        
+        if self.reduction == 'mean':
+            return loss.mean()
+        elif self.reduction == 'sum':
+            return loss.sum()
+        return loss
 
 def per_class_batch_moments(z: torch.Tensor, y: torch.Tensor, num_classes: int, eps: float) -> Dict[int, Tuple[torch.Tensor, torch.Tensor]]:
     out = {}

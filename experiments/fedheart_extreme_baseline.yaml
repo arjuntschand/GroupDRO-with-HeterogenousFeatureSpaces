@@ -1,0 +1,59 @@
+# EXTREME imbalance: cap G0, G1 (majority) to 50 samples each
+# This creates a scenario where ERM overfits to limited majority data and hurts minority groups
+run_name: fedheart_extreme_baseline
+seed: 1337
+run_dir: runs/fedheart_extreme_baseline
+
+use_fedheart: true
+num_classes: 2
+stratified_batching: true  # need stratified for BatchNorm (avoid batch size 1)
+
+group_max_train_samples: [30, 30, null, null]  # cap G0, G1 to 30 each -> extreme imbalance
+
+batch_size: 32
+num_workers: 0
+epochs: 100
+early_stopping_patience: 25
+lr: 0.005  # higher LR -> faster convergence but can overfit
+weight_decay: 0.0001
+optimizer: adam
+grad_clip: 1.0
+lr_scheduler: cosine
+lr_min: 1.0e-5
+
+latent_dim: 128  # larger model -> can overfit to majority
+head_hidden: 64
+
+groups:
+  - name: hospital_0
+    encoder: mlp_tabular
+    input_dim: 13
+    hidden_dim: 128
+    dropout: 0.05  # low dropout -> easier to overfit
+  - name: hospital_1
+    encoder: mlp_tabular
+    input_dim: 13
+    hidden_dim: 128
+    dropout: 0.05
+  - name: hospital_2
+    encoder: mlp_tabular
+    input_dim: 13
+    hidden_dim: 128
+    dropout: 0.05
+  - name: hospital_3
+    encoder: mlp_tabular
+    input_dim: 13
+    hidden_dim: 128
+    dropout: 0.05
+
+anchor_eps: 0.0001
+sep_samples_per_class: 8
+sep_method: classifier
+sep_margin: 1.0
+lambda_fit: 0.0001
+lambda_sep: 0.0001
+
+groupdro_enabled: false
+
+log_interval: 20
+save_every: 5

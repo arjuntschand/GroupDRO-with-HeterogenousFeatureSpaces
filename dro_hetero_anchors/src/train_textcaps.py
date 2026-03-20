@@ -37,20 +37,67 @@ from .model.groupdro import GroupDRO
 
 
 class FusionLayer(nn.Module):
-    """Fusion layer for combining visual and text latent representations."""
+    """Fusion layer for combining visual and text latent representations.
     
-    def __init__(self, latent_dim: int, dropout: float = 0.1):
+    If fusion_hidden is set, uses two layers: (2*latent_dim) -> fusion_hidden -> latent_dim
+    for more capacity. Otherwise single layer: (2*latent_dim) -> latent_dim.
+    """
+    
+    def __init__(self, latent_dim: int, dropout: float = 0.1, fusion_hidden: Optional[int] = None):
         super().__init__()
-        self.fusion = nn.Sequential(
-            nn.Linear(latent_dim * 2, latent_dim),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout),
-        )
+        if fusion_hidden is not None and fusion_hidden > 0:
+            self.fusion = nn.Sequential(
+                nn.Linear(latent_dim * 2, fusion_hidden),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout),
+                nn.Linear(fusion_hidden, latent_dim),
+            )
+        else:
+            self.fusion = nn.Sequential(
+                nn.Linear(latent_dim * 2, latent_dim),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout),
+            )
     
     def forward(self, z_visual: torch.Tensor, z_text: torch.Tensor) -> torch.Tensor:
         """Fuse visual and text latents by concatenation then projection."""
         z_concat = torch.cat([z_visual, z_text], dim=1)
         return self.fusion(z_concat)
+
+
+class FusionLayerCrossAttn(nn.Module):
+    """Fuse visual and text via self-attention over the 2 tokens (visual, text) per sample.
+    Each sample gets a combined representation that mixes both modalities. More capacity than concat-only.
+    """
+    def __init__(self, latent_dim: int, dropout: float = 0.1, num_heads: int = 4):
+        super().__init__()
+        self.latent_dim = latent_dim
+        self.num_heads = num_heads
+        assert latent_dim % num_heads == 0
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=latent_dim,
+            nhead=num_heads,
+            dim_feedforward=latent_dim * 2,
+            dropout=dropout,
+            activation="relu",
+            batch_first=True,
+            norm_first=False,
+        )
+        self.self_attn = nn.TransformerEncoder(encoder_layer, num_layers=1)
+        self.out_proj = nn.Sequential(
+            nn.Linear(latent_dim * 2, latent_dim),  # concat mean-pooled + last token or similar
+            nn.ReLU(inplace=True),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, z_visual: torch.Tensor, z_text: torch.Tensor) -> torch.Tensor:
+        # (B, 2, d): per-sample sequence of [visual, text]
+        x = torch.stack([z_visual, z_text], dim=1)
+        x = self.self_attn(x)   # (B, 2, d)
+        # Mean over the 2 tokens, then concat with original visual for residual
+        x_mean = x.mean(dim=1)
+        z_concat = torch.cat([z_visual, x_mean], dim=1)
+        return self.out_proj(z_concat)
 
 
 def build_textcaps_models(cfg, text_encoder: SimpleTextEncoder, device: torch.device, 
@@ -77,17 +124,37 @@ def build_textcaps_models(cfg, text_encoder: SimpleTextEncoder, device: torch.de
     # Group 1: Text encoder
     text_enc_name = cfg["groups"][1]["encoder"]
     text_enc_cls = ENCODER_REGISTRY[text_enc_name]
-    # Text encoder needs vocab_size
-    encoders[1] = text_enc_cls(
+    text_kwargs = dict(
         latent_dim=latent_dim,
         vocab_size=text_encoder.vocab_size,
         max_len=text_encoder.max_len,
     )
+    # Stronger transformer: optional embed_dim, num_heads, num_layers (raise text-group ceiling)
+    if text_enc_name == "transformer_text":
+        if cfg.get("text_encoder_embed_dim") is not None:
+            text_kwargs["embed_dim"] = cfg["text_encoder_embed_dim"]
+        if cfg.get("text_encoder_num_heads") is not None:
+            text_kwargs["num_heads"] = cfg["text_encoder_num_heads"]
+        if cfg.get("text_encoder_num_layers") is not None:
+            text_kwargs["num_layers"] = cfg["text_encoder_num_layers"]
+    encoders[1] = text_enc_cls(**text_kwargs)
     
     # Fusion layer for combined group (group 2) if enabled
     fusion_layer = None
     if include_combined:
-        fusion_layer = FusionLayer(latent_dim, dropout=cfg.get("fusion_dropout", 0.1))
+        fusion_type = cfg.get("fusion_type", "concat").lower()
+        if fusion_type == "cross_attn":
+            fusion_layer = FusionLayerCrossAttn(
+                latent_dim,
+                dropout=cfg.get("fusion_dropout", 0.1),
+                num_heads=cfg.get("fusion_num_heads", 4),
+            )
+        else:
+            fusion_layer = FusionLayer(
+                latent_dim,
+                dropout=cfg.get("fusion_dropout", 0.1),
+                fusion_hidden=cfg.get("fusion_hidden"),
+            )
     
     # Build head and anchors (head_dropout reduces overfitting)
     head = (MLPHead(latent_dim, cfg["head_hidden"], cfg["num_classes"], dropout=cfg.get("head_dropout", 0.3))
@@ -140,7 +207,8 @@ def evaluate_textcaps(
     num_groups = 3 if include_combined else 2
     correct_g = [0] * num_groups
     total_g = [0] * num_groups
-    
+    loss_sum_g = [0.0] * num_groups  # sum of CE loss per group for test loss
+
     # For classification metrics: track TP, FP, FN per class (overall)
     tp_per_class = [0] * num_classes
     fp_per_class = [0] * num_classes
@@ -158,6 +226,7 @@ def evaluate_textcaps(
                 y_v = batch['visual_y'].to(device)
                 z_v = encoders[0](x_v)
                 logits_v = head(z_v)
+                loss_sum_g[0] += nn.functional.cross_entropy(logits_v, y_v, reduction='sum').item()
                 pred_v = logits_v.argmax(dim=1)
                 correct_g[0] += (pred_v == y_v).sum().item()
                 total_g[0] += y_v.size(0)
@@ -180,6 +249,7 @@ def evaluate_textcaps(
                 y_t = batch['text_y'].to(device)
                 z_t = encoders[1](x_t)
                 logits_t = head(z_t)
+                loss_sum_g[1] += nn.functional.cross_entropy(logits_t, y_t, reduction='sum').item()
                 pred_t = logits_t.argmax(dim=1)
                 correct_g[1] += (pred_t == y_t).sum().item()
                 total_g[1] += y_t.size(0)
@@ -209,6 +279,7 @@ def evaluate_textcaps(
                 # Fuse
                 z_c = fusion_layer(z_cv, z_ct)
                 logits_c = head(z_c)
+                loss_sum_g[2] += nn.functional.cross_entropy(logits_c, y_c, reduction='sum').item()
                 pred_c = logits_c.argmax(dim=1)
                 correct_g[2] += (pred_c == y_c).sum().item()
                 total_g[2] += y_c.size(0)
@@ -261,6 +332,9 @@ def evaluate_textcaps(
             total_c = total_per_class_per_group[g][c]
             correct_c = correct_per_class_per_group[g][c]
             per_class_per_group_acc[group_names[g]][c] = correct_c / max(1, total_c)
+
+    # Per-group test (CE) loss
+    test_loss_per_group = [loss_sum_g[g] / max(1, total_g[g]) for g in range(num_groups)]
     
     metrics = {
         "precision_per_class": precision_per_class,
@@ -270,22 +344,27 @@ def evaluate_textcaps(
         "macro_recall": macro_recall,
         "macro_f1": macro_f1,
         "per_class_per_group_acc": per_class_per_group_acc,
+        "test_loss_per_group": test_loss_per_group,
     }
     
     return acc, acc_by_group, worst_group_acc, balanced_acc, metrics
 
 
-def train_textcaps(cfg, resume: bool = False, extra_epochs: Optional[int] = None):
+def train_textcaps(cfg, resume: bool = False, extra_epochs: Optional[int] = None, no_ema: bool = False):
     """Main training loop for TextCaps multi-modal.
     
     If resume=True and run_dir/last.ckpt exists, loads it and continues from
     the next epoch. Use num_workers=0 when resuming to avoid multiprocessing
     temp-dir issues that can crash long runs.
     
+    When no_ema=True: do not load EMA weights from checkpoint and do not save
+    EMA weights in checkpoints (use only regular model weights).
+    
     To extend training (e.g. 50 more epochs after a finished 50-epoch run):
     - Option A: set epochs in the config to the new total (e.g. 100) and run with --resume.
     - Option B: run with --resume --extra-epochs 50; max epoch becomes (last_ckpt_epoch + 50).
     """
+    use_ema = not no_ema
     
     # Device setup - try MPS (Apple Silicon GPU) first
     if torch.backends.mps.is_available():
@@ -470,6 +549,7 @@ def train_textcaps(cfg, resume: bool = False, extra_epochs: Optional[int] = None
     best_worst_group_acc = 0.0
     global_step = 0
     start_epoch = 1
+    ema_state_dict = None  # When EMA is implemented, set to {"ema_encoders": ..., "ema_head": ..., ...}; when no_ema, never set.
 
     # Resume from checkpoint if requested
     if resume:
@@ -477,6 +557,7 @@ def train_textcaps(cfg, resume: bool = False, extra_epochs: Optional[int] = None
         if ckpt_path.exists():
             console.log(f"Resuming from {ckpt_path}")
             ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+            # Always load regular model weights
             for gid, enc in encoders.items():
                 enc.load_state_dict(ckpt["encoders"][gid])
             head.load_state_dict(ckpt["head"])
@@ -485,6 +566,15 @@ def train_textcaps(cfg, resume: bool = False, extra_epochs: Optional[int] = None
                 fusion_layer.load_state_dict(ckpt["fusion_layer"])
             if groupdro is not None and "groupdro" in ckpt:
                 groupdro.q.copy_(ckpt["groupdro"]["weights"].to(device))
+            # Load EMA weights into model only when use_ema and checkpoint has them
+            if use_ema and "ema_encoders" in ckpt:
+                for gid, enc in encoders.items():
+                    enc.load_state_dict(ckpt["ema_encoders"][gid])
+                head.load_state_dict(ckpt["ema_head"])
+                anchors.load_state_dict(ckpt["ema_anchors"])
+                if fusion_layer is not None and "ema_fusion_layer" in ckpt:
+                    fusion_layer.load_state_dict(ckpt["ema_fusion_layer"])
+                console.log("Loaded EMA weights into model for resumed training.")
             start_epoch = ckpt["epoch"] + 1
             best_worst_group_acc = ckpt.get("best_worst_group_acc", ckpt.get("worst_group_acc", 0.0))
             if extra_epochs is not None:
@@ -691,6 +781,12 @@ def train_textcaps(cfg, resume: bool = False, extra_epochs: Optional[int] = None
             f"Epoch {epoch}: test_acc={test_acc:.4f} | balanced={balanced_acc:.4f} | "
             f"worst_group={worst_group_acc:.4f} | {group_acc_str}"
         )
+        train_loss_pg = [float(m.avg) for m in loss_meters_per_group]
+        test_loss_pg = test_metrics.get("test_loss_per_group", [])
+        train_loss_pg_str = " | ".join([f"{group_names[i]}={train_loss_pg[i]:.4f}" for i in range(len(train_loss_pg))])
+        test_loss_pg_str = " | ".join([f"{group_names[i]}={test_loss_pg[i]:.4f}" for i in range(len(test_loss_pg))]) if test_loss_pg else "n/a"
+        console.log(f"Epoch {epoch}: train_loss_per_group: {train_loss_pg_str}")
+        console.log(f"Epoch {epoch}: test_loss_per_group:  {test_loss_pg_str}")
         console.log(
             f"Epoch {epoch}: F1={test_metrics['macro_f1']:.4f} | "
             f"Precision={test_metrics['macro_precision']:.4f} | "
@@ -717,6 +813,9 @@ def train_textcaps(cfg, resume: bool = False, extra_epochs: Optional[int] = None
         for i, gname in enumerate(group_names):
             if i < len(test_acc_by_group):
                 writer.add_scalar(f"test/acc_{gname}", test_acc_by_group[i], epoch)
+        for i, gname in enumerate(group_names):
+            if i < len(test_metrics.get("test_loss_per_group", [])):
+                writer.add_scalar(f"test/loss_{gname}", test_metrics["test_loss_per_group"][i], epoch)
         writer.add_scalar("test/macro_f1", test_metrics['macro_f1'], epoch)
         writer.add_scalar("test/macro_precision", test_metrics['macro_precision'], epoch)
         writer.add_scalar("test/macro_recall", test_metrics['macro_recall'], epoch)
@@ -727,6 +826,7 @@ def train_textcaps(cfg, resume: bool = False, extra_epochs: Optional[int] = None
             "epoch": epoch,
             "train_loss": float(loss_meter.avg),
             "train_loss_per_group": [float(m.avg) for m in loss_meters_per_group],
+            "test_loss_per_group": [float(x) for x in test_metrics.get("test_loss_per_group", [])],
             "train_acc": float(acc_meter.avg),
             "test_acc": float(test_acc),
             "worst_group_acc": float(worst_group_acc),
@@ -795,6 +895,10 @@ def train_textcaps(cfg, resume: bool = False, extra_epochs: Optional[int] = None
                     "pi": groupdro.pi,
                     "stats": groupdro.group_stats,
                 }
+            # Save EMA weights only when use_ema (not --no_ema). If EMA state is maintained
+            # during training (e.g. ema_state_dict populated elsewhere), add it here.
+            if use_ema and ema_state_dict is not None:
+                save_dict.update(ema_state_dict)
             torch.save(save_dict, ckpt_path)
             console.log(f"Saved checkpoint to {ckpt_path}")
             
@@ -815,6 +919,8 @@ def parse_args():
     ap.add_argument("--resume", action="store_true", help="Resume from run_dir/last.ckpt if it exists")
     ap.add_argument("--extra-epochs", type=int, default=None, metavar="N",
                     help="When resuming: train N more epochs (max_epoch = last_ckpt_epoch + N). Ignored if not resuming.")
+    ap.add_argument("--no_ema", action="store_true",
+                    help="Do not load EMA weights from checkpoint and do not save EMA weights.")
     return ap.parse_args()
 
 
@@ -822,4 +928,4 @@ if __name__ == "__main__":
     args = parse_args()
     with open(args.config, "r") as f:
         cfg = yaml.safe_load(f)
-    train_textcaps(cfg, resume=args.resume, extra_epochs=args.extra_epochs)
+    train_textcaps(cfg, resume=args.resume, extra_epochs=args.extra_epochs, no_ema=args.no_ema)

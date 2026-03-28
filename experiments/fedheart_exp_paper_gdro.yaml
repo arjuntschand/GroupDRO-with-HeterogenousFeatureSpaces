@@ -1,0 +1,63 @@
+# Paper: per-group encoders, homogeneous, GroupDRO, 80/20 split, G2/G3 capped
+run_name: fedheart_exp_paper_gdro
+seed: 42
+run_dir: runs/exp_paper_gdro
+
+use_fedheart: true
+num_classes: 2
+stratified_batching: true
+train_frac: 0.8
+group_max_train_samples: [null, null, 20, 25]
+
+batch_size: 64
+num_workers: 0
+epochs: 100
+early_stopping_patience: 30
+lr: 0.001
+weight_decay: 0.0001
+optimizer: adam
+grad_clip: 1.0
+lr_scheduler: cosine
+lr_min: 1.0e-5
+
+latent_dim: 64
+head_hidden: 32
+
+groups:
+  - name: cleveland
+    encoder: mlp_tabular_ln
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+  - name: hungarian
+    encoder: mlp_tabular_ln
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+  - name: switzerland
+    encoder: mlp_tabular_ln
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+  - name: va_long_beach
+    encoder: mlp_tabular_ln
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+
+anchor_eps: 0.0001
+sep_samples_per_class: 4
+sep_method: classifier
+sep_margin: 1.0
+lambda_fit: 0.001
+lambda_sep: 0.001
+
+groupdro_enabled: true
+groupdro_eta: 1.0
+groupdro_gamma: 0.9
+groupdro_update_mode: softmax
+groupdro_objective: weighted
+groupdro_kl_lambda: 0.0
+groupdro_uniform_init: true
+log_interval: 20
+save_every: 10

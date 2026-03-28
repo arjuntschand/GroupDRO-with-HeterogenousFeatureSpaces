@@ -1,0 +1,75 @@
+# Experiment 2a: Per-group encoders, MODERATE heterogeneity, ERM
+# Each hospital drops 1 feature group (realistic clinical scenario)
+#
+# Feature index mapping (after FLamby preprocessing):
+#   0: age, 1: sex, 2: trestbps, 3: chol, 4: fbs,
+#   5: thalach, 6: exang, 7: oldpeak, 8-10: cp (one-hot), 11-12: restecg (one-hot)
+#
+# G0 Cleveland (303): drop fbs (idx 4) -> 12 features. Lab economy.
+# G1 Hungarian (261): drop chol (idx 3) -> 12 features. No cholesterol test.
+# G2 Switzerland (46):  drop restecg (idx 11,12) -> 11 features. No resting ECG.
+# G3 VA Long Beach (130): drop cp (idx 8,9,10) -> 10 features. Different intake coding.
+run_name: fedheart_exp_hetmod_erm
+seed: 42
+run_dir: runs/exp_hetmod_erm
+
+use_fedheart: true
+num_classes: 2
+stratified_batching: true
+train_frac: 0.66
+
+true_hetero_input_dim: true
+
+feature_mask:
+  - [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12]   # G0: drop fbs (4) -> 12 features
+  - [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12]     # G1: drop chol (3) -> 12 features
+  - [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]           # G2: drop restecg (11,12) -> 11 features
+  - [0, 1, 2, 3, 4, 5, 6, 7, 11, 12]             # G3: drop cp (8,9,10) -> 10 features
+
+batch_size: 64
+num_workers: 0
+epochs: 100
+early_stopping_patience: 30
+lr: 0.001
+weight_decay: 0.0001
+optimizer: adam
+grad_clip: 1.0
+lr_scheduler: cosine
+lr_min: 1.0e-5
+
+latent_dim: 64
+head_hidden: 32
+
+groups:
+  - name: cleveland
+    encoder: mlp_tabular_ln
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+  - name: hungarian
+    encoder: mlp_tabular_ln
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+  - name: switzerland
+    encoder: mlp_tabular_ln
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+  - name: va_long_beach
+    encoder: mlp_tabular_ln
+    input_dim: 13
+    hidden_dim: 64
+    dropout: 0.1
+
+anchor_eps: 0.0001
+sep_samples_per_class: 4
+sep_method: classifier
+sep_margin: 1.0
+lambda_fit: 0.001
+lambda_sep: 0.001
+
+groupdro_enabled: false
+
+log_interval: 20
+save_every: 10

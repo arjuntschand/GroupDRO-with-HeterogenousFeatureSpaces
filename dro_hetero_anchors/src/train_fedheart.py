@@ -344,10 +344,16 @@ def train(cfg):
     
     # Build data loaders
     console.log("Loading Fed-Heart Disease dataset...")
+    # data_split_seed: fixed seed for train/test split (like FLamby).
+    # When set, all experiment seeds share the same data split; only model init + subsampling varies.
+    data_seed = cfg.get("data_split_seed", cfg["seed"])
+    # subsample_seed: controls which samples are selected when capping groups.
+    # Uses experiment seed so each run gets different capped samples while keeping the split fixed.
+    subsample_seed = cfg["seed"] if cfg.get("data_split_seed") is not None else None
     train_loader, test_loader, dataset_info = build_fedheart_loaders(
         batch_size=cfg["batch_size"],
         num_workers=cfg.get("num_workers", 0),
-        seed=cfg["seed"],
+        seed=data_seed,
         stratified=cfg.get("stratified_batching", True),
         data_root=cfg.get("data_root"),
         group_max_train_samples=cfg.get("group_max_train_samples"),
@@ -355,8 +361,9 @@ def train(cfg):
         label_noise_rate=cfg.get("label_noise_rate"),
         feature_mask=cfg.get("feature_mask"),
         input_noise_std=cfg.get("input_noise_std"),
+        subsample_seed=subsample_seed,
     )
-    
+
     # Print dataset summary and hyperparameters
     print_fedheart_summary(dataset_info)
     print_hyperparameters(cfg, dataset_info)

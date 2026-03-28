@@ -246,21 +246,22 @@ class CombinedFedHeartDataset(Dataset):
                  train_frac: float = 0.66,
                  label_noise_rate: Optional[List[float]] = None,
                  feature_mask: Optional[List[Optional[List[int]]]] = None,
-                 input_noise_std: Optional[List[float]] = None):
+                 input_noise_std: Optional[List[float]] = None,
+                 subsample_seed: Optional[int] = None):
         self.train = train
         self.centers = centers if centers is not None else list(range(NUM_CLIENTS))
         self.seed = seed
         self.train_frac = train_frac
-        
+
         # Store noise/masking parameters for __getitem__
         self.label_noise_rate = label_noise_rate  # e.g. [0.3, 0.3, 0.0, 0.0] = 30% noise on G0,G1
         self.feature_mask = feature_mask  # e.g. [None, None, [0,1,2], [0,1,2]] = G2,G3 only see features 0,1,2
         self.input_noise_std = input_noise_std  # e.g. [0.0, 0.0, 0.5, 0.5] = add noise to G2,G3
-        
+
         # Precompute label flips for reproducibility
         self._label_flips = {}  # (group, local_idx) -> flipped_label
         self._rng = np.random.default_rng(seed + 12345)  # separate RNG for noise
-        
+
         if _use_flamby():
             self._standalone = False
             self.datasets = [
@@ -276,9 +277,10 @@ class CombinedFedHeartDataset(Dataset):
                 _StandaloneHeartDiseaseDataset(center=c, train=train, data_dir=data_root, seed=seed, train_frac=train_frac)
                 for c in self.centers
             ]
-        
+
         # Optional per-group subsampling (for paper: create imbalance so ERM underperforms on minority group)
-        rng = np.random.default_rng(seed)
+        # subsample_seed allows varying which samples are capped while keeping train/test split fixed
+        rng = np.random.default_rng(subsample_seed if subsample_seed is not None else seed)
         self.indices = []  # list of (group_id, local_idx)
         for g, ds in enumerate(self.datasets):
             n = len(ds)
@@ -535,6 +537,7 @@ def build_fedheart_loaders(
     label_noise_rate: Optional[List[float]] = None,
     feature_mask: Optional[List[Optional[List[int]]]] = None,
     input_noise_std: Optional[List[float]] = None,
+    subsample_seed: Optional[int] = None,
 ) -> Tuple[DataLoader, DataLoader, Dict]:
     """Build train and test DataLoaders for Fed-Heart Disease.
     
@@ -578,6 +581,7 @@ def build_fedheart_loaders(
         label_noise_rate=label_noise_rate,
         feature_mask=feature_mask,
         input_noise_std=input_noise_std,
+        subsample_seed=subsample_seed,
     )
     test_dataset = CombinedFedHeartDataset(
         train=False, centers=centers, data_root=data_root,

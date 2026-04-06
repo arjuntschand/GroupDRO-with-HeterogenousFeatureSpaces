@@ -24,6 +24,10 @@ python -m dro_hetero_anchors.src.train_fedheart --config experiments/<config>.ya
 
 # TextCaps (multi-modal: visual + text)
 python -m dro_hetero_anchors.src.train_textcaps --config experiments/<config>.yaml
+
+# NHANES CVD (tabular, 3 feature-availability groups)
+python -m dro_hetero_anchors.src.train_nhanes --config experiments/<config>.yaml
+python run_nhanes_experiments.py --seeds 42 1337 7 --only core
 ```
 
 ### Evaluation & Tools
@@ -85,3 +89,33 @@ Note: The original UCI columns for slope, ca, and thal are dropped during prepro
 
 ### Batch Experiment Runner
 `run_experiments.py` runs multiple configs x seeds and collects results. See `runs/HETERO_EXPERIMENT_RESULTS.md` for latest results.
+
+## NHANES CVD: Natural Feature-Availability Heterogeneity
+
+**Task:** Binary CVD prediction from NHANES 2017-2020 + 2021-2023 survey data.
+**Data:** 17,005 participants, 10.5% CVD prevalence (auto class-weighted loss).
+
+### Groups (by assessment completion)
+- **G0 (survey_only, 2.1k):** Demographics + smoking (10 features)
+- **G1 (exam, 2.1k):** Survey + body measures (13 features)
+- **G2 (vitals_labs, 9.4k):** Survey + body + BP + labs (20 features)
+
+Features are nested: G0 ⊂ G1 ⊂ G2. Data downloads automatically from CDC on first run.
+
+### Feature Index Reference (after preprocessing)
+`0:age, 1:gender, 2-6:race(one-hot), 7:education, 8:income_poverty, 9:ever_smoked, 10:bmi, 11:weight, 12:height, 13:mean_systolic_bp, 14:mean_diastolic_bp, 15:hba1c, 16:hdl, 17:total_cholesterol, 18:triglycerides, 19:ldl`
+
+### Key Config Options
+- **`class_weight: "auto"`**: Inverse-frequency class weighting (default, important for 10.5% CVD rate)
+- **`use_post_pandemic: true`**: Include 2021-2023 data (doubles dataset size)
+- **`data_split_seed: 100`**: Fixed train/test split; model `seed` varies initialization only
+
+### Feature Modes
+- **`feature_mode: "nested"`** (default): G0 ⊂ G1 ⊂ G2 (10/13/20 features)
+- **`feature_mode: "expanded"`**: More survey features, still nested (15/18/25)
+- **`feature_mode: "disjoint"`**: Each group has 10 shared + 5 unique features (15/15/15). Per-group encoders essential.
+
+### Experiment Runners
+- `run_nhanes_experiments.py` — Original nested-only suite
+- `run_nhanes_all.py` — Full suite: nested × expanded × disjoint × shared/pergroup × ERM/GDRO
+- Results: `runs/NHANES_EXPERIMENT_RESULTS.md`, `runs/nhanes_all_results.json`

@@ -174,8 +174,9 @@ class GroupDRO:
 
             self.q.copy_(q_new)
     
-    def forward(self, logits: torch.Tensor, y: torch.Tensor, 
-                g: torch.Tensor, num_classes: Optional[int] = None) -> torch.Tensor:
+    def forward(self, logits: torch.Tensor, y: torch.Tensor,
+                g: torch.Tensor, num_classes: Optional[int] = None,
+                class_weight: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Compute GroupDRO weighted loss and update statistics.
         
@@ -212,7 +213,7 @@ class GroupDRO:
                 g_y = y[mask]
                 
                 # compute loss and accuracy for this group
-                loss = nn.functional.cross_entropy(g_logits, g_y)
+                loss = nn.functional.cross_entropy(g_logits, g_y, weight=class_weight)
                 pred = g_logits.argmax(dim=1)
                 acc = (pred == g_y).float().mean().item()
                 

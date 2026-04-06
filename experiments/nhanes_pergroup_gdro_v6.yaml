@@ -1,0 +1,62 @@
+# NHANES CVD: Per-group encoders + GroupDRO (v6 — larger G0 encoder, balanced arch)
+# Key insight: G0 has fewer features but needs more capacity to extract signal
+run_name: nhanes_pergroup_gdro_v6
+seed: 42
+run_dir: runs/nhanes_pergroup_gdro_v6
+
+use_nhanes: true
+num_classes: 2
+stratified_batching: true
+train_frac: 0.8
+use_post_pandemic: true
+data_split_seed: 100
+
+batch_size: 128
+num_workers: 0
+epochs: 150
+early_stopping_patience: 40
+lr: 0.0008
+weight_decay: 0.0002
+optimizer: adam
+grad_clip: 1.0
+lr_scheduler: cosine
+lr_min: 1.0e-6
+
+latent_dim: 64
+head_hidden: 48
+
+common_encoder: false
+groups:
+  - name: survey_only
+    encoder: mlp_tabular_deep
+    input_dim: 10
+    hidden_dim: 128
+    dropout: 0.2
+  - name: exam
+    encoder: mlp_tabular_ln
+    input_dim: 13
+    hidden_dim: 96
+    dropout: 0.15
+  - name: vitals_labs
+    encoder: mlp_tabular_ln
+    input_dim: 20
+    hidden_dim: 64
+    dropout: 0.1
+
+anchor_eps: 0.0001
+sep_samples_per_class: 6
+sep_method: classifier
+sep_margin: 1.0
+lambda_fit: 0.002
+lambda_sep: 0.002
+
+groupdro_enabled: true
+groupdro_eta: 0.3
+groupdro_gamma: 0.9
+groupdro_update_mode: exp_smooth
+groupdro_objective: weighted
+groupdro_kl_lambda: 0.05
+groupdro_uniform_init: true
+
+log_interval: 20
+save_every: 10

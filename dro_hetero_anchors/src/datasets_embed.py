@@ -220,7 +220,17 @@ def _recompute_groups(index: pd.DataFrame, tail_threshold: float) -> Tuple[pd.Da
 
 def _load_dicom_image(path: str, size: int = 224) -> np.ndarray:
     """Load a mammography DICOM, apply VOI LUT windowing, normalize to [0,1],
-    resize to (size, size). Returns a single-channel float32 array."""
+    resize to (size, size). Returns a single-channel float32 array.
+
+    DICOM decode (JPEG-Lossless) is CPU-expensive and dominates training time, so the
+    decoded uint8 image is cached next to the file as `<path>.<size>.npy`. Subsequent
+    loads (every epoch) read the tiny npy instead of re-decoding the DICOM."""
+    cache = f"{path}.{size}.npy"
+    if os.path.exists(cache):
+        try:
+            return np.load(cache).astype(np.float32) / 255.0
+        except Exception:
+            pass  # corrupt cache -> re-decode
     try:
         import pydicom
         from pydicom.pixel_data_handlers.util import apply_voi_lut
@@ -234,8 +244,12 @@ def _load_dicom_image(path: str, size: int = 224) -> np.ndarray:
     if getattr(ds, "PhotometricInterpretation", "") == "MONOCHROME1":
         arr = arr.max() - arr  # invert so higher = brighter tissue
     arr = (arr - arr.min()) / (arr.max() - arr.min() + 1e-8)
-    im = Image.fromarray((arr * 255).astype(np.uint8)).resize((size, size))
-    return np.asarray(im, dtype=np.float32) / 255.0
+    u8 = np.asarray(Image.fromarray((arr * 255).astype(np.uint8)).resize((size, size)), dtype=np.uint8)
+    try:
+        np.save(cache, u8)
+    except Exception:
+        pass
+    return u8.astype(np.float32) / 255.0
 
 
 class EMBEDDataset(Dataset):

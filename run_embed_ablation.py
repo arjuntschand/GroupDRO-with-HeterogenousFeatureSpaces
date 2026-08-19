@@ -47,6 +47,8 @@ def main():
     ap.add_argument("--epochs", type=int, default=None)
     ap.add_argument("--quick", action="store_true",
                     help="local subset (require_local_images) + 2 epochs, for smoke testing")
+    ap.add_argument("--subset", action="store_true",
+                    help="train on locally-downloaded images (require_local_images) at full epochs")
     ap.add_argument("--out", default="runs/embed_ablation_results.json")
     args = ap.parse_args()
 
@@ -69,6 +71,8 @@ def main():
                 cfg["epochs"] = 2
                 cfg["stratified_batching"] = False
                 cfg["min_group_size"] = 0   # keep the tiny local subset intact
+            if args.subset:
+                cfg["require_local_images"] = True   # train on whatever images are on disk
             print(f"\n{'='*70}\n[cell={name} seed={seed}] "
                   f"per_view={cfg['per_view_encoders']} gdro={cfg['groupdro_enabled']} "
                   f"anchors={cfg['lambda_fit']>0}\n{'='*70}")

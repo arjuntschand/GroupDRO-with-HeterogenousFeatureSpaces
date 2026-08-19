@@ -354,6 +354,8 @@ def build_embed_loaders(
     group_max_train_samples: Optional[List[Optional[int]]] = None,
     require_local_images: bool = False,
     min_group_size: int = 0,
+    tail_train_cap: Optional[int] = None,
+    head_group_names: Optional[List[str]] = None,
 ) -> Tuple[DataLoader, DataLoader, Dict]:
     """Build EMBED train/test loaders. Split is patient-level (no exam leakage).
 
@@ -410,6 +412,18 @@ def build_embed_loaders(
             cap = group_max_train_samples[g] if g < len(group_max_train_samples) else None
             if cap is not None and len(gi) > cap:
                 gi = rng.choice(gi, size=cap, replace=False)
+            keep.extend(gi.tolist())
+        train_idx = train_idx.iloc[sorted(keep)].reset_index(drop=True)
+
+    # Tail-starvation: cap training samples of semantically-tail groups (by name).
+    if tail_train_cap is not None and head_group_names:
+        heads = set(head_group_names)
+        gid_name = {g["gid"]: g["name"] for g in info["groups"]}
+        keep = []
+        for g in range(info["num_groups"]):
+            gi = np.where(train_idx["group"].values == g)[0]
+            if gid_name.get(g) not in heads and len(gi) > tail_train_cap:
+                gi = rng.choice(gi, size=tail_train_cap, replace=False)
             keep.extend(gi.tolist())
         train_idx = train_idx.iloc[sorted(keep)].reset_index(drop=True)
 

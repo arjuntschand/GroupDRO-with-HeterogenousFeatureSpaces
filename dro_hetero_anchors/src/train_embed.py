@@ -69,15 +69,41 @@ def build_models(cfg, info: Dict, device):
     return encoder, head, anchors, groupdro
 
 
+def _apply_view_dropout(mask: torch.Tensor, p: float, gen: torch.Generator) -> torch.Tensor:
+    """Randomly drop present views with prob p, keeping >=1 present per sample.
+    Simulates missing modalities at inference. Returns a new mask (views are zeroed
+    downstream via the mask in the encoder's masked-mean pooling)."""
+    if p <= 0:
+        return mask
+    m = mask.clone()
+    B, V = m.shape
+    drop = (torch.rand(B, V, generator=gen, device=m.device) < p) & (m > 0)
+    new = m * (~drop).float()
+    # ensure at least one present view: rows that lost everything keep one original view
+    empty = new.sum(dim=1) == 0
+    if empty.any():
+        for i in torch.nonzero(empty, as_tuple=False).flatten().tolist():
+            present = torch.nonzero(m[i] > 0, as_tuple=False).flatten()
+            if len(present):
+                keep = present[torch.randint(len(present), (1,), generator=gen, device=m.device)]
+                new[i, keep] = 1.0
+    return new
+
+
 @torch.no_grad()
-def evaluate(encoder, head, loader, device, info) -> Dict[str, Any]:
+def evaluate(encoder, head, loader, device, info, view_dropout: float = 0.0,
+             dropout_seed: int = 0) -> Dict[str, Any]:
     encoder.eval(); head.eval()
     num_groups, num_classes = info["num_groups"], info["num_classes"]
+    gen = torch.Generator(device=device); gen.manual_seed(dropout_seed)
     correct_g = [0] * num_groups
     total_g = [0] * num_groups
     correct = total = 0
     for views, mask, y, g in loader:
         views, mask, y = views.to(device), mask.to(device), y.to(device)
+        if view_dropout > 0:
+            mask = _apply_view_dropout(mask, view_dropout, gen)
+            views = views * mask.view(mask.size(0), mask.size(1), 1, 1, 1)
         z = encoder(views, mask)
         pred = head(z).argmax(dim=1).cpu()
         y = y.cpu()
@@ -120,7 +146,18 @@ def train(cfg):
         group_max_train_samples=cfg.get("group_max_train_samples"),
         require_local_images=cfg.get("require_local_images", False),
         min_group_size=cfg.get("min_group_size", 0),
+        tail_train_cap=cfg.get("tail_train_cap"),
+        head_group_names=cfg.get("head_group_names"),
     )
+    # Principled head/tail: head = named complete-modality combos, everything else = tail.
+    # (Stable across subset proportions, unlike the frequency-based default.)
+    if cfg.get("head_group_names"):
+        heads = set(cfg["head_group_names"])
+        name_by_gid = {g["gid"]: g["name"] for g in info["groups"]}
+        info["head_gids"] = [gid for gid, nm in name_by_gid.items() if nm in heads]
+        info["tail_gids"] = [gid for gid, nm in name_by_gid.items() if nm not in heads]
+        for g in info["groups"]:
+            g["is_tail"] = g["name"] not in heads
     print_embed_summary(info)
     set_seed(cfg["seed"])
 
@@ -143,6 +180,7 @@ def train(cfg):
     J, eps = cfg["sep_samples_per_class"], cfg["anchor_eps"]
     num_classes = info["num_classes"]
     best_tail = best_overall = 0.0
+    best_overall_metrics = best_tail_metrics = None
     step = 0
 
     for epoch in range(1, cfg["epochs"] + 1):
@@ -196,16 +234,40 @@ def train(cfg):
         save = {"cfg": cfg, "epoch": epoch, "encoder": encoder.state_dict(),
                 "head": head.state_dict(), "anchors": anchors.state_dict(), "metrics": m}
         if m["tail_acc"] > best_tail:
-            best_tail = m["tail_acc"]; torch.save(save, Path(cfg["run_dir"]) / "best_tail.ckpt")
+            best_tail = m["tail_acc"]; best_tail_metrics = m
+            torch.save(save, Path(cfg["run_dir"]) / "best_tail.ckpt")
             console.log(f"[green]New best tail acc: {best_tail:.4f}[/green]")
         if m["overall_acc"] > best_overall:
-            best_overall = m["overall_acc"]; torch.save(save, Path(cfg["run_dir"]) / "best_overall.ckpt")
+            best_overall = m["overall_acc"]; best_overall_metrics = m
+            torch.save(save, Path(cfg["run_dir"]) / "best_overall.ckpt")
         torch.save(save, Path(cfg["run_dir"]) / "last.ckpt")
+
+    # Missingness-robustness curve: reload best-overall model, eval under view dropout.
+    dropout_curve = None
+    if cfg.get("dropout_eval_ps"):
+        ck = torch.load(Path(cfg["run_dir"]) / "best_overall.ckpt", map_location=device)
+        encoder.load_state_dict(ck["encoder"]); head.load_state_dict(ck["head"])
+        dropout_curve = {}
+        for p in cfg["dropout_eval_ps"]:
+            md = evaluate(encoder, head, test_loader, device, info,
+                          view_dropout=float(p), dropout_seed=1234)
+            dropout_curve[str(p)] = {k: md[k] for k in
+                                     ("overall_acc", "head_acc", "tail_acc", "worst_group_acc")}
+            console.log(f"[dropout p={p}] overall={md['overall_acc']:.4f} "
+                        f"tail={md['tail_acc']:.4f} worst={md['worst_group_acc']:.4f}")
 
     console.rule("Training Complete")
     console.log(f"Best tail acc: {best_tail:.4f} | Best overall acc: {best_overall:.4f}")
     writer.close()
-    return {"best_tail_acc": best_tail, "best_overall_acc": best_overall}
+    return {"best_tail_acc": best_tail, "best_overall_acc": best_overall,
+            "best_overall_metrics": best_overall_metrics,
+            "best_tail_metrics": best_tail_metrics,
+            "dropout_curve": dropout_curve,
+            "num_groups": info["num_groups"],
+            "head_gids": info["head_gids"], "tail_gids": info["tail_gids"],
+            "group_names": [g["name"] for g in sorted(info["groups"], key=lambda x: x["gid"])],
+            "train_group_counts": info.get("train_group_counts"),
+            "test_group_counts": info.get("test_group_counts")}
 
 
 if __name__ == "__main__":

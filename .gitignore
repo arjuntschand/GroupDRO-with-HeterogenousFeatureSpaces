@@ -1,3 +1,11 @@
 
 # Datasets (never commit)
 datasets/
+exports/
+
+# EMBED training artifacts — the EMBED Data Use Agreement forbids releasing model
+# weights or embedding spaces trained on EMBED. Never commit EMBED run outputs
+# (checkpoints, tensorboard, embeddings). Publish results + code only.
+runs/embed_*/
+runs/embed_*.json
+*.embed.ckpt

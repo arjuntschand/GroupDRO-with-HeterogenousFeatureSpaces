@@ -1,0 +1,54 @@
+# EMBED base config — the ablation runner (run_embed_ablation.py) overrides the
+# component flags per cell. Defaults here = the FULL method + real-run settings.
+run_name: embed_base
+run_dir: runs/embed_base
+data_root: datasets/embed
+seed: 42
+data_split_seed: 42
+
+# Data
+batch_size: 32
+num_workers: 8
+image_size: 224
+train_frac: 0.8
+tail_threshold: 0.15
+stratified_batching: true
+min_group_size: 30            # drop micro modality-combos (<30 samples) so GDRO groups are meaningful
+group_max_train_samples: null
+require_local_images: false   # true only for --quick local smoke tests
+class_weight: auto            # density is imbalanced (A~10%, D~5%)
+
+# Model
+encoder: mammo_multiview
+backbone: resnet18            # sweep resnet50 for the final headline
+pretrained: true
+num_view_types: 4
+per_view_encoders: true       # per-group encoder arm (runner toggles)
+dropout: 0.2
+latent_dim: 128
+head_hidden: 256
+
+# Anchors (runner sets lambda_*=0 to ablate)
+anchor_eps: 1.0e-4
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+sep_samples_per_class: 16
+sep_method: classifier
+sep_margin: 2.0
+
+# Optimization
+lr: 5.0e-5                    # matches REMIND; sweep 1e-4
+weight_decay: 1.0e-4
+epochs: 20
+grad_clip: 1.0
+
+# GroupDRO (runner toggles groupdro_enabled)
+groupdro_enabled: true
+groupdro_eta: 1.0            # sweep {0.5, 1.0, 2.0}
+groupdro_update_mode: softmax
+groupdro_objective: weighted
+groupdro_gamma: 0.9
+groupdro_kl_lambda: 0.0
+groupdro_uniform_init: true
+
+log_interval: 50

@@ -3,6 +3,7 @@ from .cnn32 import CNN32
 from .resnet_visual import ResNetVisualEncoder, SimpleCNNVisualEncoder
 from .text_encoder import CharCNNTextEncoder, TransformerTextEncoder, MLPTextEncoder
 from .tabular_encoder import MLPTabularEncoder, MLPTabularEncoderLarge, MLPTabularEncoderLN, MLPTabularEncoderDeep
+from .embed_encoder import MammoMultiViewEncoder
 
 ENCODER_REGISTRY = {
     # Original MNIST/USPS encoders
@@ -23,4 +24,7 @@ ENCODER_REGISTRY = {
     "mlp_tabular_large": MLPTabularEncoderLarge,
     "mlp_tabular_ln": MLPTabularEncoderLN,  # LayerNorm version for extreme imbalance
     "mlp_tabular_deep": MLPTabularEncoderDeep,  # 4-layer deep encoder
+
+    # EMBED mammography (multi-view, modality-availability groups)
+    "mammo_multiview": MammoMultiViewEncoder,
 }

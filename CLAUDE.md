@@ -28,6 +28,12 @@ python -m dro_hetero_anchors.src.train_textcaps --config experiments/<config>.ya
 # NHANES CVD (tabular, 3 feature-availability groups)
 python -m dro_hetero_anchors.src.train_nhanes --config experiments/<config>.yaml
 python run_nhanes_experiments.py --seeds 42 1337 7 --only core
+
+# EMBED mammography (multi-view images, modality-combination groups)
+# Requires AWS access — see documentation/EMBED_PLAN.md. Validate schema first:
+python -m dro_hetero_anchors.src.datasets_embed --inspect
+python -m dro_hetero_anchors.src.train_embed --config experiments/embed_baseline.yaml
+python -m dro_hetero_anchors.src.train_embed --config experiments/embed_groupdro.yaml
 ```
 
 ### Evaluation & Tools
@@ -50,8 +56,8 @@ Configuration (YAML) → group-aware data loaders → per-group encoders φ_g �
 
 ### Key Modules (`dro_hetero_anchors/src/`)
 
-- **`train.py` / `train_fedheart.py` / `train_textcaps.py`**: Dataset-specific training loops. Each builds models via `build_models()`, runs train/eval epochs, logs metrics.
-- **`datasets.py` / `datasets_fedheart.py` / `datasets_textcaps.py`**: Dataset-specific loaders with group-aware batching. MNIST/USPS uses `pad_to_max_collate()` for mixed resolutions.
+- **`train.py` / `train_fedheart.py` / `train_nhanes.py` / `train_textcaps.py` / `train_embed.py`**: Dataset-specific training loops. Each builds models via `build_models()`, runs train/eval epochs, logs metrics. `train_embed.py` uses one mask-driven multi-view encoder (not a per-group dict) and reports head/tail/overall accuracy to match the REMIND paper.
+- **`datasets.py` / `datasets_fedheart.py` / `datasets_nhanes.py` / `datasets_textcaps.py` / `datasets_embed.py`**: Dataset-specific loaders with group-aware batching. MNIST/USPS uses `pad_to_max_collate()` for mixed resolutions. `datasets_embed.py` groups mammography exams by modality combination (tail = <15% freq) and loads DICOMs.
 - **`model/anchors.py`**: `AnchorModule` — per-class Gaussian anchors N(m_c, S_c) where S_c = L_c·L_c^T + ε·I.
 - **`model/losses.py`**: Anchor fit loss (W₂ between batch moments and anchor moments), anchor separation loss (classifier or W₂ margin methods), focal loss, label smoothing.
 - **`model/groupdro.py`**: `GroupDRO` class — maintains weight vector q on simplex, supports update modes (`exp`, `softmax`, `exp_smooth`), objective modes (`weighted`, `max`, `logsumexp`), optional KL(q‖π) penalty.

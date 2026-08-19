@@ -1,0 +1,46 @@
+# EMBED mammography — ERM baseline (no GroupDRO)
+# Density classification (A/B/C/D), modality-combination groups, tail = <15%.
+# NOTE: blind scaffold — validate group counts with `datasets_embed --inspect`
+# and a first data run before trusting hyperparameters.
+run_name: embed_baseline
+run_dir: runs/embed_baseline
+data_root: datasets/embed
+seed: 42
+data_split_seed: 42
+
+# Data
+batch_size: 32
+num_workers: 4
+image_size: 224
+train_frac: 0.8
+tail_threshold: 0.15
+stratified_batching: true
+group_max_train_samples: null
+
+# Model
+encoder: mammo_multiview
+backbone: resnet18        # resnet50 for the stronger config
+pretrained: true
+num_view_types: 4
+dropout: 0.2
+latent_dim: 128
+head_hidden: 256
+
+# Anchors
+anchor_eps: 1.0e-4
+lambda_fit: 1.0e-3
+lambda_sep: 1.0e-3
+sep_samples_per_class: 16
+sep_method: classifier
+sep_margin: 2.0
+
+# Optimization (REMIND used lr=5e-5 for EMBED)
+lr: 5.0e-5
+weight_decay: 1.0e-4
+epochs: 20
+grad_clip: 1.0
+
+# GroupDRO
+groupdro_enabled: false
+
+log_interval: 50

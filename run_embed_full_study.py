@@ -76,12 +76,19 @@ def run_one(base, study, cell, seed, epochs, tag, **overrides):
 
 
 def main():
+    global OUT_DIR, RESULTS
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, nargs="+", default=[42, 1337, 7])
     ap.add_argument("--starve-seeds", type=int, nargs="+", default=[42, 1337])
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--smoke", action="store_true", help="1 cell/seed/epoch to validate")
+    ap.add_argument("--only", choices=["A", "B", "all"], default="all")
+    ap.add_argument("--starve-cells", nargs="+", default=STARVE_CELLS)
+    ap.add_argument("--out-dir", default=OUT_DIR)
     args = ap.parse_args()
+
+    OUT_DIR = args.out_dir
+    RESULTS = os.path.join(OUT_DIR, "results.json")
 
     with open(BASE) as f:
         base = yaml.safe_load(f)
@@ -95,16 +102,18 @@ def main():
         print("SMOKE DONE"); return
 
     # ---- Study A (+ C via dropout curves): full ablation ----
-    for cell in ALL_CELLS:
-        for seed in args.seeds:
-            run_one(base, "A_ablation", cell, seed, args.epochs, f"{cell}_s{seed}")
+    if args.only in ("A", "all"):
+        for cell in ALL_CELLS:
+            for seed in args.seeds:
+                run_one(base, "A_ablation", cell, seed, args.epochs, f"{cell}_s{seed}")
 
     # ---- Study B: tail-starvation curve ----
-    for cap in STARVE_CAPS:
-        for cell in STARVE_CELLS:
-            for seed in args.starve_seeds:
-                run_one(base, "B_starve", cell, seed, args.epochs,
-                        f"{cell}_cap{cap}_s{seed}", tail_train_cap=cap)
+    if args.only in ("B", "all"):
+        for cap in STARVE_CAPS:
+            for cell in args.starve_cells:
+                for seed in args.starve_seeds:
+                    run_one(base, "B_starve", cell, seed, args.epochs,
+                            f"{cell}_cap{cap}_s{seed}", tail_train_cap=cap)
 
     open(os.path.join(OUT_DIR, "DONE"), "w").write(str(time.time()))
     n_ok = sum(1 for r in results if r.get("status") == "ok")

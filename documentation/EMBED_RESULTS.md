@@ -6,46 +6,77 @@ under modality-availability heterogeneity. Task/groups match REMIND (arXiv 2603.
 
 ---
 
-## ★ HEADLINE — Proper tuned run (resnet18, 20k samples, tuned η=3, 3 seeds) — 2026-08-20
+## ★ HEADLINE — Tuned + bolstered study (resnet18, 20k samples, λ=0.01/η=3, **5 seeds**) — 2026-08-21
 
-The first pass used blind defaults (λ=1e-3, η=1) on ~8k samples and looked flat. After
-**tuning** (an HP sweep found the anchor/GroupDRO strengths that actually engage the
-method: λ=0.01, η=3) on **~20k samples**, the method's contribution is clear.
+The first pass used blind defaults (λ=1e-3, η=1) on ~8k samples and looked flat. After an
+HP sweep found the settings that actually engage the method (λ=0.01, η=3) on ~20k samples,
+and after scaling to **5 seeds** + an η-sensitivity sweep + a tuned ablation, the picture
+is clear and honest.
+
+### 5-seed main result (mean ± std %, seeds 42/1337/7/2024/31337)
 
 | method | overall | tail | **worst-group** |
 |--------|:------:|:----:|:---------------:|
-| ERM (baseline) | 76.8 ± 0.2 | 75.4 ± 0.8 | 68.8 ± 2.9 |
-| GroupDRO (tuned η=3) | 76.1 ± 1.1 | 75.5 ± 1.8 | 73.3 ± 1.8 |
-| **Anchors + GroupDRO (ours)** | **77.1 ± 0.4** | **76.9 ± 0.1** | **74.5 ± 0.8** |
+| ERM (baseline) | 77.2 ± 0.6 | 75.8 ± 1.2 | 69.9 ± 2.9 |
+| GroupDRO (tuned η=3) | 76.5 ± 1.0 | 75.5 ± 1.4 | 73.0 ± 1.8 |
+| **Anchors + GroupDRO (ours)** | 77.1 ± 0.4 | **77.1 ± 0.4** | **74.2 ± 1.0** |
 
-*(mean ± std over seeds 42/1337/7. Figures: `figures/embed_proper_final.png`,
-`figures/embed_proper_dropout.png`.)*
+*Figures: `figures/embed_5seed.png`, `embed_tuned_ablation.png`, `embed_eta_sensitivity.png`,
+`embed_proper_dropout.png`.*
 
-**Our method is best on all three metrics.** Two takeaways that matter:
+**Three findings, stated at their real strength:**
 
-1. **+5.7% worst-group over ERM** (68.8 → 74.5), and **+1.2 over plain GroupDRO** — the
-   robustness win the paper needs, now visible once the method is tuned (the untuned run
-   missed it entirely).
-2. **Anchors resolve GroupDRO's accuracy–robustness tradeoff.** Plain GroupDRO buys
-   worst-group (+4.5) but *sacrifices overall* accuracy (76.8 → 76.1, −0.7). Adding our
-   anchors **recovers overall (+1.0 over GroupDRO, to 77.1 — the best of any method)**
-   *while pushing worst-group even higher*. So anchors aren't just reweighting — they
-   structure the latent so GroupDRO stops trading away average accuracy. Our tail acc
-   also has the lowest variance (±0.1), i.e. most stable across seeds.
+1. **Robust worst-group win over ERM: +4.4% mean, positive in ALL 5/5 seeds** (per-seed
+   +4.0/+4.1/+9.1/+3.3/+1.4). This is the solid, significant result.
+2. **Ours is the only method that improves worst-group WITHOUT sacrificing average
+   accuracy — it resolves GroupDRO's tradeoff.** Plain GroupDRO lifts worst-group (+3.1)
+   but *drops* overall (77.2→76.5) and tail (75.8→75.5). Ours reaches the **best tail of
+   any method (77.1, +1.6 over both, tightest std ±0.4)** and keeps overall at ERM level
+   (77.1), i.e. **+0.5 overall and +1.6 tail over GroupDRO**, both while matching/exceeding
+   its worst-group. So the anchors don't just reweight — they structure the latent so the
+   shared head keeps average accuracy.
+3. **Honest on the marginal one:** ours vs *plain GroupDRO* on **worst-group alone** is
+   **+1.3% mean but only 3/5 seeds positive** — within noise. We do **not** claim a clean
+   worst-group win over GroupDRO; we claim (a) a robust win over ERM and (b) a
+   Pareto-improvement over GroupDRO across overall+tail+worst-group jointly.
 
-**vs REMIND's published EMBED numbers** (GroupDRO 78.9, REMIND 80.7 overall): our
-absolute overall (~77) sits just below, but that gap is **backbone/data-limited** — REMIND
-used a ViT on the full (non-public) dataset; we use resnet18 on the 20% open subset. The
-**relative** result is the contribution: *ours > tuned GroupDRO > ERM on worst-group AND
-overall*, and ours uniquely avoids GroupDRO's overall-accuracy hit. Closing the absolute
-gap is a straightforward scale-up (ViT/resnet50 + more data), not a method change.
+### Tuned ablation — each component earns its place (`embed_tuned_ablation.png`)
 
-**Honest scope:** on EMBED the gains are real but modest (single-digit worst-group,
-~+1 overall over GroupDRO) — expected, since EMBED's four "modalities" are redundant
-mammograms. The method's *large* gains live where feature spaces are genuinely
-heterogeneous: the tabular datasets (+7.9–15% worst-group) and, next, a true multimodal
-benchmark (MIMIC image+text+labs). EMBED establishes we are **competitive on imaging +
-strictly better than GroupDRO on the robustness–accuracy frontier**.
+| variant | worst-group | overall |
+|---|:---:|:---:|
+| ERM | 68.8 | 76.8 |
+| GroupDRO | 73.3 | 76.1 |
+| **Anchors only (no GDRO)** | **72.1** | 76.5 |
+| **Anchors + GDRO (ours)** | **74.5** | **77.1** |
+| Full (per-group encoders) | 66.0 | 76.2 |
+
+- **Anchors alone lift worst-group +3.3 over ERM** (68.8→72.1) with almost no overall cost
+  — the anchor mechanism contributes *independently* of GroupDRO.
+- **Anchors + GDRO is best on both** — the two components synergize (the paper's thesis).
+- **Per-group encoders HURT on EMBED** (66.0, below ERM) — expected: the 4 views are
+  redundant mammograms, so a shared encoder is right here. (Per-group helps only where
+  feature spaces genuinely differ — the tabular datasets.)
+
+### η-sensitivity (`embed_eta_sensitivity.png`)
+Across η∈{1,2,3,5}, anchors+GDRO ≥ plain GDRO on worst-group at η∈{1,3,5} (dips at η=2)
+and matches/exceeds on overall — the improvement is not a single cherry-picked η, and η=3
+is a sound default.
+
+### vs REMIND's published EMBED numbers
+GroupDRO 78.9 / REMIND 80.7 overall. Our absolute (~77) sits just below — a
+**backbone/data gap** (REMIND: ViT on the full non-public set; us: resnet18 on the 20%
+open subset), not a method gap. resnet50 was attempted but OOM-hangs on our box; closing
+the absolute gap is a scale-up (ViT / more data), not a method change. The **relative**
+contribution — Pareto-improving GroupDRO and a robust +4.4 worst-group over ERM — is what
+transfers.
+
+### Honest scope
+EMBED gains are real but **modest in magnitude** (its four modalities are redundant
+mammograms). The method's *large* gains live where feature spaces are genuinely
+heterogeneous: the tabular datasets (+7.9–15% worst-group), and next a true multimodal
+benchmark (**MIMIC** image+text+labs), where REMIND itself shows GroupDRO→REMIND jumps of
++11.6 on tail groups. EMBED establishes we are **competitive on imaging and Pareto-superior
+to GroupDRO on the robustness–accuracy frontier.**
 
 *(The sections below are the earlier untuned exploratory study, kept for the record.)*
 

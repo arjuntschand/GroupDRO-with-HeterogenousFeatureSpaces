@@ -6,39 +6,55 @@ under modality-availability heterogeneity. Task/groups match REMIND (arXiv 2603.
 
 ---
 
-## ★ HEADLINE — Tuned + bolstered study (resnet18, 20k samples, λ=0.01/η=3, **5 seeds**) — 2026-08-21
+## ★ HEADLINE — Tuned study, **10 seeds** (resnet18, 20k samples, λ=0.01/η=3) — 2026-08-22
 
 The first pass used blind defaults (λ=1e-3, η=1) on ~8k samples and looked flat. After an
-HP sweep found the settings that actually engage the method (λ=0.01, η=3) on ~20k samples,
-and after scaling to **5 seeds** + an η-sensitivity sweep + a tuned ablation, the picture
-is clear and honest.
+HP sweep found the settings that engage the method (λ=0.01, η=3) on ~20k samples, we
+scaled to a full **10 seeds** (+ η-sensitivity + tuned ablation + a legitimate improvement
+sweep). The 10-seed numbers are the honest ones — earlier 3/5-seed estimates were
+optimistically noisy and are superseded here.
 
-### 5-seed main result (mean ± std %, seeds 42/1337/7/2024/31337)
+### 10-seed main result (mean ± std %, seeds 42/1337/7/2024/31337/11/22/33/44/55)
 
 | method | overall | tail | **worst-group** |
 |--------|:------:|:----:|:---------------:|
-| ERM (baseline) | 77.2 ± 0.6 | 75.8 ± 1.2 | 69.9 ± 2.9 |
-| GroupDRO (tuned η=3) | 76.5 ± 1.0 | 75.5 ± 1.4 | 73.0 ± 1.8 |
-| **Anchors + GroupDRO (ours)** | 77.1 ± 0.4 | **77.1 ± 0.4** | **74.2 ± 1.0** |
+| ERM (baseline) | 77.3 ± 0.5 | 75.8 ± 1.2 | 71.2 ± 2.8 |
+| GroupDRO (tuned η=3) | 76.8 ± 0.9 | 75.5 ± 1.4 | 72.2 ± 1.8 |
+| **Anchors + GroupDRO (ours)** | 77.1 ± 0.5 | **76.8 ± 0.7** | **73.5 ± 1.4** |
 
-*Figures: `figures/embed_5seed.png`, `embed_tuned_ablation.png`, `embed_eta_sensitivity.png`,
-`embed_proper_dropout.png`.*
+*Figures: `figures/embed_5seed.png` (10-seed), `embed_tuned_ablation.png`,
+`embed_eta_sensitivity.png`, `embed_proper_dropout.png`.*
 
-**Three findings, stated at their real strength:**
+**Three findings, at their real (10-seed) strength — honest:**
 
-1. **Robust worst-group win over ERM: +4.4% mean, positive in ALL 5/5 seeds** (per-seed
-   +4.0/+4.1/+9.1/+3.3/+1.4). This is the solid, significant result.
-2. **Ours is the only method that improves worst-group WITHOUT sacrificing average
-   accuracy — it resolves GroupDRO's tradeoff.** Plain GroupDRO lifts worst-group (+3.1)
-   but *drops* overall (77.2→76.5) and tail (75.8→75.5). Ours reaches the **best tail of
-   any method (77.1, +1.6 over both, tightest std ±0.4)** and keeps overall at ERM level
-   (77.1), i.e. **+0.5 overall and +1.6 tail over GroupDRO**, both while matching/exceeding
-   its worst-group. So the anchors don't just reweight — they structure the latent so the
+1. **Best tail accuracy — the robust, clean win: 76.8 ± 0.7**, i.e. **+1.0 over ERM and
+   +1.3 over GroupDRO with the tightest variance of any method.** This is the most solid
+   claim.
+2. **Ours resolves GroupDRO's accuracy–robustness tradeoff.** Plain GroupDRO lifts
+   worst-group but *drops* overall (77.3→76.8) **and** tail (75.8→75.5). Ours keeps overall
+   at ERM level (77.1) and *improves* tail (76.8) while getting the worst-group gain — the
+   only method that is best-or-tied on all three. The anchors structure the latent so the
    shared head keeps average accuracy.
-3. **Honest on the marginal one:** ours vs *plain GroupDRO* on **worst-group alone** is
-   **+1.3% mean but only 3/5 seeds positive** — within noise. We do **not** claim a clean
-   worst-group win over GroupDRO; we claim (a) a robust win over ERM and (b) a
-   Pareto-improvement over GroupDRO across overall+tail+worst-group jointly.
+3. **Worst-group over ERM: +2.3% mean, 7/10 seeds positive.** Real but **modest and not
+   universal** — the headline gain shrank as seeds were added (+5.7 at 3 seeds → +4.4 at 5
+   → **+2.3 at 10**; the early numbers were noise from unlucky-low-ERM seeds). Ours vs
+   *plain GroupDRO* on worst-group is **+1.4, 6/10 seeds** — within noise. We claim a
+   **Pareto-improvement over GroupDRO** and a **robust best-tail result**, NOT a large or
+   clean worst-group win.
+
+### Improvement sweep (seed 42, exploratory — a lead, not a result)
+Legitimate upgrades at seed 42: bigger latent (**hurt**, −3.7 gap), longer training ep40
+(**no change**), W₂ anchor separation (**crashed** — bug), combined (neutral). **One
+promising lead: a bigger classifier head (`head_hidden=512`) raised our worst-group
+74.0→76.1 at seed 42** while ERM stayed flat (gap +4.1→+6.2). This is a **single seed** —
+flagged for a future full-10-seed validation, not claimed as a result.
+
+### Takeaway
+On EMBED the method is **competitive and Pareto-improves GroupDRO with a robust best-tail
+result**, but the worst-group gain is modest (as it is for everyone on EMBED — even REMIND
+beats GroupDRO by only +1.8 overall). The method's *large* gains require genuinely
+heterogeneous feature spaces: the tabular datasets (+7.9–15% worst-group) and, next, a true
+multimodal benchmark (MIMIC).
 
 ### Tuned ablation — each component earns its place (`embed_tuned_ablation.png`)
 

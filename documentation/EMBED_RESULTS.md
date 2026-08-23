@@ -42,12 +42,15 @@ optimistically noisy and are superseded here.
    **Pareto-improvement over GroupDRO** and a **robust best-tail result**, NOT a large or
    clean worst-group win.
 
-### Improvement sweep (seed 42, exploratory — a lead, not a result)
-Legitimate upgrades at seed 42: bigger latent (**hurt**, −3.7 gap), longer training ep40
-(**no change**), W₂ anchor separation (**crashed** — bug), combined (neutral). **One
-promising lead: a bigger classifier head (`head_hidden=512`) raised our worst-group
-74.0→76.1 at seed 42** while ERM stayed flat (gap +4.1→+6.2). This is a **single seed** —
-flagged for a future full-10-seed validation, not claimed as a result.
+### Improvement attempts (all honest — none beat +2.3)
+We tried to legitimately raise the number (NOT by seed selection). Seed-42 sweep: bigger
+latent (**hurt**, −3.7 gap), longer training ep40 (**no change**), W₂ anchor separation
+(**crashed** — bug), combined (neutral). A bigger classifier head (`head_hidden=512`) looked
+promising at seed 42 (ours worst 74.0→76.1). **We validated it at the full 10 seeds** (30
+runs, apples-to-apples): it did **NOT hold** — head512 ours−ERM worst-group gap is **+0.4
+(4/9 seeds)**, *below* the head256 +2.3. The seed-42 spike was noise. **EMBED final stays
+`head_hidden=256`** (the headline table above). This is the value of validating single-seed
+leads at scale rather than reporting them — a discipline worth keeping for the paper.
 
 ### Takeaway
 On EMBED the method is **competitive and Pareto-improves GroupDRO with a robust best-tail

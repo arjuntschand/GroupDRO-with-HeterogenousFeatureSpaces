@@ -172,7 +172,30 @@ def train(cfg):
         console.log(f"class_weight (auto): {[round(w,3) for w in class_weight.tolist()]}")
 
     params = list(encoder.parameters()) + list(head.parameters()) + list(anchors.parameters())
-    opt = optim.AdamW(params, lr=cfg["lr"], weight_decay=cfg["weight_decay"])
+    # Optimizer (config: optimizer = adamw|adam|sgd)
+    optname = cfg.get("optimizer", "adamw").lower()
+    if optname == "sgd":
+        opt = optim.SGD(params, lr=cfg["lr"], momentum=cfg.get("momentum", 0.9),
+                        nesterov=True, weight_decay=cfg["weight_decay"])
+    elif optname == "adam":
+        opt = optim.Adam(params, lr=cfg["lr"], weight_decay=cfg["weight_decay"])
+    else:
+        opt = optim.AdamW(params, lr=cfg["lr"], weight_decay=cfg["weight_decay"])
+    # LR scheduler (config: scheduler = none|cosine|step|cosine_warmup)
+    import math as _math
+    sched, schname = None, cfg.get("scheduler")
+    if schname == "cosine":
+        sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=cfg["epochs"])
+    elif schname == "step":
+        sched = optim.lr_scheduler.StepLR(opt, step_size=max(1, cfg["epochs"] // 3), gamma=0.3)
+    elif schname == "cosine_warmup":
+        _warm = max(1, cfg["epochs"] // 10)
+        def _lrl(ep):
+            if ep < _warm:
+                return (ep + 1) / _warm
+            return 0.5 * (1 + _math.cos(_math.pi * (ep - _warm) / max(1, cfg["epochs"] - _warm)))
+        sched = optim.lr_scheduler.LambdaLR(opt, _lrl)
+    console.log(f"optimizer={optname} lr={cfg['lr']} scheduler={schname}")
 
     writer = SummaryWriter(log_dir=str(cfg["run_dir"]))
     logger = ResultsLogger(cfg["run_dir"])
@@ -241,6 +264,8 @@ def train(cfg):
             best_overall = m["overall_acc"]; best_overall_metrics = m
             torch.save(save, Path(cfg["run_dir"]) / "best_overall.ckpt")
         torch.save(save, Path(cfg["run_dir"]) / "last.ckpt")
+        if sched is not None:
+            sched.step()
 
     # Missingness-robustness curve: reload best-overall model, eval under view dropout.
     dropout_curve = None

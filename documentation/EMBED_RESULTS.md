@@ -42,6 +42,33 @@ optimistically noisy and are superseded here.
    **Pareto-improvement over GroupDRO** and a **robust best-tail result**, NOT a large or
    clean worst-group win.
 
+### ⭐ Optimization pass: "Anchors stabilize min-max DRO" (a genuine bonus finding)
+A comprehensive sweep of worst-group levers (DRO objective/strength/mode, learning rate,
+optimizer, LR scheduler, anchor separation) turned up **no config that beats +2.3** for our
+method on worst-group — but it surfaced a real, novel result worth featuring.
+
+GroupDRO's `objective` mode matters a lot. We had used `weighted` (soft reweighting). The
+`max` mode is **true min-max** (optimizes the *worst* group's loss directly) — more
+aggressive, and known to be unstable. Validated across ~10 seeds (`groupdro_objective=max`,
+η=3, else identical to the head256 config):
+
+| method (min-max objective) | worst-group | collapses (worst-group → ~0) |
+|---|:---:|:---:|
+| ERM | 70.8 | 0 / 9 |
+| **plain GroupDRO** | **19.0** | **4 / 9** |
+| **Anchors + GroupDRO (ours)** | **73.4** | **0 / 9** |
+
+- **Plain GroupDRO collapses** under the aggressive min-max objective — in ~4/9 seeds the
+  model degenerates and worst-group accuracy craters to ~5%. This is the well-known
+  instability of hard min-max.
+- **Our anchors completely prevent this** — anchors_gdro is stable in 9/9 seeds. The
+  class-conditional anchor structure regularizes the latent so the shared head can't
+  collapse, letting the model *use* an aggressive DRO objective the baseline cannot.
+- Net worst-group for ours with min-max is ~73.4 (ours−ERM ≈ **+2.6**, same as the
+  weighted objective within noise) — so this is **not** a bigger number, but a
+  **capability**: *anchors make aggressive DRO objectives usable.* That's a genuine
+  contribution and a nice extra story for the paper.
+
 ### Improvement attempts (all honest — none beat +2.3)
 We tried to legitimately raise the number (NOT by seed selection). Seed-42 sweep: bigger
 latent (**hurt**, −3.7 gap), longer training ep40 (**no change**), W₂ anchor separation

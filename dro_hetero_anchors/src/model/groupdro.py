@@ -50,7 +50,9 @@ class GroupDRO:
                  gamma: float = 1.0,
                  group_counts: Optional[List[int]] = None,
                  kl_lambda: float = 0.0,
-                 uniform_init: bool = False):
+                 uniform_init: bool = False,
+                 use_regret: bool = False,
+                 optimal_losses: Optional[List[float]] = None):
         self.num_groups = num_groups
         self.eta = eta
         self.device = device or torch.device('cpu')
@@ -59,6 +61,11 @@ class GroupDRO:
         self.gamma = gamma  # smoothing factor for exp_smooth
         self.kl_lambda = kl_lambda  # coefficient for KL(q || π) penalty
         self.uniform_init = uniform_init  # whether to initialize q uniformly
+        # Regret-DRO: reweight by regret R_g = max(0, L_g - L*_g) instead of raw loss,
+        # where L*_g is each group's optimal loss (from a per-group "personal" model).
+        # Groups at their achievable floor get ~0 regret -> stop being upweighted.
+        self.use_regret = use_regret
+        self.set_optimal_losses(optimal_losses)
 
         # Initialize reference π based on group distribution (for KL penalty)
         # This is always proportional to group sizes for KL regularization
@@ -122,6 +129,18 @@ class GroupDRO:
         kl = (q_safe * (q_safe.log() - pi_safe.log())).sum()
         return kl
 
+    def set_optimal_losses(self, optimal_losses):
+        """Set per-group optimal (achievable-best) losses L*_g for Regret-DRO.
+        optimal_losses: list/dict of length num_groups, or None to disable regret."""
+        if optimal_losses is None:
+            self.optimal = None
+            return
+        if isinstance(optimal_losses, dict):
+            vals = [float(optimal_losses.get(g, 0.0)) for g in range(self.num_groups)]
+        else:
+            vals = [float(x) for x in optimal_losses]
+        self.optimal = torch.tensor(vals, device=self.device, dtype=torch.float32)
+
     def update_weights(self, group_losses: Dict[int, torch.Tensor],
                        group_counts: Dict[int, int]):
         """Update group weights according to selected mode.
@@ -145,6 +164,11 @@ class GroupDRO:
                     active_losses.append(torch.tensor(0.0, device=self.device))
             losses_tensor = torch.stack(active_losses)  # shape [G]
             active_mask_t = torch.tensor(active_mask, dtype=torch.bool, device=self.device)
+
+            # Regret-DRO: drive the q-update by regret R_g = max(0, L_g - L*_g)
+            # instead of raw loss, so groups at their optimum stop being upweighted.
+            if self.use_regret and self.optimal is not None:
+                losses_tensor = torch.clamp(losses_tensor - self.optimal, min=0.0)
 
             if self.update_mode == 'exp':
                 # MWU on all entries; absent groups keep neutral multiplier (exp(eta*0)=1)

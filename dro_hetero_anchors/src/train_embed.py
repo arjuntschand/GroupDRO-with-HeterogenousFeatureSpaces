@@ -65,6 +65,8 @@ def build_models(cfg, info: Dict, device):
             group_counts=info["train_group_counts"],
             kl_lambda=cfg.get("groupdro_kl_lambda", 0.0),
             uniform_init=cfg.get("groupdro_uniform_init", True),
+            use_regret=cfg.get("use_regret", False),
+            optimal_losses=cfg.get("optimal_losses"),  # per-group L*_g for Regret-DRO
         )
     return encoder, head, anchors, groupdro
 
@@ -98,6 +100,11 @@ def evaluate(encoder, head, loader, device, info, view_dropout: float = 0.0,
     gen = torch.Generator(device=device); gen.manual_seed(dropout_seed)
     correct_g = [0] * num_groups
     total_g = [0] * num_groups
+    loss_g = [0.0] * num_groups                 # summed CE loss per group (eval loss)
+    # confusion counts for macro-F1: per group, per class TP/FP/FN
+    tp = [[0]*num_classes for _ in range(num_groups)]
+    fp = [[0]*num_classes for _ in range(num_groups)]
+    fn = [[0]*num_classes for _ in range(num_groups)]
     correct = total = 0
     for views, mask, y, g in loader:
         views, mask, y = views.to(device), mask.to(device), y.to(device)
@@ -105,14 +112,31 @@ def evaluate(encoder, head, loader, device, info, view_dropout: float = 0.0,
             mask = _apply_view_dropout(mask, view_dropout, gen)
             views = views * mask.view(mask.size(0), mask.size(1), 1, 1, 1)
         z = encoder(views, mask)
-        pred = head(z).argmax(dim=1).cpu()
-        y = y.cpu()
+        logits = head(z)
+        losses = nn.functional.cross_entropy(logits, y, reduction="none").cpu()
+        pred = logits.argmax(dim=1).cpu(); y = y.cpu()
         for i in range(len(y)):
-            gi = int(g[i]); ok = int(pred[i] == y[i])
-            total_g[gi] += 1; correct_g[gi] += ok
+            gi = int(g[i]); yi = int(y[i]); pi = int(pred[i]); ok = int(pi == yi)
+            total_g[gi] += 1; correct_g[gi] += ok; loss_g[gi] += float(losses[i])
             total += 1; correct += ok
+            if ok: tp[gi][yi] += 1
+            else:  fp[gi][pi] += 1; fn[gi][yi] += 1
 
     per_group_acc = [correct_g[i] / max(1, total_g[i]) for i in range(num_groups)]
+    per_group_loss = [loss_g[i] / max(1, total_g[i]) for i in range(num_groups)]
+
+    def _macro_f1(gids):
+        # macro-F1 pooled over the given groups
+        TP=[0]*num_classes; FP=[0]*num_classes; FN=[0]*num_classes
+        for gi in gids:
+            for c in range(num_classes): TP[c]+=tp[gi][c]; FP[c]+=fp[gi][c]; FN[c]+=fn[gi][c]
+        f1s=[]
+        for c in range(num_classes):
+            if TP[c]+FP[c]+FN[c] == 0: continue
+            p = TP[c]/max(1,TP[c]+FP[c]); r = TP[c]/max(1,TP[c]+FN[c])
+            f1s.append(2*p*r/max(1e-9,p+r))
+        return sum(f1s)/max(1,len(f1s))
+    per_group_f1 = [_macro_f1([i]) for i in range(num_groups)]
     head_gids, tail_gids = info["head_gids"], info["tail_gids"]
 
     def _pooled(gids):
@@ -121,10 +145,16 @@ def evaluate(encoder, head, loader, device, info, view_dropout: float = 0.0,
 
     return {
         "overall_acc": correct / max(1, total),
+        "overall_f1": _macro_f1(list(range(num_groups))),
+        "overall_loss": sum(loss_g) / max(1, total),
         "head_acc": _pooled(head_gids) if head_gids else 0.0,
         "tail_acc": _pooled(tail_gids) if tail_gids else 0.0,
+        "tail_f1": _macro_f1(tail_gids) if tail_gids else 0.0,
         "worst_group_acc": min(per_group_acc) if per_group_acc else 0.0,
+        "balanced_acc": sum(per_group_acc) / max(1, num_groups),  # avg over groups
         "per_group_acc": per_group_acc,
+        "per_group_f1": per_group_f1,
+        "per_group_loss": per_group_loss,
         "per_group_counts": total_g,
     }
 

@@ -68,21 +68,21 @@ def rstar_lambda_plot(run, df, out_png):
                 acc[g].append(l)
         return {g: (np.mean(v) if v else np.nan) for g, v in acc.items()}
     lam_gdro = final_lambda("groupdro")
-    lam_ours = final_lambda("ours")
-    xs = [rstar[g] for g in GROUPS]
-    plt.figure(figsize=(6, 4.5))
+    lam_reg = final_lambda("regret_only")
+    plt.figure(figsize=(6.5, 4.5))
     for lam, name, c, mk in [(lam_gdro, "GroupDRO (R*=0)", "#888", "o"),
-                             (lam_ours, "Ours (regret)", "#c0392b", "s")]:
+                             (lam_reg, "Regret-only", "#c0392b", "s")]:
         order = sorted(GROUPS, key=lambda g: (rstar[g] if not np.isnan(rstar[g]) else 0))
         px = [rstar[g] for g in order]; py = [lam[g] for g in order]
         plt.plot(px, py, marker=mk, color=c, label=name)
     for g in GROUPS:
         if not np.isnan(rstar[g]):
-            plt.annotate(g, (rstar[g], lam_ours[g]), fontsize=8,
+            plt.annotate(g, (rstar[g], max(lam_gdro[g], lam_reg[g])), fontsize=8,
                          xytext=(3, 3), textcoords="offset points")
     plt.xlabel("group optimal loss  R*_g  (best achievable CE)")
     plt.ylabel("final group weight  λ_g")
-    plt.title("Regret redirects weight away from intrinsically-hard groups")
+    plt.title("Both DRO variants abandon high-R* tail groups (memorized → λ≈0);\n"
+              "regret only reallocates between the two heads g4↔g6", fontsize=10)
     plt.legend(); plt.tight_layout(); plt.savefig(out_png, dpi=130)
     print("wrote", out_png)
 

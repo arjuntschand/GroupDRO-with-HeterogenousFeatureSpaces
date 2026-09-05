@@ -92,20 +92,31 @@ def main():
     ap.add_argument("--run", default="runs/embed_xenia")
     args = ap.parse_args()
     df = pd.read_csv(os.path.join(args.run, "metrics_long.csv"))
+    # per-group test size (constant across methods/seeds for a fixed split)
+    ncounts = {g: int(df[df.group == g]["n"].max()) for g in GROUPS if g in df.group.values}
     lines = ["# EMBED (Xenia spec) — results\n",
              f"seeds: {sorted(df.seed.unique())}   groups: {sorted(df.group.unique())}",
-             f"n_params (shared model): {int(df.n_params.iloc[0]):,}\n"]
+             f"n_params (shared model): {int(df.n_params.iloc[0]):,}",
+             "test-set size per group: " + ", ".join(f"{g}={ncounts.get(g,0)}" for g in GROUPS),
+             "(tail groups g2/g5 are tiny → their per-group accuracy is high-variance)\n"]
     for metric, title in [("acc", "Accuracy"), ("macro_f1", "Macro-F1"), ("loss", "Cross-entropy loss")]:
         lines.append(f"\n## {title} (per group; overall/tail/worst = mean±std over seeds)\n")
         lines.append(md_table(agg_table(df, metric)))
     # headline
     lines.append("\n## Headline: GroupDRO vs Ours\n")
-    for meth in ["groupdro", "ours"]:
+    lines.append("(overall-macro = mean over the 6 groups; overall-weighted = sample-weighted "
+                 "'entire dataset', dominated by heads g4/g6; tail = mean over tail groups.)\n")
+    for meth in [m for m in METHOD_ORDER if m in df.method.unique()]:
         sub = df[df.method == meth]
-        wg = sub.groupby("seed").apply(lambda s: s.set_index("group")["acc"].min(), include_groups=False)
-        tl = sub.groupby("seed").apply(lambda s: s[~s.group.isin(HEAD)]["acc"].mean(), include_groups=False)
-        lines.append(f"- **{PRETTY[meth]}**: worst-group acc {wg.mean():.3f}±{wg.std():.3f}, "
-                     f"tail acc {tl.mean():.3f}±{tl.std():.3f}")
+        def per_seed(fn):
+            return sub.groupby("seed").apply(fn, include_groups=False)
+        macro = per_seed(lambda s: s["acc"].mean())
+        micro = per_seed(lambda s: np.average(s["acc"], weights=s["n"]))
+        wg = per_seed(lambda s: s.set_index("group")["acc"].min())
+        tl = per_seed(lambda s: s[~s.group.isin(HEAD)]["acc"].mean())
+        lines.append(f"- **{PRETTY[meth]}**: overall-weighted {micro.mean():.3f}±{micro.std():.3f}, "
+                     f"overall-macro {macro.mean():.3f}±{macro.std():.3f}, "
+                     f"tail {tl.mean():.3f}±{tl.std():.3f}, worst-group {wg.mean():.3f}±{wg.std():.3f}")
     txt = "\n".join(lines)
     open(os.path.join(args.run, "REPORT.md"), "w").write(txt)
     print(txt)

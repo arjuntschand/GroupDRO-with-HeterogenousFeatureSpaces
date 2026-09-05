@@ -119,10 +119,7 @@ def estimate_optimal_losses(data, masks, device, folds=5, epochs=40, lr=5e-4, se
             if te.sum() == 0 or tr.sum() == 0:
                 continue
             torch.manual_seed(seed + f)
-            model = XeniaEmbedModel().to(device)   # only group g's params get used
-            opt = torch.optim.AdamW(
-                list(model.proj[VIEWS[0]].parameters())  # placeholder to build list below
-                , lr=lr)
+            model = XeniaEmbedModel().to(device)   # only group g's params get trained
             params = list(model.mlp[g].parameters()) + list(model.head.parameters())
             for v in GROUP_VIEWS[g]:
                 params += list(model.proj[v].parameters())

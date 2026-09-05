@@ -83,69 +83,77 @@ Full tables in `runs/embed_xenia/REPORT.md`; plot in `runs/embed_xenia/rstar_vs_
 3 seeds (0/1/42). Test-set sizes: g1=197, g2=16, g3=136, g4=1492, g5=17, g6=1534
 (tail groups g2/g5 are tiny → their per-group accuracy is high-variance).
 
-> ⚠️ Numbers below are being regenerated on the corrected (uncontaminated) index; the
-> qualitative findings (GroupDRO strongest, anchors don't help, tail memorization) are
-> expected to hold. Values updated once the clean 3-seed run finishes.
+### Headline (3 seeds; clean/uncontaminated groups)
 
-### Headline (mean±std over seeds)
+Accuracy summary (overall-weighted / overall-macro / tail / worst-group) + macro-F1:
 
 | method | overall-wt | overall-macro | tail | worst-group | macro-F1 |
 |---|---|---|---|---|---|
-| ERM | 0.723 | 0.736 | 0.742 | 0.686 | 0.451 |
-| **GroupDRO (R*=0)** | **0.755** | **0.749** | **0.744** | 0.684 | **0.513** |
-| Ablation: align-only | 0.725 | 0.722 | 0.719 | 0.686 | 0.450 |
-| Ablation: regret-only | 0.755 | 0.737 | 0.726 | 0.674 | 0.507 |
-| Ours (anchors+regret) | 0.731 | 0.705 | 0.690 | 0.648 | 0.447 |
-| Group-only (dedicated) | 0.742 | 0.728 | 0.719 | 0.659 | 0.473 |
+| ERM | **0.733** | 0.706 | 0.691 | 0.529 | 0.482 |
+| GroupDRO (R*=0) | **0.741** | 0.705 | 0.685 | 0.490 | **0.490** |
+| Ablation: align-only | 0.718 | 0.690 | 0.675 | 0.490 | 0.439 |
+| **Ablation: regret-only** | 0.729 | **0.713** | **0.705** | **0.588** | 0.477 |
+| Ours (anchors+regret) | 0.722 | 0.703 | 0.692 | 0.549 | 0.452 |
+| Group-only (dedicated) | 0.732 | 0.708 | 0.696 | 0.588 | 0.459 |
+
+Because the tail test sets are tiny (g2=17, g5=**5**), accuracy there is high-variance;
+**cross-entropy loss is the reliable read** (the DRO methods optimize it):
+
+| method | tail loss | worst-group loss |
+|---|---|---|
+| ERM | 1.066 | 1.612 |
+| GroupDRO (R*=0) | 0.810 | 1.048 |
+| **regret-only** | **0.808** | **0.940** |
+| Ours | 0.813 | 0.947 |
 
 ### Honest read
 
-This is **not** a "our method wins" result, and it should not be presented as one.
+1. **DRO clearly helps tail calibration over ERM.** Both GroupDRO and regret-only cut
+   tail loss ~24% (1.066→0.81) and worst-group loss (1.61→0.94–1.05). This is the solid,
+   reliable benefit.
+2. **Regret-only is the best-behaved variant** — best tail accuracy (0.705±0.003, tight),
+   best worst-group accuracy (0.588) and loss (0.940), while overall-weighted (0.729) is
+   ≈ GroupDRO (0.741). It Pareto-improves plain GroupDRO on the tail. Note GroupDRO wins raw
+   overall accuracy but *sacrifices* the worst group (0.490 < ERM's 0.529).
+3. **The anchor component does not help** — align-only < ERM and Ours < regret-only on
+   nearly everything (verified across anchor weights below). On EMBED's redundant views the
+   representation-alignment mechanism doesn't fire.
+4. **Caveat on the mechanism (below): regret's tail edge is second-order, not from directly
+   up-weighting the tails** — those stay at ~0 weight under every DRO variant. So the gains
+   are real but modest; EMBED is a low-gain setting for this method.
 
-1. **GroupDRO is the strongest method on this data** — it lifts overall accuracy
-   (0.723→0.755) and macro-F1 (0.451→0.513) substantially over ERM, driven by the two
-   large groups g4/g6 (g6 F1 0.593→0.671). Its worst-group/tail are ≈ ERM.
-2. **The anchor component, at the spec's λ_fit=λ_sep=1.0, does not help and slightly
-   hurts** (align-only < ERM; Ours < GroupDRO on every summary metric). The
-   representation constraint trades classification accuracy for anchor geometry.
-3. **Regret ≈ GroupDRO** (0.755 vs 0.755 overall) — neutral here (see why below).
+### Mechanism: tiny tail groups are memorized, so DRO can't grip them
 
-### Why: the DRO mechanism is neutralized by tiny, memorizable tail groups
+Final group weights λ_g (mean over seeds):
 
-Final group weights λ_g (mean over seeds) tell the story:
-
-| group | R*_g | λ GroupDRO | λ Ours | test n |
+| group | R*_g | λ GroupDRO | λ regret-only | test n |
 |---|---|---|---|---|
-| g4 (head) | 0.619 | 0.702 | 0.348 | 1492 |
-| g6 (head) | 0.594 | 0.272 | 0.643 | 1534 |
-| g1 | 0.698 | 0.026 | 0.008 | 197 |
-| g3 | 0.771 | 0.000 | 0.001 | 136 |
-| g2 | 0.972 | 0.000 | 0.000 | 16 |
-| g5 | 1.544 | 0.000 | 0.000 | 17 |
+| g4 (head) | 0.617 | 0.780 | 0.456 | 1474 |
+| g6 (head) | 0.588 | 0.216 | 0.543 | 1557 |
+| g1 | 0.700 | 0.004 | 0.001 | 167 |
+| g3 | 0.831 | 0.000 | 0.000 | 97 |
+| g2 | 1.150 | 0.000 | 0.000 | 17 |
+| g5 | 1.238 | 0.000 | 0.000 | 5 |
 
-Both methods place ~97% of the weight on the two **large** groups and ~0 on the tiny
-tails — the *opposite* of the intended tail-robustness behavior. Cause: the tail groups
-(g2=100, g5=53 rows total) are **memorized** (train loss → 0) by the 276k-param model, so
-the min-max update sees ~no training loss there and abandons them, even though their
-**test** loss is the highest in the panel. Regret cannot rescue them either, because
-`excess = max(0, train_loss − R*) = 0` once the group is memorized. The result:
-worst-group/tail accuracy (measured on exactly these memorized groups) does not improve.
-
-Directly verified (GroupDRO, seed 0) — tiny groups have the *lowest* train loss but
-*highest* test loss, so a train-loss-driven max player abandons them:
+Both DRO variants place ~all weight on the two large groups and **~0 on the tails** —
+regret only reallocates *between the heads* (g4→g6, by R*). Cause: the tail groups
+(g2=96, g5=50 rows) are **memorized** (train loss → 0), so the max player sees no training
+loss there and abandons them; regret can't rescue them either (`max(0, train−R*)=0`).
+Directly verified (GroupDRO, seed 0):
 
 | group | n_train | train loss | test loss |
 |---|---|---|---|
-| g5 | 31 | 0.164 | 0.681 |
-| g2 | 67 | 0.228 | 0.665 |
-| g3 | 497 | 0.429 | 0.744 |
-| g1 | 723 | 0.522 | 0.676 |
-| g6 | 5431 | 0.559 | 0.584 |
-| g4 | 5240 | 0.571 | 0.590 |
+| g5 | 42 | 0.176 | 0.889 |
+| g2 | 69 | 0.226 | 0.994 |
+| g3 | 282 | 0.321 | 0.729 |
+| g1 | 548 | 0.471 | 0.610 |
+| g6 | 5402 | 0.538 | 0.614 |
+| g4 | 5259 | 0.558 | 0.599 |
 
-This is the useful finding for the method: **the regret/DRO mechanism needs tail groups
-large enough not to be memorized.** On EMBED's *offline availability* tails (tens of
-exams) that condition fails. It is consistent with the project's broader result that the
+So regret-only's better tail metrics come *indirectly* (through the head reallocation and
+shared projections/head/anchors), not from emphasizing the tails. **The regret/DRO mechanism
+needs tail groups large enough not to be memorized** — on EMBED's offline availability tails
+(tens of exams) that condition fails. Consistent with the project's broader result that the
 gains live on datasets with genuine, adequately-sized feature-availability heterogeneity
 (tabular NHANES / Fed-Heart), not on EMBED's redundant mammographic views.
 

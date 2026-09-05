@@ -123,6 +123,18 @@ the min-max update sees ~no training loss there and abandons them, even though t
 `excess = max(0, train_loss − R*) = 0` once the group is memorized. The result:
 worst-group/tail accuracy (measured on exactly these memorized groups) does not improve.
 
+Directly verified (GroupDRO, seed 0) — tiny groups have the *lowest* train loss but
+*highest* test loss, so a train-loss-driven max player abandons them:
+
+| group | n_train | train loss | test loss |
+|---|---|---|---|
+| g5 | 31 | 0.164 | 0.681 |
+| g2 | 67 | 0.228 | 0.665 |
+| g3 | 497 | 0.429 | 0.744 |
+| g1 | 723 | 0.522 | 0.676 |
+| g6 | 5431 | 0.559 | 0.584 |
+| g4 | 5240 | 0.571 | 0.590 |
+
 This is the useful finding for the method: **the regret/DRO mechanism needs tail groups
 large enough not to be memorized.** On EMBED's *offline availability* tails (tens of
 exams) that condition fails. It is consistent with the project's broader result that the
@@ -131,10 +143,30 @@ gains live on datasets with genuine, adequately-sized feature-availability heter
 
 ### Anchor-weight sensitivity (diagnostic, not the headline)
 
-_(populated by `tools.embed_xenia_lambda_sensitivity` → does a lower anchor weight
-recover accuracy / help the tail?)_
+At init (g6 batch): L_task=1.43, **L_fit=1.57, L_sep=2.13** — at λ=1.0 the anchor losses
+dwarf the task loss, so the optimizer chases anchor geometry over classification. Sweeping
+the anchor weight (λ_fit=λ_sep=λ) for 'ours', 3 seeds:
 
-<!-- SENSITIVITY -->
+| anchor weight | overall-wt | tail | worst-group |
+|---|---|---|---|
+| **regret-only (λ=0)** | **0.760** | **0.729** | **0.694** |
+| λ=0.1 | 0.749 | 0.728 | 0.668 |
+| λ=0.3 | 0.750 | 0.704 | 0.672 |
+| λ=1.0 (faithful spec) | 0.731 | 0.690 | 0.648 |
+
+Lower is monotonically better; anchors never beat regret-only at any weight. **On EMBED's
+redundant mammographic views the anchor-alignment component provides no benefit** — the
+regret/DRO reweighting is what carries the method. (This matches the earlier ResNet-era
+finding that EMBED's four views are redundant images of the same breast, not genuinely
+heterogeneous feature spaces where anchor alignment helps.)
+
+### Exploratory fix: validation-signal DRO (deviates from spec)
+
+The train-loss max player is fooled by tail memorization (above). Driving the λ update by
+per-group **validation** loss keeps the tails' signal high (they don't memorize the val
+set). Results in `runs/embed_xenia/valsignal.log`.
+
+<!-- VALSIGNAL -->
 
 ## Reproduce
 

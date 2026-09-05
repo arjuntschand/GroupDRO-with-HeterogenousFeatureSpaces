@@ -196,9 +196,27 @@ METHOD_FLAGS = {
 }
 
 
+@torch.no_grad()
+def _group_val_excess(model, data, masks, rstar_t, groups, anchors_on, lam_fit, device):
+    """Per-group excess on the VALIDATION split: (val_task - R*) + lam_fit*val_fit.
+    Used by dro_signal='val' so the max player is not fooled by tail memorization."""
+    model.eval()
+    ex = []
+    for gi, g in enumerate(groups):
+        m = masks[g]["val"]
+        if m.sum() == 0:
+            ex.append(torch.zeros((), device=device)); continue
+        sub = _subset(data[g], m, device)
+        logits, z = model(g, sub["feats"])
+        lt = F.cross_entropy(logits, sub["y"])
+        lf = anchor_fit_loss(z, sub["y"], model.anchors) if anchors_on else torch.zeros((), device=device)
+        ex.append((lt - rstar_t[gi]) + lam_fit * lf)
+    return torch.stack(ex)
+
+
 def train_one(method, data, masks, device, rstar, seed,
               epochs=20, lr=5e-5, wd=5e-5, batch=32,
-              gamma=0.02, decay=0.9, lam_fit=1.0, lam_sep=1.0, verbose=True):
+              gamma=0.02, decay=0.9, lam_fit=1.0, lam_sep=1.0, dro_signal="train", verbose=True):
     flags = METHOD_FLAGS[method]
     groups = [g for g in GROUPS if g in data]
     torch.manual_seed(seed); np.random.seed(seed)
@@ -242,12 +260,20 @@ def train_one(method, data, masks, device, rstar, seed,
             lsep = anchor_sep_loss(model) if flags["anchors"] else torch.zeros((), device=device)
             loss = task_total + lam_sep * lsep
             loss.backward(); opt.step()
-            # lambda update (max player)
-            if flags["dro"]:
+            # lambda update (max player) — train-loss signal, per step
+            if flags["dro"] and dro_signal == "train":
                 ex = torch.stack(excess)
                 ema = decay * ema + (1 - decay) * ex
                 lam = lam * torch.exp(gamma * ema)
                 lam = torch.clamp(lam, min=1e-8); lam = lam / lam.sum()
+        # lambda update (max player) — validation-loss signal, once per epoch
+        if flags["dro"] and dro_signal == "val":
+            ex = _group_val_excess(model, data, masks, rstar_t, groups,
+                                   flags["anchors"], lam_fit, device)
+            ema = decay * ema + (1 - decay) * ex
+            lam = lam * torch.exp(gamma * steps * ema)  # scale per-epoch step to match per-step cumulative
+            lam = torch.clamp(lam, min=1e-8); lam = lam / lam.sum()
+            model.train()
         sched.step()
         ov, _ = evaluate(model, data, masks, "val", device, rstar)
         sel = ov[flags["select"]]

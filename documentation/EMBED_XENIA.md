@@ -159,18 +159,19 @@ gains live on datasets with genuine, adequately-sized feature-availability heter
 
 ### Anchor-weight sensitivity (diagnostic, not the headline)
 
-At init (g6 batch): L_task=1.43, **L_fit=1.57, L_sep=2.13** — at λ=1.0 the anchor losses
+At init (g6 batch): L_task=1.40, **L_fit=1.58, L_sep=2.13** — at λ=1.0 the anchor losses
 dwarf the task loss, so the optimizer chases anchor geometry over classification. Sweeping
 the anchor weight (λ_fit=λ_sep=λ) for 'ours', 3 seeds:
 
 | anchor weight | overall-wt | tail | worst-group |
 |---|---|---|---|
-| **regret-only (λ=0)** | **0.760** | **0.729** | **0.694** |
-| λ=0.1 | 0.749 | 0.728 | 0.668 |
-| λ=0.3 | 0.750 | 0.704 | 0.672 |
-| λ=1.0 (faithful spec) | 0.731 | 0.690 | 0.648 |
+| **regret-only (λ=0)** | 0.727 | **0.709** | **0.608** |
+| λ=0.1 | 0.726 | 0.705 | **0.608** |
+| λ=0.3 | **0.733** | 0.695 | 0.549 |
+| λ=1.0 (faithful spec) | 0.722 | 0.692 | 0.549 |
 
-Lower is monotonically better; anchors never beat regret-only at any weight. **On EMBED's
+More anchor weight monotonically *reduces* tail/worst-group robustness (0.709→0.692 tail,
+0.608→0.549 worst); anchors never beat regret-only on the tail at any weight. **On EMBED's
 redundant mammographic views the anchor-alignment component provides no benefit** — the
 regret/DRO reweighting is what carries the method. (This matches the earlier ResNet-era
 finding that EMBED's four views are redundant images of the same breast, not genuinely
@@ -183,34 +184,37 @@ per-group **validation** loss keeps the tails' signal high. Result (3 seeds):
 
 | method | signal | overall-wt | tail | worst | final λ (mean) |
 |---|---|---|---|---|---|
-| GroupDRO | train (spec) | 0.755 | 0.744 | 0.684 | g4:.70 g6:.27 |
-| GroupDRO | val | 0.697 | 0.728 | 0.654 | **g2:1.00 (collapse)** |
-| Ours | train (spec) | 0.731 | 0.690 | 0.648 | g4:.35 g6:.64 |
-| Ours | val | 0.733 | 0.721 | 0.691 | **g6:1.00 (collapse)** |
+| GroupDRO | train (spec) | 0.741 | 0.685 | 0.490 | g4:.78 g6:.22 |
+| GroupDRO | val | 0.715 | 0.688 | 0.529 | **g3:1.00 (collapse)** |
+| Ours | train (spec) | 0.722 | 0.692 | 0.549 | g4:.34 g6:.66 |
+| Ours | val | 0.725 | 0.685 | 0.510 | **g6:0.99 (collapse)** |
 
 **Verdict: not a clean fix.** The val-driven max player is too aggressive and collapses all
-weight onto a single group (winner-take-all min-max). For GroupDRO this tanks overall
-(0.755→0.697). Ours-val is notably *more stable* than GroupDRO-val (the anchors cushion the
-collapse — consistent with the prior "anchors stabilize min-max DRO" observation) and nudges
-worst-group to 0.691, but it still does not beat faithful GroupDRO's overall/tail balance.
-No configuration explored beats plain GroupDRO. Exploration stopped here to avoid tuning the
-λ step-size toward a manufactured win.
+weight onto a single group (winner-take-all min-max). GroupDRO-val *does* lift worst-group
+(0.490→0.529) by dumping all weight on g3, but at an overall cost (0.741→0.715) and the
+single-group collapse is fragile. Ours-val collapses onto a head (g6) and does not help.
+No configuration explored beats regret-only's balance. Exploration stopped here to avoid
+tuning the λ step-size toward a manufactured win.
 
 ## Bottom line (for Xenia)
 
 1. **Faithful implementation of your spec is done, cheap, and reproducible** — frozen ViT
    cache + tiny MLPs, all 6 groups, 3 seeds, full `metrics_long.csv` + tables + plot.
-2. **On this (offline) EMBED subset, GroupDRO is the strongest method; the anchor-alignment
-   component does not help and slightly hurts at λ=1.0** (verified sensitivity: monotonically
-   worse with more anchor weight). Regret ≈ GroupDRO.
-3. **Root cause, verified:** the availability tails are tiny (g2=100, g5=53) → memorized
-   (train loss→0) → the DRO/regret max player abandons them. The mechanism has nothing to
-   grip. This is a property of EMBED's data, not an implementation issue.
-4. **Recommendation:** to make the tail-robustness story land, the tail groups need to be
-   large enough not to be memorized. Either (a) restore EMBED S3 access and train on the full
-   128,680-row set (tails would be ~5–10× larger), or (b) keep the headline gains on the
-   tabular datasets with genuine, adequately-sized feature-availability heterogeneity
-   (NHANES, Fed-Heart), where the method already shows clear worst-group improvements.
+2. **Regret is the honest positive: regret-only is the best-behaved method** — best tail
+   accuracy (0.705) and worst-group accuracy (0.588) and loss (0.940), and it Pareto-improves
+   plain GroupDRO on the tail while staying ≈ on overall. Plain GroupDRO wins raw overall
+   accuracy but *sacrifices* the worst group (0.490 < ERM 0.529). This is modest, not a blowout.
+3. **The anchor-alignment component does not help** on EMBED — verified across anchor weights
+   (monotonically worse tail with more anchor weight). EMBED's 4 views are redundant images of
+   the same breast, so representation alignment has little to do.
+4. **Root cause, verified:** the availability tails are tiny (g2=96, g5=50) → memorized
+   (train loss→0, test loss high) → every DRO variant gives them ~0 weight; regret's tail edge
+   is a second-order effect, not direct up-weighting. A property of EMBED's data, not the code.
+5. **Recommendation:** to make the tail-robustness story land decisively, the tail groups need
+   to be large enough not to be memorized. Either (a) restore EMBED S3 access and train on the
+   full 128,680-row set (tails ~2× larger), or (b) keep the headline gains on the tabular
+   datasets with genuine, adequately-sized feature-availability heterogeneity (NHANES,
+   Fed-Heart), where the method shows clear worst-group improvements.
 
 ## Reproduce
 

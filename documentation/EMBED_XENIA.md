@@ -27,9 +27,13 @@ ResNet-on-images EMBED pipeline (which used a different architecture).
 
 - **Full labeled 6-group set:** 128,680 breast-rows / 22,997 patients.
 - **This experiment trains on the offline-available subset** (images already downloaded
-  before EMBED S3 access lapsed): **17,112 rows / 10,777 patients**, all 6 groups present
-  (g1=1020, g2=100, g3=712, g4=7495, g5=53, g6=7732). Label mix A/B/C/D = 10/41/43/5%,
+  before EMBED S3 access lapsed): **16,575 rows / 10,533 patients**, all 6 groups present
+  (g1=801, g2=96, g3=411, g4=7485, g5=50, g6=7732). Label mix A/B/C/D ≈ 10/41/43/5%,
   matching canonical EMBED prevalence. Patient-level 70/10/20 train/val/test split.
+  **Groups are assigned from each breast's TRUE view-set (full metadata), then kept only if
+  the entire true view-set is cached** — an earlier version assigned groups from
+  locally-present views, which contaminated the tails (a true-g4 breast with only its M4
+  image downloaded was miscounted as g3: 42% of the old g3, 21% of old g1). Fixed.
 
 ## Architecture (all downstream of a frozen ViT-Base)
 
@@ -78,6 +82,10 @@ Training: AdamW lr 5e-5, wd 5e-5, batch 32, 20 epochs, StepLR(step 5, γ 0.1). S
 Full tables in `runs/embed_xenia/REPORT.md`; plot in `runs/embed_xenia/rstar_vs_lambda.png`.
 3 seeds (0/1/42). Test-set sizes: g1=197, g2=16, g3=136, g4=1492, g5=17, g6=1534
 (tail groups g2/g5 are tiny → their per-group accuracy is high-variance).
+
+> ⚠️ Numbers below are being regenerated on the corrected (uncontaminated) index; the
+> qualitative findings (GroupDRO strongest, anchors don't help, tail memorization) are
+> expected to hold. Values updated once the clean 3-seed run finishes.
 
 ### Headline (mean±std over seeds)
 
@@ -163,10 +171,38 @@ heterogeneous feature spaces where anchor alignment helps.)
 ### Exploratory fix: validation-signal DRO (deviates from spec)
 
 The train-loss max player is fooled by tail memorization (above). Driving the λ update by
-per-group **validation** loss keeps the tails' signal high (they don't memorize the val
-set). Results in `runs/embed_xenia/valsignal.log`.
+per-group **validation** loss keeps the tails' signal high. Result (3 seeds):
 
-<!-- VALSIGNAL -->
+| method | signal | overall-wt | tail | worst | final λ (mean) |
+|---|---|---|---|---|---|
+| GroupDRO | train (spec) | 0.755 | 0.744 | 0.684 | g4:.70 g6:.27 |
+| GroupDRO | val | 0.697 | 0.728 | 0.654 | **g2:1.00 (collapse)** |
+| Ours | train (spec) | 0.731 | 0.690 | 0.648 | g4:.35 g6:.64 |
+| Ours | val | 0.733 | 0.721 | 0.691 | **g6:1.00 (collapse)** |
+
+**Verdict: not a clean fix.** The val-driven max player is too aggressive and collapses all
+weight onto a single group (winner-take-all min-max). For GroupDRO this tanks overall
+(0.755→0.697). Ours-val is notably *more stable* than GroupDRO-val (the anchors cushion the
+collapse — consistent with the prior "anchors stabilize min-max DRO" observation) and nudges
+worst-group to 0.691, but it still does not beat faithful GroupDRO's overall/tail balance.
+No configuration explored beats plain GroupDRO. Exploration stopped here to avoid tuning the
+λ step-size toward a manufactured win.
+
+## Bottom line (for Xenia)
+
+1. **Faithful implementation of your spec is done, cheap, and reproducible** — frozen ViT
+   cache + tiny MLPs, all 6 groups, 3 seeds, full `metrics_long.csv` + tables + plot.
+2. **On this (offline) EMBED subset, GroupDRO is the strongest method; the anchor-alignment
+   component does not help and slightly hurts at λ=1.0** (verified sensitivity: monotonically
+   worse with more anchor weight). Regret ≈ GroupDRO.
+3. **Root cause, verified:** the availability tails are tiny (g2=100, g5=53) → memorized
+   (train loss→0) → the DRO/regret max player abandons them. The mechanism has nothing to
+   grip. This is a property of EMBED's data, not an implementation issue.
+4. **Recommendation:** to make the tail-robustness story land, the tail groups need to be
+   large enough not to be memorized. Either (a) restore EMBED S3 access and train on the full
+   128,680-row set (tails would be ~5–10× larger), or (b) keep the headline gains on the
+   tabular datasets with genuine, adequately-sized feature-availability heterogeneity
+   (NHANES, Fed-Heart), where the method already shows clear worst-group improvements.
 
 ## Reproduce
 

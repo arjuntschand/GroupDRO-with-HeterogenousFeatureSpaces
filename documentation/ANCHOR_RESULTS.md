@@ -26,22 +26,41 @@ Wilcoxon p = 0.0059, Cohen's d = 1.33 (large).** Balanced accuracy also improves
 Per-seed paired Δ (λ0.1 − λ0.001): +2.48, +2.62, +3.85, +2.44, +0.41, +2.07, −0.51, +2.56,
 +6.83, +3.74.
 
-## Specificity — anchors fire on *disjoint* heterogeneity, not redundant features
+## Specificity — anchors help where the worst group is genuinely struggling
 
-The mechanism predicts anchors help most when groups' feature spaces are genuinely different,
-and little when features overlap/are redundant. Evidence:
+Anchors on (λ=0.1) vs off (≈0), worst-group, paired over seeds. Figure:
+`documentation/figures/anchor_specificity.png`.
 
-- **Fed-Heart** (feature-*drop* heterogeneity, mostly overlapping 11–13 features): anchors flat,
-  best Δ +0.55 within noise (5 seeds).
-- **EMBED** (four views = redundant images of the same breast): anchors do not help at any weight
-  (see `EMBED_XENIA.md`).
-- **NHANES disjoint** (genuinely unique features per group): **+2.65, p=0.002.**
+| dataset / mode | off | on | Δ | seeds win | p |
+|---|---|---|---|---|---|
+| Fed-Heart (overlapping features) | 72.45 | 71.70 | −0.75 | 0/5 | 0.178 (ns) |
+| NHANES expanded (nested, 15/18/25f, high baseline) | 76.81 | 77.52 | +0.71 | 6/10 | 0.265 (ns) |
+| **NHANES nested (10/13/20f)** | 70.21 | 73.92 | **+3.72** | 9/10 | **0.008** |
+| **NHANES disjoint (unique features/group)** | 73.22 | 75.87 | **+2.65** | 9/10 | **0.002** |
 
-<!-- SPECIFICITY: NHANES nested/expanded (overlapping/nested features) vs disjoint -->
+**Anchors give a significant worst-group gain on two of the four settings** — NHANES nested
+(+3.72) and disjoint (+2.65), both p<0.01 with 9/10 seeds improving. They are neutral where
+the worst-group baseline is already strong (expanded, 76.8%) or the feature spaces heavily
+overlap (Fed-Heart feature-drop). EMBED's four redundant views (same breast) also show no
+anchor benefit at any weight (`EMBED_XENIA.md`). The pattern: **anchors help when a group's
+representation is genuinely under-aligned and has headroom, not when it is already well-served.**
 
 ## Which anchor loss drives it? (fit vs sep decomposition)
 
-<!-- DECOMP: fit-only vs sep-only vs both -->
+NHANES disjoint, 10 seeds, worst-group. Figure: `documentation/figures/anchor_fit_vs_sep.png`.
+
+| arm | worst-group | Δ vs off | p |
+|---|---|---|---|
+| off (λ=0.001) | 73.22 ± 1.35 | — | — |
+| **fit only (alignment, λ_fit=0.1, λ_sep=0)** | **75.66 ± 2.50** | **+2.44** | 0.032 |
+| sep only (λ_fit=0, λ_sep=0.1) | 71.27 ± 0.67 | −1.95 | 0.0009 |
+| both (λ_fit=λ_sep=0.1) | 75.87 ± 1.70 | +2.65 | 0.002 |
+
+**The gain comes entirely from the anchor-*fit* (W₂ alignment) loss** — pulling each group's
+per-class latents onto the shared class anchors. The separation loss *alone* is
+counterproductive (it spreads anchors without aligning groups), but is harmless combined with
+fit (both ≈ fit-only). Mechanistically: **class-conditional latent alignment is the active
+ingredient.**
 
 ## Interpretation for the paper
 

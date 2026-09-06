@@ -1,0 +1,55 @@
+# SMOKE: confirm TextCaps runs + gauge CPU speed + anchor path works
+run_name: textcaps_smoke_anchor
+seed: 1337
+root: datasets
+run_dir: runs/textcaps_smoke_anchor
+
+use_textcaps_multimodal: true
+textcaps_use_huggingface: false      # use local images (fast, no download)
+textcaps_num_classes: 10
+textcaps_max_train_samples: 800
+textcaps_max_test_samples: 300
+
+batch_size: 16
+num_workers: 0
+
+groups:
+  - name: visual
+    type: image
+    in_shape: [3, 224, 224]
+    encoder: resnet_visual
+  - name: text_ocr
+    type: text
+    encoder: char_cnn_text
+
+latent_dim: 64
+num_classes: 100
+head_hidden: 128
+
+anchor_eps: 1.0e-4
+sep_samples_per_class: 8
+sep_method: "classifier"
+sep_margin: 2.0
+
+lambda_fit: 3.0e-1        # anchors ON (test the anchor path)
+lambda_sep: 3.0e-1
+
+optimizer: adam
+lr: 1.0e-3
+weight_decay: 1.0e-4
+epochs: 2
+grad_clip: 1.0
+lr_start: 1.0e-3
+lr_end: 1.0e-4
+
+groupdro_enabled: true
+groupdro_eta: 0.1
+groupdro_gamma: 0.7
+groupdro_min_group_weight: 0.1
+groupdro_update_mode: exp_smooth
+groupdro_objective: weighted
+groupdro_warmup_epochs: 1
+
+log_interval: 20
+save_every: 5
+debug_one_batch: false

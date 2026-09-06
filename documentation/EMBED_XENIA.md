@@ -3,6 +3,13 @@
 Implements `EMBED_Experiments_Description.docx` exactly. Supersedes the earlier
 ResNet-on-images EMBED pipeline (which used a different architecture).
 
+> ⚠️ **ALL NUMBERS BELOW ARE A 13% PILOT — NOT FOR REPORTING.** They are computed on the
+> 16,575 rows whose images were downloaded before EMBED S3 access expired (13% of the
+> 128,680-row full dataset). The pipeline is spec-exact and validated; the **production
+> paper result requires the full dataset**, which is blocked on restoring EMBED S3
+> credentials. On this pilot the six methods sit within ~±0.07 of each other on the tiny
+> tail test sets — inconclusive by design. Do not compare these to REMIND.
+
 ## Task & data
 
 - **Task:** 4-class BI-RADS breast-density classification (`tissueden` A/B/C/D → 0–3).

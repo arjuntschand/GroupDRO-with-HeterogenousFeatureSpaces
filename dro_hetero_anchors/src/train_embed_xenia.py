@@ -225,13 +225,17 @@ def train_one(method, data, masks, device, rstar, seed,
     sched = torch.optim.lr_scheduler.StepLR(opt, step_size=5, gamma=0.1)
 
     K = len(groups)
-    lam = torch.ones(K, device=device) / K
-    ema = torch.zeros(K, device=device)
     rstar_t = torch.tensor([rstar.get(g, 0.0) if flags["regret"] else 0.0 for g in groups],
                            device=device)
+    # Xenia spec: lambda_g initialised to empirical group proportion p_g; ema_loss init = R*_g
+    ptrain = np.array([int(masks[g]["train"].sum()) for g in groups], dtype=float)
+    lam = torch.tensor(ptrain / ptrain.sum(), device=device, dtype=torch.float32)
+    ema = rstar_t.clone()
 
+    N = 50           # lambda update stride (Xenia)
+    gstep = 0
     best_sel, best_state, curve = float("inf"), None, []
-    # steps per epoch = ceil(max group train size / batch)
+    # steps per epoch = ceil(max group train size / batch); group-stratified sampling
     max_n = max(int(masks[g]["train"].sum()) for g in groups)
     steps = max(1, int(np.ceil(max_n / batch)))
 
@@ -239,14 +243,14 @@ def train_one(method, data, masks, device, rstar, seed,
         model.train()
         for _ in range(steps):
             opt.zero_grad()
-            excess = []
+            raw = []   # per-group L_task + lam_fit*L_fit (no R*), for the EMA
             task_total = model.head.weight.new_zeros(())
             for gi, g in enumerate(groups):
                 m = masks[g]["train"]
                 if m.sum() == 0:
-                    excess.append(torch.zeros((), device=device)); continue
+                    raw.append(None); continue
                 sub = _subset(data[g], m, device)
-                # sample up to `batch`
+                # group-stratified: up to `batch` samples from this group
                 nn_ = sub["y"].shape[0]
                 sel = torch.randint(0, nn_, (min(batch, nn_),), device=device)
                 feats = {v: t[sel] for v, t in sub["feats"].items()}
@@ -254,18 +258,22 @@ def train_one(method, data, masks, device, rstar, seed,
                 logits, z = model(g, feats)
                 lt = F.cross_entropy(logits, y)
                 lf = anchor_fit_loss(z, y, model.anchors) if flags["anchors"] else torch.zeros((), device=device)
-                comp = (lt - rstar_t[gi]) + lam_fit * lf
-                excess.append(comp.detach())
+                raw.append((lt + lam_fit * lf).detach())
+                comp = (lt - rstar_t[gi]) + lam_fit * lf     # objective term (R* is a constant)
                 task_total = task_total + lam[gi] * comp
             lsep = anchor_sep_loss(model) if flags["anchors"] else torch.zeros((), device=device)
             loss = task_total + lam_sep * lsep
             loss.backward(); opt.step()
-            # lambda update (max player) — train-loss signal, per step
+            gstep += 1
+            # max player (Xenia): EMA of raw per-group loss (present groups), update lambda every N steps
             if flags["dro"] and dro_signal == "train":
-                ex = torch.stack(excess)
-                ema = decay * ema + (1 - decay) * ex
-                lam = lam * torch.exp(gamma * ema)
-                lam = torch.clamp(lam, min=1e-8); lam = lam / lam.sum()
+                for gi in range(K):
+                    if raw[gi] is not None:
+                        ema[gi] = decay * ema[gi] + (1 - decay) * raw[gi]
+                if gstep % N == 0:
+                    excess = torch.clamp(ema - rstar_t, min=0.0)   # clamp: R* is an estimate
+                    lam = lam * torch.exp(gamma * excess)
+                    lam = torch.clamp(lam, min=1e-8); lam = lam / lam.sum()
         # lambda update (max player) — validation-loss signal, once per epoch
         if flags["dro"] and dro_signal == "val":
             ex = _group_val_excess(model, data, masks, rstar_t, groups,

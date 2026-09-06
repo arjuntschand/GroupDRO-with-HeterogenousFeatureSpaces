@@ -43,9 +43,10 @@ class DiagAnchors(nn.Module):
     def __init__(self, num_classes: int, dim: int, eps: float = 1e-4):
         super().__init__()
         self.num_classes, self.dim, self.eps = num_classes, dim, eps
-        self.m = nn.Parameter(torch.zeros(num_classes, dim))
-        self.rho = nn.Parameter(torch.zeros(num_classes, dim))  # softplus(0)=~0.693
-        nn.init.normal_(self.m, std=1.0)
+        # Xenia spec: m_c ~ Normal(std 0.1); rho_c s.t. s_c = softplus(rho)+eps starts ~1
+        # softplus(rho)=1 -> rho = log(e^1 - 1) ~= 0.5413
+        self.m = nn.Parameter(torch.randn(num_classes, dim) * 0.1)
+        self.rho = nn.Parameter(torch.full((num_classes, dim), 0.5413))
 
     def var(self) -> torch.Tensor:                  # s_c  (C, D), strictly positive
         return F.softplus(self.rho) + self.eps

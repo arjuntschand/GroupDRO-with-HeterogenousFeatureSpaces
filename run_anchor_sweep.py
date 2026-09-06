@@ -29,10 +29,22 @@ SEEDS = [42, 1337, 7, 2024, 31337]
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", required=True, choices=list(BASES))
-    ap.add_argument("--lams", nargs="+", type=float, default=LAMS)
+    ap.add_argument("--lams", nargs="+", type=float, default=LAMS,
+                    help="diagonal sweep: sets lambda_fit=lambda_sep=lam")
+    ap.add_argument("--arms", nargs="+", default=None,
+                    help="explicit 'fit,sep' pairs, e.g. 0.1,0 0,0.1 0.1,0.1 "
+                         "(for decomposing which anchor loss drives the gain)")
     ap.add_argument("--seeds", nargs="+", type=int, default=SEEDS)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
+    # build list of (label, lambda_fit, lambda_sep)
+    if args.arms:
+        arms = []
+        for a in args.arms:
+            f, s = (float(x) for x in a.split(","))
+            arms.append((f"fit{f}_sep{s}", f, s))
+    else:
+        arms = [(str(l), l, l) for l in args.lams]
 
     base_path, mod = BASES[args.dataset]
     import importlib
@@ -43,52 +55,44 @@ def main():
 
     out = args.out or f"runs/anchor_sweep_{args.dataset}"
     os.makedirs(out, exist_ok=True)
-    results = {}   # lam -> {seed -> metrics}
+    results = {}   # label -> {seed -> metrics}
 
-    for lam in args.lams:
-        results[lam] = {}
+    for label, lfit, lsep in arms:
+        results[label] = {}
         for seed in args.seeds:
             cfg = copy.deepcopy(base)
-            cfg["lambda_fit"] = lam
-            cfg["lambda_sep"] = lam
+            cfg["lambda_fit"] = lfit
+            cfg["lambda_sep"] = lsep
             cfg["seed"] = seed
-            cfg["run_dir"] = f"{out}/lam{lam}_s{seed}"
+            cfg["run_dir"] = f"{out}/{label}_s{seed}"
             cfg["groupdro_enabled"] = True         # per-group GDRO always on
-            tag = f"[{args.dataset}] lam={lam} seed={seed}"
-            print(f"\n=== {tag} ===", flush=True)
+            print(f"\n=== [{args.dataset}] {label} (fit={lfit} sep={lsep}) seed={seed} ===", flush=True)
             try:
                 r = train(cfg)
-                results[lam][seed] = {
+                results[label][seed] = {
                     "worst": float(r.get("best_worst_group_acc", float("nan"))),
                     "balanced": float(r.get("best_balanced_acc", float("nan"))),
                 }
-                print(f"  -> worst={results[lam][seed]['worst']:.4f} "
-                      f"balanced={results[lam][seed]['balanced']:.4f}", flush=True)
+                print(f"  -> worst={results[label][seed]['worst']:.4f} "
+                      f"balanced={results[label][seed]['balanced']:.4f}", flush=True)
             except Exception as e:
                 print(f"  FAILED: {e}", flush=True)
-                results[lam][seed] = {"worst": float("nan"), "balanced": float("nan")}
+                results[label][seed] = {"worst": float("nan"), "balanced": float("nan")}
 
     # aggregate
     print(f"\n\n########## ANCHOR SWEEP: {args.dataset} ##########")
-    print(f"{'anchor λ':>10} | worst-group acc (mean±std) | balanced (mean±std) | n")
+    print(f"{'arm':>14} | worst-group acc (mean±std) | balanced (mean±std) | n")
     summary = {}
-    for lam in args.lams:
-        w = [results[lam][s]["worst"] for s in args.seeds if not np.isnan(results[lam][s]["worst"])]
-        b = [results[lam][s]["balanced"] for s in args.seeds if not np.isnan(results[lam][s]["balanced"])]
+    for label, _, _ in arms:
+        w = [results[label][s]["worst"] for s in args.seeds if not np.isnan(results[label][s]["worst"])]
+        b = [results[label][s]["balanced"] for s in args.seeds if not np.isnan(results[label][s]["balanced"])]
         if w:
-            print(f"{lam:>10} | {np.mean(w)*100:5.2f} ± {np.std(w)*100:4.2f}          | "
+            print(f"{label:>14} | {np.mean(w)*100:5.2f} ± {np.std(w)*100:4.2f}          | "
                   f"{np.mean(b)*100:5.2f} ± {np.std(b)*100:4.2f}     | {len(w)}")
-            summary[lam] = {"worst_mean": np.mean(w), "worst_std": np.std(w),
-                            "bal_mean": np.mean(b), "bal_std": np.std(b), "n": len(w)}
-    # headline: does any anchor weight beat lam=0?
-    if 0.0 in summary:
-        base_w = summary[0.0]["worst_mean"]
-        best_lam = max((l for l in summary if l > 0), key=lambda l: summary[l]["worst_mean"], default=None)
-        if best_lam is not None:
-            delta = (summary[best_lam]["worst_mean"] - base_w) * 100
-            print(f"\nΔ worst-group (best anchor λ={best_lam} vs λ=0): {delta:+.2f} pts")
-    json.dump({"summary": {str(k): v for k, v in summary.items()},
-               "raw": {str(k): v for k, v in results.items()}},
+            summary[label] = {"worst_mean": np.mean(w), "worst_std": np.std(w),
+                              "bal_mean": np.mean(b), "bal_std": np.std(b), "n": len(w),
+                              "worst_raw": w}
+    json.dump({"summary": summary, "raw": results, "arms": [list(a) for a in arms]},
               open(f"{out}/results.json", "w"), indent=2)
     print(f"\nwrote {out}/results.json")
 

@@ -104,6 +104,7 @@ def main():
             colors = ["#c0392b" if "Ours" in n else "#888" for n in names]
             ax.barh(range(len(names)), means, xerr=sds, color=colors)
             ax.set_yticks(range(len(names))); ax.set_yticklabels(names, fontsize=7)
+            lo = max(0, min(means) - 4); ax.set_xlim(lo, max(means) + max(sds) + 2)
             ax.set_xlabel("worst-group acc (%)"); ax.set_title(tag); ax.invert_yaxis()
         plt.tight_layout(); plt.savefig(f"{OUT}/ablation_worst_group.png", dpi=140); plt.close()
         lines.append("\n## Figures\n- `figures/ablation_worst_group.png` (worst-group by cell, all datasets)")

@@ -23,6 +23,13 @@ different input spaces; per-group encoders + GroupDRO held fixed, only the ancho
 **Anchors on vs off: +2.65 pts worst-group, 9/10 seeds improve, paired t-test p = 0.0022,
 Wilcoxon p = 0.0059, Cohen's d = 1.33 (large).** Balanced accuracy also improves +2.16.
 
+> **Methodological note (important):** "anchors off" MUST use λ_fit=λ_sep = **0.001**, not
+> exactly 0.0. On NHANES, exactly-zero anchor weight is numerically unstable (the anchor
+> module's reparameterization draws still fire; some seeds NaN, and the mean degrades ~4 pts
+> to 68.8%). Using the unstable 0.0 baseline would inflate the apparent anchor effect to a
+> spurious +7. The honest, stable comparison is 0.001→0.1 = **+2.65**. All ablation "off"
+> cells use 0.001.
+
 Per-seed paired Δ (λ0.1 − λ0.001): +2.48, +2.62, +3.85, +2.44, +0.41, +2.07, −0.51, +2.56,
 +6.83, +3.74.
 

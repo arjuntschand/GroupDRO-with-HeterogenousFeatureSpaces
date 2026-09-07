@@ -19,16 +19,17 @@ DEFAULT_BASE = {"fedheart": "experiments/fedheart_ablation_pergroup_noanchor.yam
                 "nhanes": "experiments/nhanes_disjoint_pergroup_gdro.yaml"}
 SEEDS = [42, 1337, 7, 2024, 31337, 11, 22, 33, 44, 55]
 ANCHOR_ON = 0.1
+ANCHOR_OFF = 0.001   # near-zero (exactly 0.0 NaNs on NHANES); negligible = anchors off
 
 # 8 cells: (label, common_encoder, groupdro, anchor_weight)
 CELLS = [
-    ("shared_erm",          True,  False, 0.0),
+    ("shared_erm",          True,  False, ANCHOR_OFF),
     ("shared_erm_anchor",   True,  False, ANCHOR_ON),
-    ("shared_gdro",         True,  True,  0.0),
+    ("shared_gdro",         True,  True,  ANCHOR_OFF),
     ("shared_gdro_anchor",  True,  True,  ANCHOR_ON),
-    ("pergroup_erm",        False, False, 0.0),
+    ("pergroup_erm",        False, False, ANCHOR_OFF),
     ("pergroup_erm_anchor", False, False, ANCHOR_ON),
-    ("pergroup_gdro",       False, True,  0.0),
+    ("pergroup_gdro",       False, True,  ANCHOR_OFF),
     ("pergroup_gdro_anchor",False, True,  ANCHOR_ON),   # full method
 ]
 
@@ -89,6 +90,12 @@ def main():
             cfg["lambda_sep"] = anch
             cfg["seed"] = seed
             cfg["run_dir"] = f"{out}/{label}_s{seed}"
+            # skip if this run already has valid metrics (idempotent re-runs)
+            cached = extract_metrics(cfg["run_dir"])
+            if cached and cached.get("test_worst_group_acc", float("nan")) == cached.get("test_worst_group_acc", float("nan")):
+                results[label][seed] = cached
+                print(f"  [cached] worst={cached.get('test_worst_group_acc',float('nan')):.4f}", flush=True)
+                continue
             print(f"\n=== [{tag}] {label} seed={seed} ===", flush=True)
             try:
                 train(cfg)

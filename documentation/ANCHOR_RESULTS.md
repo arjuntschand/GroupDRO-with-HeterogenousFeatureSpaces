@@ -69,6 +69,28 @@ counterproductive (it spreads anchors without aligning groups), but is harmless 
 fit (both ≈ fit-only). Mechanistically: **class-conditional latent alignment is the active
 ingredient.**
 
+## Consolidated: anchor effect across all datasets (the paper's core table)
+
+Worst-group accuracy, full method = per-group GDRO, anchors off (λ=0.001) → on (λ=0.1),
+10 seeds. From the 2×2×2 ablations (`PAPER_RESULTS.md`) + paired significance tests.
+
+| dataset / setting | heterogeneity | off | +anchors | Δ | significance |
+|---|---|---|---|---|---|
+| **NHANES nested** | nested feature availability | 70.43 | **74.14** | **+3.71** | p=0.008 ✓ |
+| **NHANES disjoint** | unique features per group | 73.22 | **75.87** | **+2.65** | p=0.002 ✓ |
+| NHANES expanded | nested, high baseline | 77.66 | 77.81 | +0.15 | ns |
+| Fed-Heart | overlapping (feature-drop) | 72.26 | 71.70 | −0.56 | ns |
+| EMBED (13% pilot) | 4 redundant views | — | — | ~0 | ns (see EMBED_XENIA) |
+| TextCaps (combined) | visual + text modality | 58.67 | 56.82 | −1.85 | ns |
+
+Anchors on a **shared** encoder help even more (NHANES: 72.16 → 76.07 = **+3.91**), because a
+shared encoder cannot specialize per group and leans harder on the class-anchor alignment.
+
+**The pattern:** significant worst-group gains (+2.7 to +3.9, p<0.01) on tabular datasets with
+genuine feature-availability heterogeneity and headroom (NHANES nested/disjoint); neutral where
+features overlap (Fed-Heart), the baseline is already high (NHANES expanded), or the groups are
+redundant/modality-based (EMBED views, TextCaps visual/text).
+
 ## Interpretation for the paper
 
 Per-group encoders handle heterogeneous inputs; GroupDRO handles imbalance; **the anchor

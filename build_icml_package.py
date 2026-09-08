@@ -29,10 +29,13 @@ PRETTY = {"ERM": "ERM", "GroupDRO": "GroupDRO", "RegretDRO": "Regret-DRO",
           "Ours_Regret": "Ours (anchors+regret)"}
 COL = {"ERM": "#95a5a6", "GroupDRO": "#3498db", "RegretDRO": "#9b59b6",
        "AnchorsOnly": "#f39c12", "Ours_GDRO": "#e74c3c", "Ours_Regret": "#c0392b"}
+# Paper set. NHANES-nested is the NATURAL structure (availability is genuinely nested:
+# labs => exam => survey). NHANES-disjoint is a CONSTRUCTED stress test (10 shared + 5
+# unique features per group) and is labelled as synthetic. NHANES-expanded (nested with
+# more features) is archived — it duplicates nested's concept and adds only a null.
 TAGS = [("Fed-Heart", "fedheart", ["Cleveland", "Hungarian", "Switzerland", "VA"]),
-        ("NHANES-nested", "nhanes_nested", ["G0 survey", "G1 exam", "G2 labs"]),
-        ("NHANES-disjoint", "nhanes_disjoint", ["G0 survey", "G1 exam", "G2 labs"]),
-        ("NHANES-expanded", "nhanes_expanded", ["G0 survey", "G1 exam", "G2 labs"])]
+        ("NHANES-nested (natural)", "nhanes_nested", ["G0 survey", "G1 exam", "G2 labs"]),
+        ("NHANES-disjoint (synthetic)", "nhanes_disjoint", ["G0 survey", "G1 exam", "G2 labs"])]
 
 
 def load(tag):
@@ -267,69 +270,52 @@ if loaded:
     plt.savefig(f"{OUT}/icml_fig2_pergroup.png"); plt.close()
     print(f"wrote {OUT}/icml_fig2_pergroup.png")
 
-    # Fig 3: R*_g vs achieved loss (the regret picture)
-    fig, axes = plt.subplots(1, len(loaded), figsize=(3.5 * len(loaded), 3.5), squeeze=False)
-    for ax, (name, tag, gnames, res, rstar) in zip(axes[0], loaded):
-        for m, mk in [("GroupDRO", "o"), ("Ours_Regret", "s")]:
-            ls, _ = pergroup(res, m, "per_group_loss")
-            if ls is None:
-                continue
-            k = min(len(ls), len(rstar))
-            ax.scatter(rstar[:k], ls[:k], label=PRETTY[m], color=COL[m], marker=mk, s=45)
-        lim = [0, max(max(rstar), 1.0) * 1.15]
-        ax.plot(lim, lim, "k--", lw=0.8, label="L_g = R*_g")
-        ax.set_xlabel("R*_g (achievable floor)"); ax.set_ylabel("achieved loss L_g")
-        ax.set_title(name, fontsize=10); ax.legend(fontsize=6.5)
-    plt.suptitle("Achieved loss vs per-group reference loss R*_g (points below the line beat the dedicated model)", fontsize=10)
-    plt.savefig(f"{OUT}/icml_fig3_regret.png"); plt.close()
-    print(f"wrote {OUT}/icml_fig3_regret.png")
+    # Fig 3: anchor effect with paired significance (proves the novelty works)
+    if anchor_rows_fig := [(n, paired_p(r, "GroupDRO", "Ours_GDRO")) for n, _, _, r, _ in loaded]:
+        rows = [(n, v) for n, v in anchor_rows_fig if v]
+        if rows:
+            fig, ax = plt.subplots(figsize=(6.5, 4))
+            names = [n for n, _ in rows]; d = [v["delta"] for _, v in rows]
+            ps = [v.get("p") for _, v in rows]
+            cols = [COL["Ours_GDRO"] if (p is not None and p < 0.05) else "#bdc3c7" for p in ps]
+            bars = ax.bar(names, d, color=cols)
+            for b, p, dv in zip(bars, ps, d):
+                lab = "ns" if p is None or p >= 0.05 else ("**" if p < 0.01 else "*")
+                ax.text(b.get_x()+b.get_width()/2, dv + (0.12 if dv >= 0 else -0.3), lab,
+                        ha="center", fontsize=11, fontweight="bold")
+            ax.axhline(0, color="k", lw=0.8)
+            ax.set_ylabel("\u0394 worst-group accuracy (pts)")
+            ax.set_title("Anchor contribution (encoder + GroupDRO held fixed)\n** p<0.01, * p<0.05")
+            plt.xticks(fontsize=8)
+            plt.savefig(f"{OUT}/icml_fig3_anchor_effect.png"); plt.close()
+            print(f"wrote {OUT}/icml_fig3_anchor_effect.png")
 
-    # Fig 4: 2x2 anchors x regret interaction
-    fig, axes = plt.subplots(1, len(loaded), figsize=(3.2 * len(loaded), 3.4), squeeze=False)
-    for ax, (name, tag, gnames, res, rstar) in zip(axes[0], loaded):
-        cells = [("GroupDRO", "no anchors\nno regret"), ("Ours_GDRO", "anchors\nno regret"),
-                 ("RegretDRO", "no anchors\nregret"), ("Ours_Regret", "anchors\nregret")]
-        mu = [scalar(res, m, "worst_group_acc") for m, _ in cells]
-        vals = [v[0] if v else np.nan for v in mu]; sds = [v[1] if v else 0 for v in mu]
-        ax.bar(range(4), vals, yerr=sds, capsize=3,
-               color=[COL["GroupDRO"], COL["Ours_GDRO"], COL["RegretDRO"], COL["Ours_Regret"]])
-        ax.set_xticks(range(4)); ax.set_xticklabels([c[1] for c in cells], fontsize=6.5)
-        ax.set_ylim(min(v for v in vals if v == v) - 3, max(v for v in vals if v == v) + 2)
-        ax.set_ylabel("worst-group acc (%)"); ax.set_title(name, fontsize=10)
-    plt.suptitle("2×2: anchors × regret", fontsize=11)
-    plt.savefig(f"{OUT}/icml_fig4_2x2.png"); plt.close()
-    print(f"wrote {OUT}/icml_fig4_2x2.png")
-
-    # Fig 5: parameter testing across group definitions
-    if nh:
-        fig, ax = plt.subplots(figsize=(7, 4))
-        x = np.arange(len(nh)); w = 0.13
-        for j, m in enumerate(METHODS):
-            vals = [scalar(r, m, "worst_group_acc") for *_, r, _ in nh]
-            mu = [v[0] if v else np.nan for v in vals]
-            ax.bar(x + (j - 2.5) * w, mu, w, label=PRETTY[m], color=COL[m])
-        ax.set_xticks(x); ax.set_xticklabels([n for n, *_ in nh])
-        ax.set_ylabel("worst-group accuracy (%)")
-        vv = [v[0] for *_, r, _ in nh for v in [scalar(r, m, "worst_group_acc") for m in METHODS] if v]
-        ax.set_ylim(min(vv) - 3, max(vv) + 3)
-        ax.set_title("Parameter test: group definition (NHANES feature modes)")
-        ax.legend(fontsize=7, ncol=3)
-        plt.savefig(f"{OUT}/icml_fig5_groupdef.png"); plt.close()
-        print(f"wrote {OUT}/icml_fig5_groupdef.png")
-
-    # Fig 6: per-group loss vs excess
-    fig, axes = plt.subplots(1, len(loaded), figsize=(3.5 * len(loaded), 3.4), squeeze=False)
-    for ax, (name, tag, gnames, res, rstar) in zip(axes[0], loaded):
-        ls_e, _ = pergroup(res, "ERM", "per_group_loss")
-        ls_o, _ = pergroup(res, "Ours_Regret", "per_group_loss")
-        if ls_e is None or ls_o is None:
-            continue
-        k = min(len(ls_e), len(ls_o), len(rstar)); xx = np.arange(k); w = 0.28
-        ax.bar(xx - w, ls_e[:k], w, label="ERM loss", color=COL["ERM"])
-        ax.bar(xx, ls_o[:k], w, label="Ours loss", color=COL["Ours_Regret"])
-        ax.bar(xx + w, np.array(rstar[:k]), w, label="R*_g", color="#2ecc71")
-        ax.set_xticks(xx); ax.set_xticklabels(gnames[:k], fontsize=7, rotation=20)
-        ax.set_ylabel("cross-entropy"); ax.set_title(name, fontsize=10); ax.legend(fontsize=6.5)
-    plt.suptitle("Per-group loss vs achievable floor R*_g", fontsize=11)
-    plt.savefig(f"{OUT}/icml_fig6_losses.png"); plt.close()
-    print(f"wrote {OUT}/icml_fig6_losses.png")
+    # Fig 4: anchor mechanism (weight sweep + fit vs sep) — explains WHY it works
+    val = json.load(open("runs/anchor_val_nhanes_disjoint/results.json")) if os.path.exists("runs/anchor_val_nhanes_disjoint/results.json") else None
+    dec = json.load(open("runs/anchor_decomp_nhanes/results.json")) if os.path.exists("runs/anchor_decomp_nhanes/results.json") else None
+    if val and dec:
+        fig, axes = plt.subplots(1, 2, figsize=(9, 3.8))
+        order = ["0.001", "0.1", "0.3"]
+        xs, mm, ss = [], [], []
+        for l in order:
+            if l in val["raw"]:
+                v = np.array([val["raw"][l][s]["worst"] for s in val["raw"][l]]) * 100
+                xs.append(f"\u03bb={l}"); mm.append(v.mean()); ss.append(v.std())
+        axes[0].errorbar(range(len(xs)), mm, yerr=ss, marker="o", color=COL["Ours_GDRO"], capsize=4)
+        axes[0].set_xticks(range(len(xs))); axes[0].set_xticklabels(xs)
+        axes[0].set_ylabel("worst-group acc (%)"); axes[0].set_xlabel("anchor weight")
+        axes[0].set_title("(a) Anchor weight sweep", fontsize=10)
+        offv = np.array([val["raw"]["0.001"][s]["worst"] for s in val["raw"]["0.001"]]) * 100
+        labs, vv, se = ["off"], [offv.mean()], [offv.std()]
+        for lab, nm in [("fit0.1_sep0.0", "fit only\n(alignment)"), ("fit0.0_sep0.1", "sep only"),
+                        ("fit0.1_sep0.1", "both")]:
+            if lab in dec["raw"]:
+                v = np.array([dec["raw"][lab][s]["worst"] for s in dec["raw"][lab]]) * 100
+                labs.append(nm); vv.append(v.mean()); se.append(v.std())
+        axes[1].bar(labs, vv, yerr=se, capsize=3,
+                    color=["#bdc3c7", COL["Ours_GDRO"], COL["GroupDRO"], "#e67e22"][:len(labs)])
+        axes[1].set_ylim(min(vv)-2, max(vv)+2); axes[1].set_ylabel("worst-group acc (%)")
+        axes[1].set_title("(b) Which anchor loss drives the gain?", fontsize=10)
+        plt.suptitle("Anchor mechanism (NHANES-disjoint, 10 seeds)", fontsize=11)
+        plt.savefig(f"{OUT}/icml_fig4_mechanism.png"); plt.close()
+        print(f"wrote {OUT}/icml_fig4_mechanism.png")

@@ -10,20 +10,16 @@ figure in documentation/figures/, plus the raw metrics_long.csv files as searcha
 from __future__ import annotations
 import argparse, csv, html, io, os, re, shutil
 
+# Paper-facing docs only. Everything else stays on disk but off the site.
 DOCS = [
-    ("ICML Results", "documentation/ICML_RESULTS.md"),
-    ("Anchor Results", "documentation/ANCHOR_RESULTS.md"),
-    ("Paper Tables", "documentation/PAPER_TABLES.md"),
-    ("Paper Results", "documentation/PAPER_RESULTS.md"),
-    ("NHANES Verified", "runs/NHANES_VERIFIED.md"),
-    ("EMBED (Xenia spec)", "documentation/EMBED_XENIA.md"),
-    ("EMBED Ready", "documentation/EMBED_READY.md"),
+    ("Results", "documentation/ICML_RESULTS.md"),
+    ("Anchor Analysis", "documentation/ANCHOR_RESULTS.md"),
+    ("EMBED", "documentation/EMBED_XENIA.md"),
 ]
 CSVS = [
-    ("Fed-Heart metrics_long", "runs/matrix_fedheart/metrics_long.csv"),
-    ("NHANES-disjoint metrics_long", "runs/matrix_nhanes_disjoint/metrics_long.csv"),
-    ("NHANES-nested metrics_long", "runs/matrix_nhanes_nested/metrics_long.csv"),
-    ("NHANES-expanded metrics_long", "runs/matrix_nhanes_expanded/metrics_long.csv"),
+    ("Fed-Heart", "runs/matrix_fedheart/metrics_long.csv"),
+    ("NHANES-nested (natural)", "runs/matrix_nhanes_nested/metrics_long.csv"),
+    ("NHANES-disjoint (synthetic)", "runs/matrix_nhanes_disjoint/metrics_long.csv"),
 ]
 FIGDIR = "documentation/figures"
 SITE = "site"
@@ -164,20 +160,10 @@ def csv_section(title, path, tid):
 
 
 FIG_CAPS = {
-    "icml_fig1_methods": "Method comparison across all datasets (worst-group accuracy, 10 seeds).",
-    "icml_fig2_pergroup": "Per-group accuracy: ERM vs the full method.",
-    "icml_fig3_regret": "Achieved loss vs per-group reference loss R*_g. Points below the dashed line beat the group's own dedicated model (positive transfer).",
-    "icml_fig4_2x2": "2x2 interaction: anchors x regret.",
-    "icml_fig5_groupdef": "Parameter test: same method under different group definitions.",
-    "icml_fig6_losses": "Per-group loss vs the achievable floor R*_g.",
-    "fig1_headline": "Headline: full method vs naive baseline.",
-    "fig2_ablation_grid": "Full 2x2x2 ablation (encoder x GroupDRO x anchors).",
-    "fig3_pergroup": "Per-group accuracy, baseline vs ours.",
-    "fig4_anchor_effect": "Anchor contribution with paired significance (** p<0.01, * p<0.05).",
-    "fig5_anchor_mechanism": "Anchor mechanism: weight sweep and fit-vs-sep decomposition.",
-    "anchor_specificity": "Anchor effect across datasets/feature modes.",
-    "anchor_weight_sweep": "Worst-group accuracy vs anchor weight.",
-    "anchor_fit_vs_sep": "Which anchor loss drives the gain.",
+    "icml_fig1_methods": "Figure 1 — Method comparison across datasets (worst-group accuracy, 10 seeds). The headline result.",
+    "icml_fig2_pergroup": "Figure 2 — Per-group accuracy, ERM vs the full method. Shows WHERE the gain comes from.",
+    "icml_fig3_anchor_effect": "Figure 3 — Anchor contribution with encoder + GroupDRO held fixed, paired significance (** p<0.01). Proves the novel component works.",
+    "icml_fig4_mechanism": "Figure 4 — Anchor mechanism: (a) weight sweep, (b) which anchor loss drives the gain. Explains WHY it works.",
 }
 
 

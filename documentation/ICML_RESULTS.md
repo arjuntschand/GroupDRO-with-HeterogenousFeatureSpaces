@@ -12,14 +12,14 @@ with the group it points at. Raw rows: `runs/matrix_<tag>/metrics_long.csv`.
 
 ## Table 1 — Method comparison (worst-group accuracy, mean ± std over 10 seeds)
 
-| method | Fed-Heart | NHANES-nested | NHANES-disjoint | NHANES-expanded |
-|---|---|---|---|---|
-| ERM | 65.58 ± 7.57 | 70.08 ± 0.99 | 70.08 ± 0.99 | 75.06 ± 0.59 |
-| GroupDRO | 74.80 ± 2.84 | 70.43 ± 1.39 | 73.22 ± 1.35 | 77.66 ± 1.53 |
-| Regret-DRO | 74.80 ± 2.84 | 70.19 ± 0.96 | 73.17 ± 1.35 | 77.40 ± 1.82 |
-| Anchors only | 74.21 ± 3.51 | 71.35 ± 2.20 | 73.82 ± 1.43 | 76.18 ± 1.24 |
-| Ours (anchors+GroupDRO) | 74.50 ± 2.95 | 74.14 ± 3.46 | 75.87 ± 1.70 | 77.81 ± 1.49 |
-| Ours (anchors+regret) ⭐ | 74.25 ± 3.31 | 73.75 ± 3.57 | 75.33 ± 1.85 | 77.90 ± 1.43 |
+| method | Fed-Heart | NHANES-nested (natural) | NHANES-disjoint (synthetic) |
+|---|---|---|---|
+| ERM | 65.58 ± 7.57 | 70.08 ± 0.99 | 70.08 ± 0.99 |
+| GroupDRO | 74.80 ± 2.84 | 70.43 ± 1.39 | 73.22 ± 1.35 |
+| Regret-DRO | 74.80 ± 2.84 | 70.19 ± 0.96 | 73.17 ± 1.35 |
+| Anchors only | 74.21 ± 3.51 | 71.35 ± 2.20 | 73.82 ± 1.43 |
+| Ours (anchors+GroupDRO) | 74.50 ± 2.95 | 74.14 ± 3.46 | 75.87 ± 1.70 |
+| Ours (anchors+regret) ⭐ | 74.25 ± 3.31 | 73.75 ± 3.57 | 75.33 ± 1.85 |
 
 
 ## Table 2 — Overall metrics per dataset
@@ -36,7 +36,7 @@ with the group it points at. Raw rows: `runs/matrix_<tag>/metrics_long.csv`.
 | Ours (anchors+GroupDRO) | 74.50 ± 2.95 | 79.40 ± 2.91 | 82.84 ± 2.23 | 63.62 ± 3.49 | 46.74 ± 3.26 | 0.695 (Hungarian) | 0.071 (Cleveland) |
 | Ours (anchors+regret) | 74.25 ± 3.31 | 79.80 ± 2.58 | 83.03 ± 2.09 | 63.59 ± 3.35 | 45.96 ± 3.32 | 0.722 (VA) | 0.072 (Cleveland) |
 
-### NHANES-nested
+### NHANES-nested (natural)
 
 | method | worst-group acc | overall acc | balanced acc | mean F1 | worst-group F1 | worst-group loss (group) | max excess loss (group) |
 |---|---|---|---|---|---|---|---|
@@ -47,7 +47,7 @@ with the group it points at. Raw rows: `runs/matrix_<tag>/metrics_long.csv`.
 | Ours (anchors+GroupDRO) | 74.14 ± 3.46 | 76.65 ± 2.95 | 76.97 ± 3.05 | 35.04 ± 2.37 | 32.53 ± 2.37 | 0.525 (G2 labs) | 0.247 (G2 labs) |
 | Ours (anchors+regret) | 73.75 ± 3.57 | 76.22 ± 3.22 | 76.49 ± 3.26 | 34.80 ± 2.05 | 31.89 ± 2.16 | 0.528 (G2 labs) | 0.252 (G2 labs) |
 
-### NHANES-disjoint
+### NHANES-disjoint (synthetic)
 
 | method | worst-group acc | overall acc | balanced acc | mean F1 | worst-group F1 | worst-group loss (group) | max excess loss (group) |
 |---|---|---|---|---|---|---|---|
@@ -57,17 +57,6 @@ with the group it points at. Raw rows: `runs/matrix_<tag>/metrics_long.csv`.
 | Anchors only | 73.82 ± 1.43 | 75.16 ± 0.92 | 75.80 ± 1.18 | 34.63 ± 1.52 | 30.95 ± 3.73 | 0.542 (G0 survey) | 0.249 (G0 survey) |
 | Ours (anchors+GroupDRO) | 75.87 ± 1.70 | 77.96 ± 2.34 | 78.76 ± 1.77 | 35.59 ± 1.71 | 32.10 ± 3.89 | 0.520 (G0 survey) | 0.240 (G2 labs) |
 | Ours (anchors+regret) | 75.33 ± 1.85 | 77.37 ± 2.52 | 77.96 ± 1.94 | 36.02 ± 1.19 | 32.71 ± 2.25 | 0.503 (G2 labs) | 0.224 (G2 labs) |
-
-### NHANES-expanded
-
-| method | worst-group acc | overall acc | balanced acc | mean F1 | worst-group F1 | worst-group loss (group) | max excess loss (group) |
-|---|---|---|---|---|---|---|---|
-| ERM | 75.06 ± 0.59 | 75.97 ± 0.57 | 76.85 ± 0.60 | 40.19 ± 0.41 | 37.49 ± 0.41 | 0.453 (G0 survey) | 0.175 (G2 labs) |
-| GroupDRO | 77.66 ± 1.53 | 78.96 ± 1.64 | 79.82 ± 1.69 | 36.52 ± 1.80 | 32.76 ± 4.00 | 0.603 (G0 survey) | 0.302 (G0 survey) |
-| Regret-DRO | 77.40 ± 1.82 | 78.96 ± 1.39 | 79.82 ± 1.53 | 36.40 ± 1.26 | 32.83 ± 2.90 | 0.614 (G0 survey) | 0.311 (G0 survey) |
-| Anchors only | 76.18 ± 1.24 | 77.99 ± 1.24 | 78.53 ± 1.27 | 37.89 ± 1.51 | 35.67 ± 2.45 | 0.510 (G0 survey) | 0.223 (G0 survey) |
-| Ours (anchors+GroupDRO) | 77.81 ± 1.49 | 79.73 ± 1.29 | 80.31 ± 1.46 | 37.87 ± 2.18 | 34.31 ± 4.31 | 0.519 (G0 survey) | 0.234 (G0 survey) |
-| Ours (anchors+regret) | 77.90 ± 1.43 | 79.89 ± 1.23 | 80.55 ± 1.41 | 38.11 ± 2.06 | 35.16 ± 3.81 | 0.541 (G0 survey) | 0.253 (G0 survey) |
 
 
 ## Table 3 — Per-group breakdown: accuracy, macro-F1, loss, R*_g, excess loss
@@ -112,7 +101,7 @@ with the group it points at. Raw rows: `runs/matrix_<tag>/metrics_long.csv`.
 | Switzerland | 10 | 98.00 | 49.47 | 0.150 | 0.424 | 0.000 |
 | VA | 26 | 76.15 | 49.11 | 0.695 | 1.480 | 0.000 |
 
-### NHANES-nested
+### NHANES-nested (natural)
 
 
 **ERM**
@@ -147,7 +136,7 @@ with the group it points at. Raw rows: `runs/matrix_<tag>/metrics_long.csv`.
 | G1 exam | 530 | 78.72 | 32.32 | 0.440 | 0.276 | 0.164 |
 | G2 labs | 2338 | 75.98 | 34.78 | 0.514 | 0.266 | 0.248 |
 
-### NHANES-disjoint
+### NHANES-disjoint (synthetic)
 
 
 **ERM**
@@ -182,41 +171,6 @@ with the group it points at. Raw rows: `runs/matrix_<tag>/metrics_long.csv`.
 | G1 exam | 530 | 80.21 | 33.19 | 0.423 | 0.283 | 0.141 |
 | G2 labs | 2338 | 76.85 | 36.10 | 0.469 | 0.265 | 0.204 |
 
-### NHANES-expanded
-
-
-**ERM**
-
-| group | n | accuracy | macro-F1 | loss | R*_g | excess loss |
-|---|---|---|---|---|---|---|
-| G0 survey | 533 | 75.38 | 41.30 | 0.453 | 0.307 | 0.146 |
-| G1 exam | 530 | 79.96 | 41.79 | 0.388 | 0.268 | 0.121 |
-| G2 labs | 2338 | 75.20 | 37.49 | 0.433 | 0.258 | 0.175 |
-
-**GroupDRO**
-
-| group | n | accuracy | macro-F1 | loss | R*_g | excess loss |
-|---|---|---|---|---|---|---|
-| G0 survey | 533 | 77.90 | 37.22 | 0.602 | 0.307 | 0.296 |
-| G1 exam | 530 | 83.38 | 33.50 | 0.533 | 0.268 | 0.265 |
-| G2 labs | 2338 | 78.20 | 38.85 | 0.446 | 0.258 | 0.188 |
-
-**Regret-DRO**
-
-| group | n | accuracy | macro-F1 | loss | R*_g | excess loss |
-|---|---|---|---|---|---|---|
-| G0 survey | 533 | 77.41 | 36.72 | 0.614 | 0.307 | 0.308 |
-| G1 exam | 530 | 83.85 | 33.61 | 0.510 | 0.268 | 0.243 |
-| G2 labs | 2338 | 78.20 | 38.89 | 0.445 | 0.258 | 0.187 |
-
-**Ours (anchors+regret)**
-
-| group | n | accuracy | macro-F1 | loss | R*_g | excess loss |
-|---|---|---|---|---|---|---|
-| G0 survey | 533 | 79.06 | 38.57 | 0.509 | 0.307 | 0.203 |
-| G1 exam | 530 | 83.28 | 36.09 | 0.453 | 0.268 | 0.186 |
-| G2 labs | 2338 | 79.31 | 39.67 | 0.450 | 0.258 | 0.192 |
-
 
 ## Table 4 — 2×2 interaction (anchors × regret) and paired significance
 
@@ -225,9 +179,8 @@ Worst-group accuracy. GroupDRO (row 2) vs Ours-regret is the headline comparison
 | dataset | GroupDRO | Regret-DRO | Ours (anc+GDRO) | Ours (anc+regret) | anchor effect | regret effect |
 |---|---|---|---|---|---|---|
 | Fed-Heart | 74.80 ± 2.84 | 74.80 ± 2.84 | 74.50 ± 2.95 | 74.25 ± 3.31 | -0.30 (3/10, p=0.700) ns | identical on all seeds† |
-| NHANES-nested | 70.43 ± 1.39 | 70.19 ± 0.96 | 74.14 ± 3.46 | 73.75 ± 3.57 | +3.71 (9/10, p=0.007) ** | -0.25 (5/10, p=0.618) ns |
-| NHANES-disjoint | 73.22 ± 1.35 | 73.17 ± 1.35 | 75.87 ± 1.70 | 75.33 ± 1.85 | +2.65 (9/10, p=0.002) ** | -0.05 (4/10, p=0.821) ns |
-| NHANES-expanded | 77.66 ± 1.53 | 77.40 ± 1.82 | 77.81 ± 1.49 | 77.90 ± 1.43 | +0.15 (6/10, p=0.809) ns | -0.26 (3/10, p=0.768) ns |
+| NHANES-nested (natural) | 70.43 ± 1.39 | 70.19 ± 0.96 | 74.14 ± 3.46 | 73.75 ± 3.57 | +3.71 (9/10, p=0.007) ** | -0.25 (5/10, p=0.618) ns |
+| NHANES-disjoint (synthetic) | 73.22 ± 1.35 | 73.17 ± 1.35 | 75.87 ± 1.70 | 75.33 ± 1.85 | +2.65 (9/10, p=0.002) ** | -0.05 (4/10, p=0.821) ns |
 
 † On Fed-Heart, GroupDRO and Regret-DRO produce **identical worst-group accuracy on all
 10 seeds** — the runs genuinely differ (per-group losses differ, e.g. 0.934 vs 0.765 on
@@ -242,11 +195,11 @@ worst-group loss 0.650 → 0.608 (Table 2). Accuracy is too coarse a probe on Fe
 Same method, different *group structure* — nested (G0⊂G1⊂G2), expanded (nested, more
 features), disjoint (each group has unique features). Worst-group accuracy.
 
-| method | NHANES-nested | NHANES-disjoint | NHANES-expanded |
-|---|---|---|---|
-| ERM | 70.08 ± 0.99 | 70.08 ± 0.99 | 75.06 ± 0.59 |
-| GroupDRO | 70.43 ± 1.39 | 73.22 ± 1.35 | 77.66 ± 1.53 |
-| Regret-DRO | 70.19 ± 0.96 | 73.17 ± 1.35 | 77.40 ± 1.82 |
-| Anchors only | 71.35 ± 2.20 | 73.82 ± 1.43 | 76.18 ± 1.24 |
-| Ours (anchors+GroupDRO) | 74.14 ± 3.46 | 75.87 ± 1.70 | 77.81 ± 1.49 |
-| Ours (anchors+regret) | 73.75 ± 3.57 | 75.33 ± 1.85 | 77.90 ± 1.43 |
+| method | NHANES-nested (natural) | NHANES-disjoint (synthetic) |
+|---|---|---|
+| ERM | 70.08 ± 0.99 | 70.08 ± 0.99 |
+| GroupDRO | 70.43 ± 1.39 | 73.22 ± 1.35 |
+| Regret-DRO | 70.19 ± 0.96 | 73.17 ± 1.35 |
+| Anchors only | 71.35 ± 2.20 | 73.82 ± 1.43 |
+| Ours (anchors+GroupDRO) | 74.14 ± 3.46 | 75.87 ± 1.70 |
+| Ours (anchors+regret) | 73.75 ± 3.57 | 75.33 ± 1.85 |

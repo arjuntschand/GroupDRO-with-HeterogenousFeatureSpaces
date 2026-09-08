@@ -79,7 +79,6 @@ Worst-group accuracy, full method = per-group GDRO, anchors off (λ=0.001) → o
 | **NHANES nested** | nested feature availability | 70.43 | **74.14** | **+3.71** | p=0.008 ✓ |
 | **NHANES disjoint** | unique features per group | 73.22 | **75.87** | **+2.65** | p=0.002 ✓ |
 | NHANES expanded | nested, high baseline | 77.66 | 77.81 | +0.15 | ns |
-| TextCaps (full data, 11,978 imgs) | visual + text modality | 63.03 | 63.85 | +0.82 | ns (3/3, p=0.26) |
 | Fed-Heart | overlapping (feature-drop) | 72.26 | 71.70 | −0.56 | ns |
 | EMBED (13% pilot) | 4 redundant views | — | — | ~0 | ns (see EMBED_XENIA) |
 
@@ -95,9 +94,11 @@ p<0.01), small and non-significant where signals are redundant/modality-based (T
 visual/text +0.82 ns; EMBED redundant views ~0), and neutral where features already overlap
 (Fed-Heart) or the baseline is saturated (NHANES expanded).
 
-TextCaps was verified on the **full HF dataset** (11,978 train images, frozen-ResNet cached
-features — consistent with the paper's frozen-backbone design), not a subset; the fit-driven
-+0.82 is real in direction (3/3 seeds) but too small to be significant at 3 seeds.
+**Archived (not in the paper):** NHANES-*expanded* (nested with more features; duplicates the
+nested concept and yields a null +0.15) and **TextCaps** (visual+text modality groups; verified on
+the full HF dataset, 11,978 images with frozen-ResNet cached features — fit-driven +0.82, 3/3
+seeds but p=0.26, not significant). Both remain reproducible in the repo; they are excluded from
+the paper because they add no concept the retained settings don't already cover.
 
 ## Interpretation for the paper
 

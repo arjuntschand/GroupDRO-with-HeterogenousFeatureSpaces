@@ -44,8 +44,24 @@ def load(tag):
 
 
 def scalar(res, m, key):
-    v = [res[m][s].get(key) for s in res.get(m, {}) if isinstance(res[m][s], dict)]
-    v = [x for x in v if isinstance(x, (int, float)) and x == x]
+    """Mean±std over seeds (x100). Derived keys:
+       mean_group_f1 / worst_group_f1 fall back to per_group_f1 when the trainer did not
+       log an overall macro-F1 (NHANES logs per-group F1 only)."""
+    v = []
+    for s in res.get(m, {}):
+        r = res[m][s]
+        if not isinstance(r, dict):
+            continue
+        x = r.get(key)
+        if not (isinstance(x, (int, float)) and x == x):
+            pg = r.get("per_group_f1")
+            if isinstance(pg, list) and pg:
+                if key in ("mean_group_f1", "overall_macro_f1"):
+                    x = float(np.mean(pg))
+                elif key == "worst_group_f1":
+                    x = float(np.min(pg))
+        if isinstance(x, (int, float)) and x == x:
+            v.append(x)
     return (np.mean(v) * 100, np.std(v) * 100, len(v)) if v else None
 
 
@@ -137,15 +153,16 @@ for m in METHODS:
 L += ["\n\n## Table 2 — Overall metrics per dataset\n"]
 for name, tag, gnames, res, rstar in loaded:
     L += [f"\n### {name}\n",
-          "| method | worst-group acc | overall acc | balanced acc | macro-F1 | worst-group loss (group) | max excess loss (group) |",
-          "|---|---|---|---|---|---|---|"]
+          "| method | worst-group acc | overall acc | balanced acc | mean F1 | worst-group F1 | worst-group loss (group) | max excess loss (group) |",
+          "|---|---|---|---|---|---|---|---|"]
     for m in METHODS:
         wl = worst_loss_and_group(res, m)
         me = max_excess_and_group(res, m, rstar)
         gl = f"{wl[0]:.3f} ({gnames[wl[1]] if wl[1] is not None and wl[1] < len(gnames) else '—'})" if wl else "—"
         ml = f"{me[0]:.3f} ({gnames[me[1]] if me[1] is not None and me[1] < len(gnames) else '—'})" if me else "—"
         L.append(f"| {PRETTY[m]} | {f(scalar(res,m,'worst_group_acc'))} | {f(scalar(res,m,'overall_acc'))} | "
-                 f"{f(scalar(res,m,'balanced_acc'))} | {f(scalar(res,m,'overall_macro_f1'))} | {gl} | {ml} |")
+                 f"{f(scalar(res,m,'balanced_acc'))} | {f(scalar(res,m,'mean_group_f1'))} | "
+                 f"{f(scalar(res,m,'worst_group_f1'))} | {gl} | {ml} |")
 
 # ── Table 3: per-group full breakdown (Xenia Step 6) ──
 L += ["\n\n## Table 3 — Per-group breakdown: accuracy, macro-F1, loss, R*_g, excess loss\n"]

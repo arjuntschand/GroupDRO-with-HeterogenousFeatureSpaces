@@ -264,6 +264,9 @@ def evaluate(encoders: Dict[int, nn.Module], head: nn.Module, loader,
         "per_group_specificity": per_group_specificity,
         "per_group_f1": per_group_f1,
         "per_group_auroc": per_group_auroc,
+        # group-robustness F1 summaries (mean / worst over groups)
+        "mean_group_f1": (sum(per_group_f1) / len(per_group_f1)) if per_group_f1 else 0.0,
+        "worst_group_f1": min(per_group_f1) if per_group_f1 else 0.0,
     }
 
 

@@ -102,6 +102,8 @@ def build_models(cfg, group_counts: List[int], device: torch.device,
             group_counts=group_counts,
             kl_lambda=cfg.get("groupdro_kl_lambda", 0.1),
             uniform_init=cfg.get("groupdro_uniform_init", False),
+            use_regret=cfg.get("use_regret", False),
+            optimal_losses=cfg.get("optimal_losses"),
         )
 
     return encoders, head, anchors, groupdro

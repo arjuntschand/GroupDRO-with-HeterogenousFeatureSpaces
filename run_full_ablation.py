@@ -69,12 +69,18 @@ def main():
     ap.add_argument("--tag", default="")
     ap.add_argument("--seeds", nargs="+", type=int, default=SEEDS)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--moving-split", action="store_true",
+                    help="do NOT fix data_split_seed: the train/test split is resampled per "
+                         "seed (original protocol; accounts for split uncertainty)")
     args = ap.parse_args()
 
     import importlib
     train = importlib.import_module(MODULES[args.dataset]).train
     base = yaml.safe_load(open(args.base or DEFAULT_BASE[args.dataset]))
-    base.setdefault("data_split_seed", 43 if args.dataset == "fedheart" else 100)
+    if args.moving_split:
+        base.pop("data_split_seed", None)
+    else:
+        base.setdefault("data_split_seed", 43 if args.dataset == "fedheart" else 100)
     tag = args.tag or args.dataset
     out = args.out or f"runs/ablation_{args.dataset}_{tag}"
     os.makedirs(out, exist_ok=True)

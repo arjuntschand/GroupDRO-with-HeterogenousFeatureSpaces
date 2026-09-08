@@ -1,0 +1,12 @@
+{
+  "rstar": {
+    "0": 0.49934679966136675,
+    "1": 0.5924033531758973,
+    "2": 0.4240419712328326,
+    "3": 1.4799922526387188
+  },
+  "config": "experiments/fedheart_exp_paper_hetagg_gdro.yaml",
+  "folds": 5,
+  "epochs": 200,
+  "seed": 0
+}

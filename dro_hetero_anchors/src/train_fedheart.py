@@ -100,6 +100,8 @@ def build_models(cfg, group_counts: List[int], device: torch.device) -> Tuple[Di
             group_counts=group_counts,  # Initialize π proportional to group sizes
             kl_lambda=cfg.get("groupdro_kl_lambda", 0.1),  # KL divergence penalty
             uniform_init=cfg.get("groupdro_uniform_init", False),  # Start with equal weights
+            use_regret=cfg.get("use_regret", False),          # Regret-DRO: weight by L_g - R*_g
+            optimal_losses=cfg.get("optimal_losses"),          # per-group reference losses R*_g
         )
     
     return encoders, head, anchors, groupdro
@@ -135,6 +137,11 @@ def evaluate(encoders: Dict[int, nn.Module], head: nn.Module, loader,
     total_c = [0] * num_classes
     correct_gc = [[0] * num_classes for _ in range(num_groups)]
     total_gc = [[0] * num_classes for _ in range(num_groups)]
+    # confusion counts for macro-F1 (overall and per group)
+    tp = [0] * num_classes; fp = [0] * num_classes; fn = [0] * num_classes
+    tp_g = [[0] * num_classes for _ in range(num_groups)]
+    fp_g = [[0] * num_classes for _ in range(num_groups)]
+    fn_g = [[0] * num_classes for _ in range(num_groups)]
     
     # Loss tracking
     ce = nn.CrossEntropyLoss(reduction="none")
@@ -169,14 +176,22 @@ def evaluate(encoders: Dict[int, nn.Module], head: nn.Module, loader,
             for i in range(x.size(0)):
                 yi = int(y[i].item())
                 gi = int(g[i].item())
-                is_correct = int(pred[i].item()) == yi
-                
+                pi = int(pred[i].item())
+                is_correct = pi == yi
+
                 total_c[yi] += 1
                 total_g[gi] += 1
                 total_gc[gi][yi] += 1
                 loss_sums_g[gi] += float(losses[i].item())
                 loss_counts_g[gi] += 1
-                
+
+                # confusion counts for macro-F1
+                if pi == yi:
+                    tp[yi] += 1; tp_g[gi][yi] += 1
+                else:
+                    fp[pi] += 1; fp_g[gi][pi] += 1
+                    fn[yi] += 1; fn_g[gi][yi] += 1
+
                 if is_correct:
                     correct_c[yi] += 1
                     correct_g[gi] += 1
@@ -211,6 +226,17 @@ def evaluate(encoders: Dict[int, nn.Module], head: nn.Module, loader,
         for g in range(num_groups)
     ]
     
+    def _macro_f1(TP, FP, FN):
+        f1s = []
+        for c in range(num_classes):
+            prec = TP[c] / (TP[c] + FP[c]) if (TP[c] + FP[c]) else 0.0
+            rec = TP[c] / (TP[c] + FN[c]) if (TP[c] + FN[c]) else 0.0
+            f1s.append(2 * prec * rec / (prec + rec) if (prec + rec) else 0.0)
+        return sum(f1s) / max(1, num_classes)
+
+    overall_macro_f1 = _macro_f1(tp, fp, fn)
+    per_group_f1 = [_macro_f1(tp_g[g], fp_g[g], fn_g[g]) for g in range(num_groups)]
+
     return {
         "overall_acc": overall_acc,
         "balanced_acc": balanced_acc,
@@ -221,6 +247,10 @@ def evaluate(encoders: Dict[int, nn.Module], head: nn.Module, loader,
         "per_class_acc": per_class_acc,
         "per_group_per_class_acc": per_group_per_class_acc,
         "per_group_counts": total_g,
+        "overall_macro_f1": overall_macro_f1,
+        "per_group_f1": per_group_f1,
+        "worst_group_f1": min(per_group_f1) if per_group_f1 else 0.0,
+        "worst_group_loss": max(per_group_loss) if per_group_loss else 0.0,
     }
 
 

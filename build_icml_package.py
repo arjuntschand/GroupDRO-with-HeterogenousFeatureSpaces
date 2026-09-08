@@ -115,8 +115,11 @@ def paired_p(res, a, b, key="worst_group_acc"):
     if len(ks) < 3:
         return None
     x = np.array([A[k] for k in ks]); y = np.array([B[k] for k in ks])
+    d = y - x
+    if np.allclose(d, 0):          # identical on every seed (quantized metric) -> no test
+        return {"delta": 0.0, "p": None, "wins": 0, "n": len(ks), "identical": True}
     t, p = stats.ttest_rel(y, x)
-    return {"delta": (y - x).mean(), "p": p, "wins": int((y > x).sum()), "n": len(ks)}
+    return {"delta": d.mean(), "p": p, "wins": int((d > 0).sum()), "n": len(ks)}
 
 
 def f(v, pct=True):
@@ -199,11 +202,21 @@ for name, tag, gnames, res, rstar in loaded:
     def sig(r):
         if not r:
             return "—"
+        if r.get("identical"):
+            return "identical on all seeds†"
         s = "**" if r["p"] < 0.01 else ("*" if r["p"] < 0.05 else "ns")
         return f"{r['delta']:+.2f} ({r['wins']}/{r['n']}, p={r['p']:.3f}) {s}"
     L.append(f"| {name} | {f(scalar(res,'GroupDRO','worst_group_acc'))} | {f(scalar(res,'RegretDRO','worst_group_acc'))} | "
              f"{f(scalar(res,'Ours_GDRO','worst_group_acc'))} | {f(scalar(res,'Ours_Regret','worst_group_acc'))} | "
              f"{sig(anc)} | {sig(reg)} |")
+if any(paired_p(r, "GroupDRO", "RegretDRO") and paired_p(r, "GroupDRO", "RegretDRO").get("identical")
+       for *_, r, _ in loaded):
+    L += ["\n† On Fed-Heart, GroupDRO and Regret-DRO produce **identical worst-group accuracy on all",
+          "10 seeds** — the runs genuinely differ (per-group losses differ, e.g. 0.934 vs 0.765 on",
+          "seed 2024) but worst-group *accuracy* is quantized on that dataset's small test groups",
+          "(26–61 samples), so both land on the same discrete value. Regret's effect there shows up",
+          "in the loss objective it actually optimizes: **max excess loss 0.040 → 0.011** and",
+          "worst-group loss 0.650 → 0.608 (Table 2). Accuracy is too coarse a probe on Fed-Heart."]
 
 # ── Table 5: parameter testing (group definitions) ──
 nh = [(n, t, g, r, rs) for n, t, g, r, rs in loaded if t.startswith("nhanes")]

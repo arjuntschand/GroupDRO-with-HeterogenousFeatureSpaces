@@ -44,12 +44,13 @@ def build_vit(device):
     return m
 
 
-def fetch_one(rel, tmpdir):
+def fetch_one(rel, tmpdir, profile=None):
     """Download a single key from S3 into tmpdir. Returns local path or None."""
     dst = os.path.join(tmpdir, rel.replace("/", "__"))
-    r = subprocess.run(["aws", "s3", "cp", f"{BUCKET}/{rel}", dst,
-                        "--region", "us-west-2", "--quiet"],
-                       capture_output=True)
+    cmd = ["aws", "s3", "cp", f"{BUCKET}/{rel}", dst, "--region", "us-west-2", "--quiet"]
+    if profile:
+        cmd += ["--profile", profile]
+    r = subprocess.run(cmd, capture_output=True)
     return dst if r.returncode == 0 and os.path.exists(dst) else None
 
 
@@ -75,6 +76,7 @@ def main():
     ap.add_argument("--workers", type=int, default=16, help="parallel S3 downloads")
     ap.add_argument("--batch", type=int, default=128, help="ViT batch size")
     ap.add_argument("--tmp", default="/tmp/embed_stream")
+    ap.add_argument("--profile", default="emory-embed", help="AWS CLI profile for EMBED")
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -103,7 +105,7 @@ def main():
         os.makedirs(args.tmp, exist_ok=True)
         # 1) parallel download
         with ThreadPoolExecutor(max_workers=args.workers) as ex:
-            local = list(ex.map(lambda r: (r, fetch_one(r, args.tmp)), chunk))
+            local = list(ex.map(lambda r: (r, fetch_one(r, args.tmp, args.profile)), chunk))
         got = [(r, p) for r, p in local if p]
         # 2) decode + ViT in batches
         buf_img, buf_rel = [], []

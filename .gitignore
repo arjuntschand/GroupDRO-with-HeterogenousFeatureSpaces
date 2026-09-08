@@ -9,3 +9,4 @@ exports/
 runs/embed_*/
 runs/embed_*.json
 *.embed.ckpt
+site/

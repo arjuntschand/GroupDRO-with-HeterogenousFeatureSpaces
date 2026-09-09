@@ -21,6 +21,73 @@ CSVS = [
     ("NHANES-nested (natural)", "runs/matrix_nhanes_nested/metrics_long.csv"),
     ("NHANES-disjoint (synthetic)", "runs/matrix_nhanes_disjoint/metrics_long.csv"),
 ]
+
+# ── context shown on the site so tables are self-explanatory ──────────────────
+DATASETS_INFO = [
+    dict(name="Fed-Heart", task="Binary heart-disease prediction",
+         groups=4, split="4 hospitals (natural federated split)",
+         detail="Each hospital records a DIFFERENT subset of clinical features — this is the "
+                "heterogeneity. Groups are hospitals, not constructed.",
+         rows=[("G0 Cleveland", "10 feats", "61 test", "R*=0.499"),
+               ("G1 Hungarian", "8 feats", "53 test", "R*=0.592"),
+               ("G2 Switzerland", "8 feats", "10 test", "R*=0.424"),
+               ("G3 VA", "9 feats", "26 test", "R*=1.480")],
+         note="G2/G3 are capped to 20/25 training samples to simulate data-scarce sites. "
+              "G3 has the highest R* (1.48) = genuinely the hardest group to learn alone."),
+    dict(name="NHANES-nested (natural)", task="Binary CVD prediction",
+         groups=3, split="assessment completeness",
+         detail="REAL availability structure: if a patient got labs they also got the exam and "
+                "survey, so each group's features are a strict SUBSET of the next (G0 ⊂ G1 ⊂ G2).",
+         rows=[("G0 survey only", "10 feats", "533 test", "R*=0.314"),
+               ("G1 + exam", "13 feats", "530 test", "R*=0.276"),
+               ("G2 + labs", "20 feats", "2338 test", "R*=0.266")],
+         note="This is the natural, real-world setting — nothing constructed."),
+    dict(name="NHANES-disjoint (synthetic)", task="Binary CVD prediction",
+         groups=3, split="constructed feature partition",
+         detail="CONSTRUCTED stress test: every group gets 15 features = 10 SHARED + 5 UNIQUE to "
+                "that group. Unlike nested, each group has private features no other group sees.",
+         rows=[("G0", "15 feats (10 shared + 5 unique)", "533 test", "R*=0.300"),
+               ("G1", "15 feats (10 shared + 5 unique)", "530 test", "R*=0.283"),
+               ("G2", "15 feats (10 shared + 5 unique)", "2338 test", "R*=0.265")],
+         note="Synthetic — NHANES availability is not actually disjoint. Included to test the "
+              "method where feature spaces are maximally different."),
+    dict(name="EMBED (mammography)", task="4-class BI-RADS breast density",
+         groups=6, split="which imaging views are present",
+         detail="Groups = the SET of mammographic views available for a breast "
+                "(M1 C-View CC, M2 C-View MLO, M3 FFDM CC, M4 FFDM MLO).",
+         rows=[("g1 {M3}", "1 view", "tail", ""), ("g2 {M1,M3}", "2 views", "tail", ""),
+               ("g3 {M4}", "1 view", "tail", ""), ("g4 {M3,M4}", "2 views", "HEAD ~57%", ""),
+               ("g5 {M1,M3,M4}", "3 views", "tail", ""), ("g6 all four", "4 views", "HEAD ~37%", "")],
+         note="Production run in progress on the full 128,680-row dataset."),
+]
+
+METHODS_INFO = [
+    ("ERM", "Shared encoder, plain cross-entropy. The naive baseline — no group awareness."),
+    ("GroupDRO", "Per-group encoders + GroupDRO. Reweights groups by their raw loss L_g. "
+                 "The standard robustness baseline (this is R*=0 in Xenia's notation)."),
+    ("Regret-DRO", "Same, but reweights by REGRET: max(0, L_g − R*_g), where R*_g is the best "
+                   "loss that group could reach with its own dedicated model. Groups already at "
+                   "their achievable floor stop being upweighted."),
+    ("Anchors only", "Per-group encoders + class-conditional Gaussian anchors, NO DRO. "
+                     "Isolates the effect of the novel component."),
+    ("Ours (anchors+GroupDRO)", "Anchors + standard GroupDRO."),
+    ("Ours (anchors+regret)", "Anchors + regret reweighting. The full method."),
+]
+
+GLOSSARY = [
+    ("worst-group accuracy", "Accuracy of the single worst-performing group. The headline "
+                             "robustness metric — the whole point of GroupDRO."),
+    ("overall / balanced", "Overall = all samples pooled. Balanced = unweighted mean over groups "
+                           "(so a tiny group counts as much as a big one)."),
+    ("R*_g", "Per-group reference loss: the lowest loss group g can reach using ONLY its own "
+             "features, from a dedicated model trained on that group alone (5-fold "
+             "out-of-fold CV). A constant, not learned."),
+    ("excess loss", "L_g − R*_g. How far a group is from its own achievable floor. This is what "
+                    "regret optimization minimises."),
+    ("anchors ON / OFF", "ON = λ_fit = λ_sep = 0.1. OFF = 0.001 (NOT exactly 0.0 — zero is "
+                         "numerically unstable and would inflate the measured anchor effect)."),
+]
+
 FIGDIR = "documentation/figures"
 SITE = "site"
 
@@ -167,6 +234,96 @@ FIG_CAPS = {
 }
 
 
+
+
+def split_results_md(path="documentation/ICML_RESULTS.md"):
+    """Split the combined results doc into: headline, one section per dataset, mechanism.
+    Tables 1/6 are cross-dataset; Tables 2/3 have per-dataset subsections; 4/5 are analysis."""
+    if not os.path.exists(path):
+        return {}, {}
+    txt = open(path).read()
+    # top-level table blocks
+    blocks, cur, name = {}, [], "intro"
+    for ln in txt.split("\n"):
+        if ln.startswith("## "):
+            blocks[name] = "\n".join(cur); cur = []; name = ln[3:].strip()
+        cur.append(ln)
+    blocks[name] = "\n".join(cur)
+
+    cross, per_ds = {}, {}
+    for k, v in blocks.items():
+        if k.startswith("Table 1") or k.startswith("Table 6") or k == "intro":
+            cross[k] = v
+        elif k.startswith("Table 4") or k.startswith("Table 5"):
+            cross[k] = v
+        else:
+            # Tables 2/3 contain '### <dataset>' subsections — split them out
+            sub, subname = [], None
+            for ln in v.split("\n"):
+                if ln.startswith("### "):
+                    if subname:
+                        per_ds.setdefault(subname, []).append((k, "\n".join(sub)))
+                    subname = ln[4:].strip(); sub = [ln]
+                else:
+                    sub.append(ln)
+            if subname:
+                per_ds.setdefault(subname, []).append((k, "\n".join(sub)))
+            else:
+                cross[k] = v
+    return cross, per_ds
+
+
+def datasets_section():
+    h = ["<h2>Datasets &amp; setup</h2>",
+         "<p>What each dataset is, how groups are defined, and how the tables differ from one "
+         "another. <strong>Groups</strong> are the unit GroupDRO reweights; heterogeneity means "
+         "different groups see different feature spaces.</p>",
+         "<div class='grid'>"]
+    for d in DATASETS_INFO:
+        rows = "".join(f"<tr><td>{html.escape(a)}</td><td>{html.escape(b)}</td>"
+                       f"<td>{html.escape(c)}</td><td>{html.escape(e)}</td></tr>"
+                       for a, b, c, e in d["rows"])
+        h.append(
+            f"<div class='fig'><h3 style='margin-top:0'>{html.escape(d['name'])}</h3>"
+            f"<p><strong>Task:</strong> {html.escape(d['task'])}<br>"
+            f"<strong>Groups:</strong> {d['groups']} — {html.escape(d['split'])}</p>"
+            f"<p>{html.escape(d['detail'])}</p>"
+            f"<table><thead><tr><th>group</th><th>features</th><th>size</th><th>R*_g</th></tr>"
+            f"</thead><tbody>{rows}</tbody></table>"
+            f"<div class='cap'>{html.escape(d['note'])}</div></div>")
+    h.append("</div>")
+
+    h.append("<h2>Methods compared</h2>")
+    h.append("<p>All methods share <em>identical model capacity</em> and differ only in the "
+             "training objective, so differences are attributable to the objective alone.</p>")
+    h.append("<table><thead><tr><th>method</th><th>what it does</th></tr></thead><tbody>")
+    for m, desc in METHODS_INFO:
+        h.append(f"<tr><td><strong>{html.escape(m)}</strong></td><td>{html.escape(desc)}</td></tr>")
+    h.append("</tbody></table>")
+
+    h.append("<h2>Metric glossary</h2>")
+    h.append("<table><thead><tr><th>term</th><th>meaning</th></tr></thead><tbody>")
+    for t, desc in GLOSSARY:
+        h.append(f"<tr><td><strong>{html.escape(t)}</strong></td><td>{html.escape(desc)}</td></tr>")
+    h.append("</tbody></table>")
+
+    h.append("<h2>How to read the result tables</h2>"
+             "<ul>"
+             "<li><strong>Table 1</strong> — one row per method, one column per dataset. Use it to "
+             "compare methods.</li>"
+             "<li><strong>Table 2</strong> — per dataset, every metric for every method.</li>"
+             "<li><strong>Table 3</strong> — per-GROUP breakdown. Shows which group is dragging "
+             "the worst-group number down, and how far each group is from its floor R*_g.</li>"
+             "<li><strong>Table 4</strong> — the 2×2: anchors on/off crossed with regret on/off, "
+             "with paired significance tests.</li>"
+             "<li><strong>Table 5</strong> — same method, DIFFERENT group definitions "
+             "(nested vs disjoint). Isolates the effect of how groups are constructed.</li>"
+             "</ul>"
+             "<p>All numbers are mean ± std over <strong>10 seeds</strong>. Seeds vary model "
+             "initialisation; the train/test split is held fixed unless noted.</p>")
+    return "".join(h)
+
+
 def build(outdir=SITE):
     os.makedirs(f"{outdir}/figs", exist_ok=True)
     figs = []
@@ -185,24 +342,77 @@ def build(outdir=SITE):
 
     tabs, secs = [], []
 
-    # figures section
-    fh = ["<h2>Figures</h2>", "<div class='grid'>"]
-    for fn in figs:
-        stem = fn[:-4]
-        cap = FIG_CAPS.get(stem, stem.replace("_", " "))
-        fh.append(f"<div class='fig'><img src='figs/{fn}' alt='{stem}'>"
-                  f"<div class='cap'><strong>{html.escape(stem)}</strong> — {html.escape(cap)}</div></div>")
-    fh.append("</div>")
-    tabs.append(("Figures", "sec-figs"))
-    secs.append(("sec-figs", "".join(fh)))
+    def figblock(names, heading=None):
+        h = [f"<h2>{heading}</h2>"] if heading else []
+        h.append("<div class='grid'>")
+        for fn in names:
+            stem = fn[:-4]
+            cap = FIG_CAPS.get(stem, stem.replace("_", " "))
+            h.append(f"<div class='fig'><img src='figs/{fn}' alt='{stem}'>"
+                     f"<div class='cap'>{html.escape(cap)}</div></div>")
+        h.append("</div>")
+        return "".join(h)
 
-    # markdown docs
-    for i, (title, path) in enumerate(DOCS):
-        if not os.path.exists(path):
+    cross, per_ds = split_results_md()
+
+    # 1. Overview
+    tabs.append(("Overview", "sec-info"))
+    secs.append(("sec-info", datasets_section()))
+
+    # 2. Headline (cross-dataset tables + main figure)
+    hl = ["<h2>Headline results</h2>"]
+    for k in cross:
+        if k.startswith("Table 1"):
+            hl.append(md_to_html(cross[k]))
+    hl.append(figblock([f for f in figs if "fig1" in f]))
+    for k in cross:
+        if k.startswith("Table 6"):
+            hl.append(md_to_html(cross[k]))
+    tabs.append(("Headline", "sec-headline")); secs.append(("sec-headline", "".join(hl)))
+
+    # 3. One tab per dataset
+    DS_TABS = [("Fed-Heart", "Fed-Heart"), ("NHANES-nested", "NHANES-nested (natural)"),
+               ("NHANES-disjoint", "NHANES-disjoint (synthetic)")]
+    for label, key in DS_TABS:
+        parts = per_ds.get(key)
+        if not parts:
             continue
-        sid = f"sec-doc{i}"
-        body = f"<p class='meta'>source: <code>{html.escape(path)}</code></p>" + md_to_html(open(path).read())
-        tabs.append((title, sid)); secs.append((sid, body))
+        info = next((d for d in DATASETS_INFO if d["name"].startswith(label)), None)
+        body = [f"<h2>{html.escape(key)}</h2>"]
+        if info:
+            rows = "".join(f"<tr><td>{html.escape(a)}</td><td>{html.escape(b)}</td>"
+                           f"<td>{html.escape(c)}</td><td>{html.escape(e)}</td></tr>"
+                           for a, b, c, e in info["rows"])
+            body.append(f"<div class='fig'><p><strong>Task:</strong> {html.escape(info['task'])} &nbsp;·&nbsp; "
+                        f"<strong>{info['groups']} groups</strong> — {html.escape(info['split'])}</p>"
+                        f"<p>{html.escape(info['detail'])}</p>"
+                        f"<table><thead><tr><th>group</th><th>features</th><th>size</th>"
+                        f"<th>R*_g</th></tr></thead><tbody>{rows}</tbody></table>"
+                        f"<div class='cap'>{html.escape(info['note'])}</div></div>")
+        for tname, content in parts:
+            body.append(f"<h3>{html.escape(tname)}</h3>")
+            body.append(md_to_html(content))
+        pgf = [f for f in figs if "fig2" in f]
+        if pgf:
+            body.append(figblock(pgf, "Per-group figure (all datasets)"))
+        sid = "sec-" + label.lower().replace("-", "")
+        tabs.append((label, sid)); secs.append((sid, "".join(body)))
+
+    # 4. Mechanism (anchor analysis + 2x2 + parameter test + figs 3/4)
+    mech = ["<h2>Mechanism &amp; ablations</h2>"]
+    for k in cross:
+        if k.startswith("Table 4") or k.startswith("Table 5"):
+            mech.append(md_to_html(cross[k]))
+    mech.append(figblock([f for f in figs if "fig3" in f or "fig4" in f]))
+    if os.path.exists("documentation/ANCHOR_RESULTS.md"):
+        mech.append("<hr>")
+        mech.append(md_to_html(open("documentation/ANCHOR_RESULTS.md").read()))
+    tabs.append(("Mechanism", "sec-mech")); secs.append(("sec-mech", "".join(mech)))
+
+    # 5. EMBED
+    if os.path.exists("documentation/EMBED_XENIA.md"):
+        tabs.append(("EMBED", "sec-embed"))
+        secs.append(("sec-embed", md_to_html(open("documentation/EMBED_XENIA.md").read())))
 
     # csvs
     ch = ["<h2>Raw metrics (metrics_long.csv)</h2>",

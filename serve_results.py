@@ -486,6 +486,9 @@ def build(outdir=SITE):
         if k.startswith("Table 4") or k.startswith("Table 5"):
             mech.append(md_to_html(cross[k]))
     mech.append(figblock([f for f in figs if "fig3" in f or "fig4" in f]))
+    if os.path.exists("documentation/MECHANISM_CONTROLS.md"):
+        mech.append("<hr>")
+        mech.append(md_to_html(open("documentation/MECHANISM_CONTROLS.md").read()))
     if os.path.exists("documentation/ANCHOR_RESULTS.md"):
         mech.append("<hr>")
         mech.append(md_to_html(open("documentation/ANCHOR_RESULTS.md").read()))

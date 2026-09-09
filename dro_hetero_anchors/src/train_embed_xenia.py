@@ -239,6 +239,14 @@ def train_one(method, data, masks, device, rstar, seed,
     max_n = max(int(masks[g]["train"].sum()) for g in groups)
     steps = max(1, int(np.ceil(max_n / batch)))
 
+    # Materialise each group's TRAIN split on the device ONCE. Doing this inside the step
+    # loop (as before) re-sliced and re-copied the full group tensor every single step —
+    # for the 51k-row head groups that dominated runtime and left the GPU at ~17%.
+    train_sub = {}
+    for g in groups:
+        m = masks[g]["train"]
+        train_sub[g] = _subset(data[g], m, device) if m.sum() > 0 else None
+
     for ep in range(epochs):
         model.train()
         for _ in range(steps):
@@ -246,10 +254,9 @@ def train_one(method, data, masks, device, rstar, seed,
             raw = []   # per-group L_task + lam_fit*L_fit (no R*), for the EMA
             task_total = model.head.weight.new_zeros(())
             for gi, g in enumerate(groups):
-                m = masks[g]["train"]
-                if m.sum() == 0:
+                sub = train_sub[g]
+                if sub is None:
                     raw.append(None); continue
-                sub = _subset(data[g], m, device)
                 # group-stratified: up to `batch` samples from this group
                 nn_ = sub["y"].shape[0]
                 sel = torch.randint(0, nn_, (min(batch, nn_),), device=device)
@@ -348,9 +355,19 @@ def main():
     long_rows = []
     n_params = sum(p.numel() for p in XeniaEmbedModel().parameters())
 
+    # R*_g is a property of the DATA, not of a training seed. Xenia's spec says to freeze the
+    # six numbers and treat them as constants, so estimate them once and reuse across seeds
+    # (previously this 5-fold x 6-group estimation re-ran for every seed).
+    rstar_path = os.path.join(args.out, "rstar.json")
+    if os.path.exists(rstar_path):
+        rstar = {k: float(v) for k, v in json.load(open(rstar_path)).items()}
+        print("R*_g (cached) = " + ", ".join(f"{g}:{rstar.get(g,0):.3f}" for g in GROUPS if g in data))
+    else:
+        rstar = estimate_optimal_losses(data, masks, device, folds=args.rstar_folds, seed=0)
+        json.dump(rstar, open(rstar_path, "w"), indent=2)
+        print("R*_g = " + ", ".join(f"{g}:{rstar.get(g,0):.3f}" for g in GROUPS if g in data))
+
     for seed in args.seeds:
-        rstar = estimate_optimal_losses(data, masks, device, folds=args.rstar_folds, seed=seed)
-        print(f"[seed {seed}] R*_g = " + ", ".join(f"{g}:{rstar.get(g,0):.3f}" for g in GROUPS if g in data))
         for method in args.methods:
             if method == "group_only":
                 for g, pg in group_only_models(data, masks, device, seed):

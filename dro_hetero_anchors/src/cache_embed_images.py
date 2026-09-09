@@ -55,6 +55,9 @@ def main():
     ap.add_argument("--chunk", type=int, default=4000)
     ap.add_argument("--profile", default="emory-embed")
     ap.add_argument("--size", type=int, default=224)
+    ap.add_argument("--shard", type=int, default=0,
+                    help="this worker's shard index; lets several machines split the work")
+    ap.add_argument("--num-shards", type=int, default=1)
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
@@ -62,6 +65,12 @@ def main():
     map_path = os.path.join(args.out, "paths.json")
 
     rels = all_paths(args.index, priority_by_group=True)   # tails first, as before
+    if args.num_shards > 1:
+        # Deterministic stride so every machine gets an interleaved slice of the same
+        # ordering. Each shard writes its own npy + paths.json; they are merged afterwards.
+        rels = rels[args.shard::args.num_shards]
+        print(f"shard {args.shard}/{args.num_shards}: {len(rels):,} of this machine's images",
+              flush=True)
     n_total = len(rels)
     done = json.load(open(map_path)) if os.path.exists(map_path) else {}
 

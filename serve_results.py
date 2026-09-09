@@ -20,6 +20,7 @@ CSVS = [
     ("Fed-Heart", "runs/matrix_fedheart/metrics_long.csv"),
     ("NHANES-nested (natural)", "runs/matrix_nhanes_nested/metrics_long.csv"),
     ("NHANES-disjoint (synthetic)", "runs/matrix_nhanes_disjoint/metrics_long.csv"),
+    ("EMBED (full, 10 seeds)", "runs/embed_xenia_production/metrics_long.csv"),
 ]
 
 # ── context shown on the site so tables are self-explanatory ──────────────────
@@ -494,10 +495,28 @@ def build(outdir=SITE):
         mech.append(md_to_html(open("documentation/ANCHOR_RESULTS.md").read()))
     tabs.append(("Mechanism", "sec-mech")); secs.append(("sec-mech", "".join(mech)))
 
-    # 5. EMBED
+    # 5. EMBED: production results first, methodology notes collapsed underneath
+    emb = []
+    if os.path.exists("runs/embed_xenia_production/REPORT.md"):
+        emb.append("<h2>EMBED, full dataset (128,680 rows / 22,997 patients)</h2>")
+        emb.append("<div class='fig'><p>Frozen ViT-Base backbone, per-view projections into "
+                   "per-group MLPs, shared head, four diagonal Gaussian class anchors. Six "
+                   "groups defined by which mammogram views a breast has. Two head groups "
+                   "(g4, g6) hold about 98.5% of the data; the four tail groups hold 1.5%.</p>"
+                   "<p><strong>DRO step size matters enormously here.</strong> At the spec "
+                   "default of 0.02 the group weights never move off their initial "
+                   "proportions, so every DRO variant trains identically to ERM. These "
+                   "results use 0.5 with uniform initialisation, matching what REMIND uses on "
+                   "this same dataset.</p></div>")
+        emb.append(md_to_html(open("runs/embed_xenia_production/REPORT.md").read()))
     if os.path.exists("documentation/EMBED_XENIA.md"):
-        tabs.append(("EMBED", "sec-embed"))
-        secs.append(("sec-embed", md_to_html(open("documentation/EMBED_XENIA.md").read())))
+        emb.append("<hr><details><summary style='cursor:pointer;color:var(--mut);padding:8px 0'>"
+                   "Methodology, data construction, and the earlier 13% pilot</summary>"
+                   "<div style='opacity:.8'>")
+        emb.append(md_to_html(open("documentation/EMBED_XENIA.md").read()))
+        emb.append("</div></details>")
+    if emb:
+        tabs.append(("EMBED", "sec-embed")); secs.append(("sec-embed", "".join(emb)))
 
     # run logs
     LOGS = [("Fed-Heart cross validation", "runs/fedheart_cv.log"),

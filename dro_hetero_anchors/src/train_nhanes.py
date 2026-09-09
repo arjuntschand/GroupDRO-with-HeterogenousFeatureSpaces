@@ -76,7 +76,7 @@ def build_models(cfg, group_counts: List[int], device: torch.device,
             if group_feature_counts is not None and gid in group_feature_counts:
                 input_dim = group_feature_counts[gid]
             else:
-                input_dim = g.get("input_dim", MAX_FEATURES)
+                input_dim = g.get("input_dim", 25)   # fallback: max features across modes
             hidden_dim = g.get("hidden_dim", 64)
             dropout = g.get("dropout", 0.1)
             encoders[gid] = enc_cls(latent_dim, input_dim=input_dim, hidden_dim=hidden_dim, dropout=dropout)
@@ -579,13 +579,25 @@ def train(cfg):
                     ce_loss = nn.functional.cross_entropy(logits, y, weight=class_weight)
 
             # Anchor losses
-            moments = per_class_batch_moments(z, y, num_classes, eps)
+            # MECHANISM CONTROL (c): with random_anchor_targets, each sample is matched to a
+            # RANDOM anchor instead of its class anchor. Same loss, same parameters, same
+            # magnitude, but the class-conditional structure is destroyed. If the gain
+            # survives this, the structure is not what is doing the work.
+            y_anchor = y
+            if cfg.get("random_anchor_targets", False):
+                y_anchor = torch.randint(0, num_classes, y.shape, device=y.device)
+            moments = per_class_batch_moments(z, y_anchor, num_classes, eps)
             m_anc, S_anc, L_norm = anchors.forward()
             l_fit = anchor_fit_loss(m_anc, S_anc, moments, eps)
             l_sep = anchor_sep_loss(m_anc, S_anc, L_norm, head, num_classes, J, device,
                                     sep_method=sep_method, margin=sep_margin, eps=eps)
 
+            # MECHANISM CONTROL (b): a generic L2 penalty on the latent, standing in
+            # for 'any regularizer would have helped'.
+            lat_l2 = cfg.get("latent_l2", 0.0)
             loss = ce_loss + lambda_fit * l_fit + lambda_sep * l_sep
+            if lat_l2:
+                loss = loss + lat_l2 * z.pow(2).mean()
 
             opt.zero_grad(set_to_none=True)
             loss.backward()

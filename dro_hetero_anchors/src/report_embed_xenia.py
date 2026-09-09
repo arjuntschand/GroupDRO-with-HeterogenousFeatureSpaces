@@ -12,7 +12,8 @@ import pandas as pd
 
 GROUPS = ["g1", "g2", "g3", "g4", "g5", "g6"]
 HEAD = {"g4", "g6"}
-METHOD_ORDER = ["erm", "groupdro", "align_only", "regret_only", "ours", "group_only"]
+METHOD_ORDER = ["erm", "anchors_only", "groupdro", "align_only", "regret_only",
+                "ours", "group_only"]
 # Display names. IMPORTANT: in this codebase every non-ERM arm has GroupDRO switched on.
 # The `regret` flag does not replace GroupDRO, it changes what drives the lambda update:
 # raw loss L_g (standard GroupDRO, i.e. R*=0) versus excess loss L_g - R*_g (regret-DRO).
@@ -24,6 +25,7 @@ METHOD_ORDER = ["erm", "groupdro", "align_only", "regret_only", "ours", "group_o
 # Note there is no anchors-without-DRO arm here (tabular's "AnchorsOnly"); Xenia's spec
 # does not define one, so that cell of the ablation is absent on EMBED.
 PRETTY = {"erm": "ERM",
+          "anchors_only": "Anchors only (no DRO)",
           "groupdro": "GroupDRO (raw loss)",
           "align_only": "Ours: anchors + GroupDRO",
           "regret_only": "Regret-DRO (no anchors)",

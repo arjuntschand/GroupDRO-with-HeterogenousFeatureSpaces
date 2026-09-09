@@ -189,6 +189,10 @@ def evaluate(model, data, masks, split, device, rstar=None):
 
 METHOD_FLAGS = {
     "erm":         dict(dro=False, anchors=False, regret=False, select="avg_loss"),
+    # anchors WITHOUT GroupDRO. Xenia's spec does not define this arm, but without it the
+    # 2x2 (anchors x DRO) has an empty cell and we cannot tell whether the anchors help on
+    # their own or only in combination with DRO, which is exactly the synergy question.
+    "anchors_only": dict(dro=False, anchors=True, regret=False, select="avg_loss"),
     "groupdro":    dict(dro=True,  anchors=False, regret=False, select="worst_group_loss"),
     "align_only":  dict(dro=True,  anchors=True,  regret=False, select="avg_loss"),
     "regret_only": dict(dro=True,  anchors=False, regret=True,  select="max_excess"),
@@ -339,7 +343,8 @@ def main():
     ap.add_argument("--cache", default="datasets/embed/vit_cache")
     ap.add_argument("--out", default="runs/embed_xenia")
     ap.add_argument("--methods", nargs="+",
-                    default=["erm", "groupdro", "align_only", "regret_only", "ours", "group_only"])
+                    default=["erm", "anchors_only", "groupdro", "align_only", "regret_only",
+                             "ours", "group_only"])
     ap.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 42])
     ap.add_argument("--split-seed", type=int, default=0)
     ap.add_argument("--epochs", type=int, default=20)

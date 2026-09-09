@@ -26,9 +26,75 @@ import argparse, json, os, time
 from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 
-from .stream_embed_features import all_paths, get_s3, fetch_bytes, decode
+# NOTE: deliberately self-contained. An earlier version imported these helpers from
+# stream_embed_features, which imports torch at module level; the CPU-only workers do not
+# have torch, so every worker died on ImportError and then hit `shutdown` without uploading
+# anything. Nothing here needs torch, so the functions are inlined.
+import pandas as pd
 
+BUCKET_NAME = "embed-dataset-open"
+_S3 = None
 _PROFILE = None
+
+
+def all_paths(index_path, priority_by_group=True):
+    """Every image path in the index, ordered smallest-group-first so the scientifically
+    important tail groups complete early and the run can be stopped at any point."""
+    idx = pd.read_parquet(index_path)
+
+    def imgs_of(row):
+        d = row if isinstance(row, dict) else dict(row)
+        return [p for p in d.values() if isinstance(p, str)]
+
+    if not priority_by_group or "group" not in idx.columns:
+        seen = {}
+        for d in idx["paths"]:
+            for p in imgs_of(d):
+                seen[p] = True
+        return sorted(seen)
+
+    order = idx.group.value_counts().sort_values().index.tolist()
+    out, seen = [], set()
+    for g in order:
+        for d in idx[idx.group == g]["paths"]:
+            for p in imgs_of(d):
+                if p not in seen:
+                    seen.add(p); out.append(p)
+    return out
+
+
+def get_s3(profile=None, pool=64):
+    global _S3
+    if _S3 is None:
+        import boto3
+        from botocore.config import Config
+        sess = boto3.Session(profile_name=profile) if profile else boto3.Session()
+        _S3 = sess.client("s3", region_name="us-west-2",
+                          config=Config(max_pool_connections=pool,
+                                        retries={"max_attempts": 3, "mode": "standard"}))
+    return _S3
+
+
+def fetch_bytes(rel, profile=None):
+    try:
+        return get_s3(profile).get_object(Bucket=BUCKET_NAME, Key=rel)["Body"].read()
+    except Exception:
+        return None
+
+
+def decode(src, size=224):
+    """DICOM bytes -> 224x224 uint8, VOI-LUT applied and MONOCHROME1 inverted."""
+    import io as _io
+    import pydicom
+    from pydicom.pixel_data_handlers.util import apply_voi_lut
+    from PIL import Image
+    ds = pydicom.dcmread(_io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src)
+    arr = apply_voi_lut(ds.pixel_array, ds).astype(np.float32)
+    if getattr(ds, "PhotometricInterpretation", "") == "MONOCHROME1":
+        arr = arr.max() - arr
+    arr = (arr - arr.min()) / (arr.max() - arr.min() + 1e-8)
+    return np.asarray(Image.fromarray((arr * 255).astype(np.uint8)).resize((size, size)),
+                      dtype=np.uint8)
 
 
 def _init(profile):

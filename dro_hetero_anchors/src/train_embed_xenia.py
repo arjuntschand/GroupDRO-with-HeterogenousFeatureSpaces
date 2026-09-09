@@ -216,7 +216,8 @@ def _group_val_excess(model, data, masks, rstar_t, groups, anchors_on, lam_fit, 
 
 def train_one(method, data, masks, device, rstar, seed,
               epochs=20, lr=5e-5, wd=5e-5, batch=32,
-              gamma=0.02, decay=0.9, lam_fit=1.0, lam_sep=1.0, dro_signal="train", verbose=True):
+              gamma=0.02, decay=0.9, lam_fit=1.0, lam_sep=1.0, dro_signal="train",
+              uniform_lambda_init=False, verbose=True):
     flags = METHOD_FLAGS[method]
     groups = [g for g in GROUPS if g in data]
     torch.manual_seed(seed); np.random.seed(seed)
@@ -229,7 +230,10 @@ def train_one(method, data, masks, device, rstar, seed,
                            device=device)
     # Xenia spec: lambda_g initialised to empirical group proportion p_g; ema_loss init = R*_g
     ptrain = np.array([int(masks[g]["train"].sum()) for g in groups], dtype=float)
-    lam = torch.tensor(ptrain / ptrain.sum(), device=device, dtype=torch.float32)
+    if uniform_lambda_init:
+        lam = torch.full((len(groups),), 1.0 / len(groups), device=device, dtype=torch.float32)
+    else:
+        lam = torch.tensor(ptrain / ptrain.sum(), device=device, dtype=torch.float32)
     ema = rstar_t.clone()
 
     N = 50           # lambda update stride (Xenia)
@@ -340,6 +344,14 @@ def main():
     ap.add_argument("--split-seed", type=int, default=0)
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--rstar-folds", type=int, default=5)
+    ap.add_argument("--dro-gamma", type=float, default=0.02,
+                    help="lambda step size. Xenia's spec is 0.02, which on EMBED's 1:1000 "
+                         "group imbalance is too gentle to move lambda off the initial "
+                         "proportions, making GroupDRO behave identically to ERM.")
+    ap.add_argument("--uniform-lambda-init", action="store_true",
+                    help="initialise lambda uniformly instead of at group proportions. With "
+                         "proportional init the four tail groups share only 1.5%% of the "
+                         "gradient weight on EMBED.")
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -375,7 +387,9 @@ def main():
                 continue
             if method not in METHOD_FLAGS:
                 print(f"  (skip unknown method {method})"); continue
-            model, info = train_one(method, data, masks, device, rstar, seed, epochs=args.epochs)
+            model, info = train_one(method, data, masks, device, rstar, seed, epochs=args.epochs,
+                                    gamma=args.dro_gamma,
+                                    uniform_lambda_init=args.uniform_lambda_init)
             ov, pg = evaluate(model, data, masks, "test", device, rstar)
             print(f"[seed {seed}] {method}: test overall={ov['overall_acc']:.3f} "
                   f"worst={ov['worst_group_acc']:.3f}({ov['worst_group']}) tail={ov['tail_acc']:.3f}")

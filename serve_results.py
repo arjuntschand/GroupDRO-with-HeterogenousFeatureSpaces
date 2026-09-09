@@ -479,10 +479,37 @@ def build(outdir=SITE):
         mech.append(md_to_html(open("documentation/ANCHOR_RESULTS.md").read()))
     tabs.append(("Mechanism", "sec-mech")); secs.append(("sec-mech", "".join(mech)))
 
+    # 4b. Fed-Heart CV protocol fix
+    if os.path.exists("documentation/FEDHEART_CV.md"):
+        tabs.append(("Fed-Heart CV", "sec-fhcv"))
+        secs.append(("sec-fhcv", md_to_html(open("documentation/FEDHEART_CV.md").read())))
+
     # 5. EMBED
     if os.path.exists("documentation/EMBED_XENIA.md"):
         tabs.append(("EMBED", "sec-embed"))
         secs.append(("sec-embed", md_to_html(open("documentation/EMBED_XENIA.md").read())))
+
+    # run logs
+    LOGS = [("Fed-Heart cross validation", "runs/fedheart_cv.log"),
+            ("Method matrix, Fed-Heart", "runs/matrix_fedheart.log"),
+            ("Method matrix, NHANES nested", "runs/matrix_nhanes_nested.log"),
+            ("Method matrix, NHANES disjoint", "runs/matrix_nhanes_disjoint.log")]
+    lh = ["<h2>Run logs</h2>",
+          "<p>Tail of each experiment's console output, so you can see exactly what was run and "
+          "what it printed. Full logs are in the repo under <code>runs/</code>.</p>"]
+    any_log = False
+    for title, path in LOGS:
+        if not os.path.exists(path):
+            continue
+        any_log = True
+        txt = open(path, errors="ignore").read().split("\n")
+        keep = [l for l in txt if l.strip() and not l.lstrip().startswith(("Sep method", "warnings.warn"))]
+        tail = "\n".join(keep[-45:])
+        lh.append(f"<h3>{html.escape(title)}</h3>"
+                  f"<p class='meta'><code>{html.escape(path)}</code></p>"
+                  f"<pre><code>{html.escape(tail)}</code></pre>")
+    if any_log:
+        tabs.append(("Run Logs", "sec-logs")); secs.append(("sec-logs", "".join(lh)))
 
     # csvs
     ch = ["<h2>Raw metrics (metrics_long.csv)</h2>",

@@ -86,6 +86,31 @@ def rstar_lambda_plot(run, df, out_png):
     print("wrote", out_png)
 
 
+XENIA_SEEDS = [0, 1, 42]     # the 3 seeds specified in EMBED_Experiments_Description.docx
+
+
+def seed_block(df, seeds, title):
+    """Headline block restricted to a given seed set."""
+    sub_all = df[df.seed.isin(seeds)]
+    if sub_all.empty:
+        return []
+    out = [f"\n### {title}  (seeds {sorted(set(sub_all.seed))})\n",
+           "| method | overall-wt | overall-macro | tail | worst-group |",
+           "|---|---|---|---|---|"]
+    for meth in [m for m in METHOD_ORDER if m in sub_all.method.unique()]:
+        s = sub_all[sub_all.method == meth]
+        def per_seed(fn):
+            return s.groupby("seed").apply(fn, include_groups=False)
+        micro = per_seed(lambda x: np.average(x["acc"], weights=x["n"]))
+        macro = per_seed(lambda x: x["acc"].mean())
+        tail = per_seed(lambda x: x[~x.group.isin(HEAD)]["acc"].mean())
+        worst = per_seed(lambda x: x.set_index("group")["acc"].min())
+        out.append(f"| {PRETTY.get(meth, meth)} | {micro.mean():.3f} ± {micro.std():.3f} | "
+                   f"{macro.mean():.3f} ± {macro.std():.3f} | {tail.mean():.3f} ± {tail.std():.3f} | "
+                   f"{worst.mean():.3f} ± {worst.std():.3f} |")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", default="runs/embed_xenia")
@@ -101,8 +126,23 @@ def main():
     for metric, title in [("acc", "Accuracy"), ("macro_f1", "Macro-F1"), ("loss", "Cross-entropy loss")]:
         lines.append(f"\n## {title} (per group; overall/tail/worst = mean±std over seeds)\n")
         lines.append(md_table(agg_table(df, metric)))
-    # headline
-    lines.append("\n## Headline: GroupDRO vs Ours\n")
+    # ── dual reporting: Xenia's 3 seeds AND the extended 10 ──
+    all_seeds = sorted(df.seed.unique())
+    lines.append("\n## Headline (dual reporting)\n")
+    lines.append("(overall-wt = sample-weighted 'entire dataset'; overall-macro = mean over the 6 "
+                 "groups; tail = mean over tail groups.)")
+    x3 = [s for s in XENIA_SEEDS if s in all_seeds]
+    if x3:
+        lines += seed_block(df, x3, "A. Xenia spec — 3 seeds")
+    if len(all_seeds) > len(x3):
+        lines += seed_block(df, all_seeds, f"B. Extended — {len(all_seeds)} seeds")
+        lines.append(f"\n_Both are reported: **A** matches the protocol in "
+                     f"`EMBED_Experiments_Description.docx` exactly (seeds 0/1/42); **B** adds "
+                     f"{len(all_seeds)-len(x3)} more seeds for tighter error bars, matching the "
+                     f"10-seed rigor used on the tabular datasets. Prefer B for any claim of "
+                     f"significance; A for direct comparison to the spec._")
+
+    lines.append("\n## Per-method detail (all seeds)\n")
     lines.append("(overall-macro = mean over the 6 groups; overall-weighted = sample-weighted "
                  "'entire dataset', dominated by heads g4/g6; tail = mean over tail groups.)\n")
     for meth in [m for m in METHOD_ORDER if m in df.method.unique()]:

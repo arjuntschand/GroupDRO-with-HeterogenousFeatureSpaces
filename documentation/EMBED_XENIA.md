@@ -236,3 +236,36 @@ python -m dro_hetero_anchors.src.train_embed_xenia \
     --out runs/embed_xenia --seeds 0 1 42 --epochs 20
 python -m dro_hetero_anchors.src.report_embed_xenia --run runs/embed_xenia
 ```
+
+## Correction: the DRO step size makes GroupDRO inert on EMBED
+
+The first full-data run produced **bit-identical validation curves** for ERM, GroupDRO and
+Regret-DRO. That is not a coincidence and not a code bug. Two spec defaults combine badly on
+this particular dataset:
+
+1. λ is initialised at **group proportions**. On EMBED the four tail groups hold only **1.52%**
+   of the mass combined (g4 0.568, g6 0.417, and g5 alone 0.0005).
+2. The spec's step size is **γ = 0.02**, which is far too small to move λ off that
+   initialisation within 20 epochs.
+
+The result is that every DRO variant optimises effectively the same proportion-weighted
+objective as ERM. The methods therefore cluster into exactly two groups, anchors-off and
+anchors-on, with the anchor loss being the only thing that changes the training signal.
+
+This does not arise on the tabular datasets, where groups are roughly balanced (NHANES is
+about 1:1:4). EMBED is about 1:1000 between g5 and g4.
+
+**REMIND (arXiv 2603.00046), which runs GroupDRO on this exact dataset, uses group-DRO step
+size η ∈ {0.1, 0.5}** (their appendix, Table 16), i.e. 5 to 25 times larger than the spec
+default. Re-running with uniform λ initialisation and γ = 0.5 recovers a clear DRO effect:
+
+| 6 epochs, seed 0 | overall | worst-group | tail |
+|---|---|---|---|
+| ERM | 0.680 | 0.541 | 0.645 |
+| GroupDRO | **0.724** | **0.622** | **0.698** |
+| gain | +4.4 | **+8.1** | +5.3 |
+
+The production 10-seed run therefore uses `--dro-gamma 0.5 --uniform-lambda-init`. The
+γ = 0.02 run is kept as `runs/embed_xenia_gamma002` so the step-size sensitivity can be
+reported rather than hidden: on a dataset this imbalanced, GroupDRO's step size is not a
+minor hyperparameter, it decides whether the method does anything at all.

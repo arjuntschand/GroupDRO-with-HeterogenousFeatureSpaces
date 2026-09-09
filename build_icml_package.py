@@ -43,7 +43,23 @@ def load(tag):
     if not os.path.exists(p):
         return None, None
     d = json.load(open(p))
-    return d["results"], d["rstar"]
+    res, rstar = d["results"], d["rstar"]
+    # Fed-Heart: the cross-validated + imputed protocol supersedes the single split (which
+    # tested Switzerland on 10 patients). Overlay those numbers where we have them so the
+    # headline table and the Fed-Heart tab cannot disagree.
+    if tag == "fedheart" and os.path.exists("runs/fedheart_cv/results.json"):
+        cv = json.load(open("runs/fedheart_cv/results.json"))
+        remap = {"ERM": "ERM", "GroupDRO": "GroupDRO",
+                 "AnchorsOnly": "AnchorsOnly", "Ours": "Ours_GDRO"}
+        for src, dst in remap.items():
+            if src in cv and cv[src]:
+                res[dst] = {s: {"worst_group_acc": v["worst"],
+                                "overall_acc": v["overall"],
+                                "balanced_acc": v["balanced"],
+                                "per_group_acc": v.get("per_group_acc"),
+                                "per_group_counts": v.get("per_group_n")}
+                            for s, v in cv[src].items()}
+    return res, rstar
 
 
 def scalar(res, m, key):
@@ -197,10 +213,21 @@ L += ["\n## Table 1 — Method comparison (worst-group accuracy, mean ± std ove
       "assessment-completeness levels. **Higher is better.**\n",
       "| method | " + " | ".join(n for n, *_ in loaded) + " |",
       "|" + "---|" * (len(loaded) + 1)]
+CV_ARMS = {"ERM", "GroupDRO", "AnchorsOnly", "Ours_GDRO"}   # arms the Fed-Heart CV run covers
 for m in METHODS:
-    row = [f(scalar(res, m, "worst_group_acc")) for *_, res, _ in loaded]
+    row = []
+    for name, tag, _, res, _ in loaded:
+        cell = f(scalar(res, m, "worst_group_acc"))
+        if tag == "fedheart" and m not in CV_ARMS and cell != "—":
+            cell += " †"      # still single-split, not cross-validated
+        row.append(cell)
     star = " ⭐" if m == "Ours_Regret" else ""
     L.append(f"| {PRETTY[m]}{star} | " + " | ".join(row) + " |")
+L.append("")
+L.append("† Fed-Heart numbers are from the cross-validated, imputed protocol (every patient "
+         "evaluated, 925 total). Two arms marked with a dagger were not part of that run and "
+         "are still from the older single-split protocol, which tested Switzerland on only 10 "
+         "patients. Do not compare a daggered cell directly against an undaggered one.")
 
 # ── Table 2: all overall metrics per dataset ──
 L += ["\n\n## Table 2 — Overall metrics per dataset\n",

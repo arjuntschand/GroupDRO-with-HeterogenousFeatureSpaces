@@ -24,11 +24,13 @@ import numpy as np
 import yaml
 
 BASE = "experiments/fedheart_exp_paper_hetagg_gdro.yaml"
-METHODS = [   # (label, common_encoder, groupdro, anchor_weight)
-    ("ERM",        True,  False, 0.001),
-    ("GroupDRO",   False, True,  0.001),
-    ("AnchorsOnly", False, False, 0.1),
-    ("Ours",       False, True,  0.1),
+METHODS = [   # (label, common_encoder, groupdro, anchor_weight, use_regret)
+    ("ERM",         True,  False, 0.001, False),
+    ("GroupDRO",    False, True,  0.001, False),
+    ("RegretDRO",   False, True,  0.001, True),
+    ("AnchorsOnly", False, False, 0.1,   False),
+    ("Ours",        False, True,  0.1,   False),
+    ("Ours_Regret", False, True,  0.1,   True),
 ]
 
 
@@ -69,13 +71,19 @@ def main():
 
     from dro_hetero_anchors.src.train_fedheart import train
     base = yaml.safe_load(open(BASE))
+    # per-group reference losses R*_g for the regret arms (estimated once, see
+    # tools/estimate_rstar_tabular.py). Falls back to plain GroupDRO if unavailable.
+    rstar_list = None
+    if os.path.exists("runs/rstar_fedheart.json"):
+        rs = json.load(open("runs/rstar_fedheart.json"))["rstar"]
+        rstar_list = [rs[str(i)] if str(i) in rs else rs.get(i, 0.0) for i in range(len(rs))]
     base["impute_missing"] = not args.no_impute
     os.makedirs(args.out, exist_ok=True)
     results = {}
 
     # Each fold uses a different data_split_seed, so a different 1/K is held out. Over K
     # folds every patient lands in the test set exactly once.
-    for label, shared, gdro, anch in METHODS:
+    for label, shared, gdro, anch, regret in METHODS:
         results[label] = {}
         for seed in args.seeds:
             fold_metrics = []
@@ -85,6 +93,9 @@ def main():
                 cfg["groupdro_enabled"] = gdro
                 cfg["lambda_fit"] = anch
                 cfg["lambda_sep"] = anch
+                cfg["use_regret"] = regret
+                if regret and rstar_list:
+                    cfg["optimal_losses"] = rstar_list
                 cfg["seed"] = seed
                 cfg["data_split_seed"] = 1000 + k          # fold identity
                 cfg["train_frac"] = 1.0 - 1.0 / args.folds  # K-fold sized split
@@ -123,7 +134,7 @@ def main():
     print(f"\n########## FED-HEART, {args.folds}-FOLD CV"
           f"{' + IMPUTATION' if not args.no_impute else ''} ##########")
     print(f"{'method':>14} | worst-group | overall | balanced | n")
-    for label, *_ in METHODS:
+    for label, *_rest in METHODS:
         R = results.get(label, {})
         if not R:
             continue

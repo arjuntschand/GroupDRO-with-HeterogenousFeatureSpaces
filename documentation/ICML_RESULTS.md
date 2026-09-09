@@ -19,12 +19,14 @@ assessment-completeness levels. **Higher is better.**
 
 | method | Fed-Heart | NHANES-nested (natural) | NHANES-disjoint (synthetic) |
 |---|---|---|---|
-| ERM | 65.58 ± 7.57 | 70.08 ± 0.99 | 70.08 ± 0.99 |
-| GroupDRO | 74.80 ± 2.84 | 70.43 ± 1.39 | 73.22 ± 1.35 |
-| Regret-DRO | 74.80 ± 2.84 | 70.19 ± 0.96 | 73.17 ± 1.35 |
-| Anchors only | 74.21 ± 3.51 | 71.35 ± 2.20 | 73.82 ± 1.43 |
-| Ours (anchors+GroupDRO) | 74.50 ± 2.95 | 74.14 ± 3.46 | 75.87 ± 1.70 |
-| Ours (anchors+regret) ⭐ | 74.25 ± 3.31 | 73.75 ± 3.57 | 75.33 ± 1.85 |
+| ERM | 65.90 ± 1.37 | 70.08 ± 0.99 | 70.08 ± 0.99 |
+| GroupDRO | 75.80 ± 1.03 | 70.43 ± 1.39 | 73.22 ± 1.35 |
+| Regret-DRO | 74.80 ± 2.84 † | 70.19 ± 0.96 | 73.17 ± 1.35 |
+| Anchors only | 74.20 ± 1.57 | 71.35 ± 2.20 | 73.82 ± 1.43 |
+| Ours (anchors+GroupDRO) | 73.50 ± 1.22 | 74.14 ± 3.46 | 75.87 ± 1.70 |
+| Ours (anchors+regret) ⭐ | 74.25 ± 3.31 † | 73.75 ± 3.57 | 75.33 ± 1.85 |
+
+† Fed-Heart numbers are from the cross-validated, imputed protocol (every patient evaluated, 925 total). Two arms marked with a dagger were not part of that run and are still from the older single-split protocol, which tested Switzerland on only 10 patients. Do not compare a daggered cell directly against an undaggered one.
 
 
 ## Table 2 — Overall metrics per dataset
@@ -39,11 +41,11 @@ targets that last column specifically.
 
 | method | worst-group acc | overall acc | balanced acc | mean F1 | worst-group F1 | worst-group loss (group) | max excess loss (group) |
 |---|---|---|---|---|---|---|---|
-| ERM | 65.58 ± 7.57 | 76.33 ± 5.40 | 75.24 ± 5.61 | 65.39 ± 4.38 | 43.91 ± 6.90 | 0.751 (Switzerland) | 0.244 (Switzerland) |
-| GroupDRO | 74.80 ± 2.84 | 80.20 ± 2.39 | 83.56 ± 1.52 | 63.62 ± 3.35 | 45.43 ± 2.99 | 0.650 (VA) | 0.056 (Cleveland) |
+| ERM | 65.90 ± 1.37 | 73.99 ± 0.61 | 72.30 ± 0.41 | — | — | — | — |
+| GroupDRO | 75.80 ± 1.03 | 79.65 ± 0.21 | 81.10 ± 0.24 | — | — | — | — |
 | Regret-DRO | 74.80 ± 2.84 | 80.53 ± 2.29 | 83.77 ± 1.49 | 63.64 ± 2.75 | 45.43 ± 2.99 | 0.608 (VA) | 0.035 (Cleveland) |
-| Anchors only | 74.21 ± 3.51 | 79.53 ± 2.44 | 82.14 ± 2.80 | 64.42 ± 2.59 | 46.93 ± 3.09 | 0.669 (VA) | 0.084 (Cleveland) |
-| Ours (anchors+GroupDRO) | 74.50 ± 2.95 | 79.40 ± 2.91 | 82.84 ± 2.23 | 63.62 ± 3.49 | 46.74 ± 3.26 | 0.695 (Hungarian) | 0.071 (Cleveland) |
+| Anchors only | 74.20 ± 1.57 | 79.26 ± 0.55 | 80.41 ± 0.44 | — | — | — | — |
+| Ours (anchors+GroupDRO) | 73.50 ± 1.22 | 78.40 ± 0.88 | 79.85 ± 0.73 | — | — | — | — |
 | Ours (anchors+regret) | 74.25 ± 3.31 | 79.80 ± 2.58 | 83.03 ± 2.09 | 63.59 ± 3.35 | 45.96 ± 3.32 | 0.722 (VA) | 0.072 (Cleveland) |
 
 ### NHANES-nested (natural)
@@ -84,19 +86,19 @@ accuracy is quantized and noisy.
 
 | group | n | accuracy | macro-F1 | loss | R*_g | excess loss |
 |---|---|---|---|---|---|---|
-| Cleveland | 61 | 76.72 | 76.34 | 0.525 | 0.499 | 0.026 |
-| Hungarian | 53 | 79.25 | 78.31 | 0.493 | 0.592 | 0.000 |
-| Switzerland | 10 | 75.00 | 44.33 | 0.598 | 0.424 | 0.174 |
-| VA | 26 | 70.00 | 62.58 | 0.651 | 1.480 | 0.000 |
+| Cleveland | — | 75.54 | — | nan | 0.499 | nan |
+| Hungarian | — | 80.47 | — | nan | 0.592 | nan |
+| Switzerland | — | 66.40 | — | nan | 0.424 | nan |
+| VA | — | 66.80 | — | nan | 1.480 | nan |
 
 **GroupDRO**
 
 | group | n | accuracy | macro-F1 | loss | R*_g | excess loss |
 |---|---|---|---|---|---|---|
-| Cleveland | 61 | 79.84 | 79.58 | 0.510 | 0.499 | 0.011 |
-| Hungarian | 53 | 78.87 | 76.14 | 0.534 | 0.592 | 0.000 |
-| Switzerland | 10 | 99.00 | 49.74 | 0.158 | 0.424 | 0.000 |
-| VA | 26 | 76.54 | 49.04 | 0.633 | 1.480 | 0.000 |
+| Cleveland | — | 77.25 | — | nan | 0.499 | nan |
+| Hungarian | — | 79.66 | — | nan | 0.592 | nan |
+| Switzerland | — | 91.68 | — | nan | 0.424 | nan |
+| VA | — | 75.80 | — | nan | 1.480 | nan |
 
 **Regret-DRO**
 
@@ -196,16 +198,9 @@ table that isolates the novel contribution.
 
 | dataset | GroupDRO | Regret-DRO | Ours (anc+GDRO) | Ours (anc+regret) | anchor effect | regret effect |
 |---|---|---|---|---|---|---|
-| Fed-Heart | 74.80 ± 2.84 | 74.80 ± 2.84 | 74.50 ± 2.95 | 74.25 ± 3.31 | -0.30 (3/10, p=0.700) ns | identical on all seeds† |
+| Fed-Heart | 75.80 ± 1.03 | 74.80 ± 2.84 | 73.50 ± 1.22 | 74.25 ± 3.31 | -2.30 (0/5, p=0.011) * | -1.72 (2/5, p=0.392) ns |
 | NHANES-nested (natural) | 70.43 ± 1.39 | 70.19 ± 0.96 | 74.14 ± 3.46 | 73.75 ± 3.57 | +3.71 (9/10, p=0.007) ** | -0.25 (5/10, p=0.618) ns |
 | NHANES-disjoint (synthetic) | 73.22 ± 1.35 | 73.17 ± 1.35 | 75.87 ± 1.70 | 75.33 ± 1.85 | +2.65 (9/10, p=0.002) ** | -0.05 (4/10, p=0.821) ns |
-
-† On Fed-Heart, GroupDRO and Regret-DRO produce **identical worst-group accuracy on all
-10 seeds** — the runs genuinely differ (per-group losses differ, e.g. 0.934 vs 0.765 on
-seed 2024) but worst-group *accuracy* is quantized on that dataset's small test groups
-(26–61 samples), so both land on the same discrete value. Regret's effect there shows up
-in the loss objective it actually optimizes: **max excess loss 0.040 → 0.011** and
-worst-group loss 0.650 → 0.608 (Table 2). Accuracy is too coarse a probe on Fed-Heart.
 
 
 ## Table 5 — Parameter testing: group definition (NHANES feature modes)
@@ -240,7 +235,7 @@ All deltas are worst-group accuracy vs the ERM baseline, 10 seeds.
 
 | dataset | ERM | +GroupDRO | +anchors | **+both** | sum of parts | verdict |
 |---|---|---|---|---|---|---|
-| Fed-Heart | 65.58 | 74.80 (+9.22) | 74.21 (+8.63) | **74.50 (+8.92)** | +17.85 | sub-additive (saturated¹) |
+| Fed-Heart | 65.90 | 75.80 (+9.90) | 74.20 (+8.30) | **73.50 (+7.60)** | +18.20 | sub-additive (saturated¹) |
 | NHANES-nested (natural) | 70.08 | 70.43 (+0.35) | 71.35 (+1.26) | **74.14 (+4.06)** | +1.62 | **super-additive (synergy)** |
 | NHANES-disjoint (synthetic) | 70.08 | 73.22 (+3.14) | 73.82 (+3.74) | **75.87 (+5.79)** | +6.88 | sub-additive |
 

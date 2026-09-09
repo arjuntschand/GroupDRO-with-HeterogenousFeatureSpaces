@@ -459,9 +459,21 @@ def build(outdir=SITE):
                         f"<table><thead><tr><th>group</th><th>features</th><th>size</th>"
                         f"<th>R*_g</th></tr></thead><tbody>{rows}</tbody></table>"
                         f"<div class='cap'>{html.escape(info['note'])}</div></div>")
-        for tname, content in parts:
-            body.append(f"<h3>{html.escape(_dedash(tname))}</h3>")
-            body.append(md_to_html(content))
+        # Fed-Heart: the cross-validated protocol is the headline result, so it goes first
+        # and the older single-split tables are demoted to a collapsed section below it.
+        if label == "Fed-Heart" and os.path.exists("documentation/FEDHEART_CV.md"):
+            body.append(md_to_html(open("documentation/FEDHEART_CV.md").read()))
+            body.append("<hr><details><summary style='cursor:pointer;color:var(--mut);"
+                        "padding:8px 0'>Earlier single-split protocol (superseded, kept for "
+                        "reference)</summary><div style='opacity:.75'>")
+            for tname, content in parts:
+                body.append(f"<h3>{html.escape(_dedash(tname))}</h3>")
+                body.append(md_to_html(content))
+            body.append("</div></details>")
+        else:
+            for tname, content in parts:
+                body.append(f"<h3>{html.escape(_dedash(tname))}</h3>")
+                body.append(md_to_html(content))
         pgf = [f for f in figs if "fig2" in f]
         if pgf:
             body.append(figblock(pgf, "Per-group figure (all datasets)"))
@@ -478,11 +490,6 @@ def build(outdir=SITE):
         mech.append("<hr>")
         mech.append(md_to_html(open("documentation/ANCHOR_RESULTS.md").read()))
     tabs.append(("Mechanism", "sec-mech")); secs.append(("sec-mech", "".join(mech)))
-
-    # 4b. Fed-Heart CV protocol fix
-    if os.path.exists("documentation/FEDHEART_CV.md"):
-        tabs.append(("Fed-Heart CV", "sec-fhcv"))
-        secs.append(("sec-fhcv", md_to_html(open("documentation/FEDHEART_CV.md").read())))
 
     # 5. EMBED
     if os.path.exists("documentation/EMBED_XENIA.md"):

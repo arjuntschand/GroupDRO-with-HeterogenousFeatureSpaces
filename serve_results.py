@@ -26,35 +26,39 @@ CSVS = [
 DATASETS_INFO = [
     dict(name="Fed-Heart", task="Binary heart-disease prediction",
          groups=4, split="4 hospitals (natural federated split)",
-         detail="Each hospital records a DIFFERENT subset of clinical features — this is the "
-                "heterogeneity. Groups are hospitals, not constructed.",
+         detail="Each hospital records a different subset of clinical features, and that is where "
+                "the heterogeneity comes from. These groups are real hospitals, not something we "
+                "constructed.",
          rows=[("G0 Cleveland", "10 feats", "61 test", "R*=0.499"),
                ("G1 Hungarian", "8 feats", "53 test", "R*=0.592"),
                ("G2 Switzerland", "8 feats", "10 test", "R*=0.424"),
                ("G3 VA", "9 feats", "26 test", "R*=1.480")],
-         note="G2/G3 are capped to 20/25 training samples to simulate data-scarce sites. "
-              "G3 has the highest R* (1.48) = genuinely the hardest group to learn alone."),
+         note="G2 and G3 are capped to 20 and 25 training samples to simulate small sites with "
+              "little data. G3 has the highest R* at 1.48, which means it is genuinely the "
+              "hardest group to learn on its own."),
     dict(name="NHANES-nested (natural)", task="Binary CVD prediction",
          groups=3, split="assessment completeness",
-         detail="REAL availability structure: if a patient got labs they also got the exam and "
-                "survey, so each group's features are a strict SUBSET of the next (G0 ⊂ G1 ⊂ G2).",
+         detail="This is the real availability structure. If a patient got lab work they also got "
+                "the exam and the survey, so each group's features are a subset of the next one "
+                "(G0 inside G1 inside G2).",
          rows=[("G0 survey only", "10 feats", "533 test", "R*=0.314"),
                ("G1 + exam", "13 feats", "530 test", "R*=0.276"),
                ("G2 + labs", "20 feats", "2338 test", "R*=0.266")],
-         note="This is the natural, real-world setting — nothing constructed."),
+         note="This is the natural, real world setting. Nothing here is constructed."),
     dict(name="NHANES-disjoint (synthetic)", task="Binary CVD prediction",
          groups=3, split="constructed feature partition",
-         detail="CONSTRUCTED stress test: every group gets 15 features = 10 SHARED + 5 UNIQUE to "
-                "that group. Unlike nested, each group has private features no other group sees.",
+         detail="This one we constructed as a stress test. Every group gets 15 features, made up of "
+                "10 shared ones plus 5 that only that group has. Unlike nested, each group has "
+                "private features nobody else sees.",
          rows=[("G0", "15 feats (10 shared + 5 unique)", "533 test", "R*=0.300"),
                ("G1", "15 feats (10 shared + 5 unique)", "530 test", "R*=0.283"),
                ("G2", "15 feats (10 shared + 5 unique)", "2338 test", "R*=0.265")],
-         note="Synthetic — NHANES availability is not actually disjoint. Included to test the "
-              "method where feature spaces are maximally different."),
+         note="This setup is synthetic. Real NHANES availability is not disjoint. We include it "
+              "to test the method when feature spaces are as different as possible."),
     dict(name="EMBED (mammography)", task="4-class BI-RADS breast density",
          groups=6, split="which imaging views are present",
-         detail="Groups = the SET of mammographic views available for a breast "
-                "(M1 C-View CC, M2 C-View MLO, M3 FFDM CC, M4 FFDM MLO).",
+         detail="Groups are defined by which mammogram views a breast actually has. The four "
+                "possible views are M1 C-View CC, M2 C-View MLO, M3 FFDM CC and M4 FFDM MLO.",
          rows=[("g1 {M3}", "1 view", "tail", ""), ("g2 {M1,M3}", "2 views", "tail", ""),
                ("g3 {M4}", "1 view", "tail", ""), ("g4 {M3,M4}", "2 views", "HEAD ~57%", ""),
                ("g5 {M1,M3,M4}", "3 views", "tail", ""), ("g6 all four", "4 views", "HEAD ~37%", "")],
@@ -62,30 +66,60 @@ DATASETS_INFO = [
 ]
 
 METHODS_INFO = [
-    ("ERM", "Shared encoder, plain cross-entropy. The naive baseline — no group awareness."),
-    ("GroupDRO", "Per-group encoders + GroupDRO. Reweights groups by their raw loss L_g. "
-                 "The standard robustness baseline (this is R*=0 in Xenia's notation)."),
-    ("Regret-DRO", "Same, but reweights by REGRET: max(0, L_g − R*_g), where R*_g is the best "
-                   "loss that group could reach with its own dedicated model. Groups already at "
-                   "their achievable floor stop being upweighted."),
-    ("Anchors only", "Per-group encoders + class-conditional Gaussian anchors, NO DRO. "
-                     "Isolates the effect of the novel component."),
-    ("Ours (anchors+GroupDRO)", "Anchors + standard GroupDRO."),
-    ("Ours (anchors+regret)", "Anchors + regret reweighting. The full method."),
+    ("ERM", "One shared encoder, plain cross entropy. The naive baseline with no group awareness."),
+    ("GroupDRO", "Per-group encoders plus GroupDRO, which reweights groups by their raw loss. This "
+                 "is the standard robustness baseline, and the same thing as setting R* to zero."),
+    ("Regret-DRO", "Same idea, but it reweights by regret instead of raw loss. Regret is how far a "
+                   "group is above its own floor R*. Groups that are already doing as well as "
+                   "they possibly can stop getting pushed."),
+    ("Anchors only", "Per-group encoders plus the class anchors, with no DRO at all. This isolates what "
+                     "the anchors contribute on their own."),
+    ("Ours (anchors+GroupDRO)", "Anchors combined with standard GroupDRO."),
+    ("Ours (anchors+regret)", "Anchors combined with regret reweighting. This is the full method."),
 ]
 
 GLOSSARY = [
-    ("worst-group accuracy", "Accuracy of the single worst-performing group. The headline "
-                             "robustness metric — the whole point of GroupDRO."),
-    ("overall / balanced", "Overall = all samples pooled. Balanced = unweighted mean over groups "
-                           "(so a tiny group counts as much as a big one)."),
-    ("R*_g", "Per-group reference loss: the lowest loss group g can reach using ONLY its own "
-             "features, from a dedicated model trained on that group alone (5-fold "
-             "out-of-fold CV). A constant, not learned."),
-    ("excess loss", "L_g − R*_g. How far a group is from its own achievable floor. This is what "
-                    "regret optimization minimises."),
-    ("anchors ON / OFF", "ON = λ_fit = λ_sep = 0.1. OFF = 0.001 (NOT exactly 0.0 — zero is "
-                         "numerically unstable and would inflate the measured anchor effect)."),
+    ("group", "The unit this whole method works on. A group is a set of samples that share the "
+              "same available features. For example one hospital that records 8 clinical "
+              "variables, or patients who only filled out the survey and never got lab work. "
+              "Different groups genuinely have different inputs, and that is what we mean by "
+              "heterogeneous feature spaces."),
+    ("head group", "A common group with lots of samples. Normal training is dominated by these "
+                   "because they make up most of the data."),
+    ("tail group", "A rare group with few samples. These get ignored by normal training, which "
+                   "is the exact problem this method is trying to fix. The names head and tail "
+                   "come from the shape of the group size distribution, where a couple of groups "
+                   "are huge and the rest have a long thin tail. In EMBED, 2 of the 6 view "
+                   "combinations cover about 95 percent of exams and the other 4 are rare."),
+    ("worst-group accuracy", "The accuracy of whichever group the model does worst on. This is "
+                             "the main number to watch. A model can look great at 90 percent "
+                             "average accuracy while one minority group sits at 50 percent, and "
+                             "this metric is what catches that. Higher is better."),
+    ("overall vs balanced accuracy", "Overall counts every sample equally, so big groups dominate "
+                                     "it. Balanced counts every group equally, so a group with 10 "
+                                     "samples matters as much as one with 5,000."),
+    ("R*_g (reference loss)", "The best loss a group could possibly reach using only its own "
+                              "features. We measure it by training a model on that group alone "
+                              "with 5-fold cross validation. Think of it as that group's "
+                              "difficulty floor. A high R* means the group is just hard, like "
+                              "Fed-Heart's VA site at 1.48. A low R* means it should be easy. It "
+                              "is a fixed number we compute once, not something the model learns."),
+    ("excess loss (L_g minus R*_g)", "How far a group is from its own floor. This separates two "
+                                     "very different situations. A group can score badly because "
+                                     "it is genuinely hard, which shows up as high R* and low "
+                                     "excess, and there is nothing to fix there. Or it can score "
+                                     "badly because the shared model is neglecting it, which "
+                                     "shows up as low R* and high excess, and that is fixable. "
+                                     "Regret optimisation targets excess loss instead of raw "
+                                     "loss, so it stops pouring effort into groups that are "
+                                     "already doing as well as they possibly can."),
+    ("anchors ON / OFF", "ON means the anchor loss weights are 0.1. OFF means 0.001 rather than "
+                         "exactly zero, because exactly zero turned out to be numerically "
+                         "unstable here and would have made the anchor effect look like +7 when "
+                         "the real number is +2.65."),
+    ("mean plus/minus std", "Averaged over 10 random seeds, which are different model "
+                            "initialisations. The spread tells you whether a difference is real "
+                            "or just noise."),
 ]
 
 FIGDIR = "documentation/figures"
@@ -161,7 +195,17 @@ function filt(inp,tid){const q=inp.value.toLowerCase();
 """
 
 
+def _dedash(t):
+    """Render em dashes as ordinary punctuation. In headings 'Table 1 — Foo' becomes
+    'Table 1. Foo'; elsewhere ' — ' becomes ', '."""
+    t = re.sub(r"^(#{1,6}\s*[^—]*?)\s+—\s+", r"\1. ", t)
+    t = re.sub(r"^(\*?\*?Table \d+)\s+—\s+", r"\1. ", t)
+    t = t.replace(" — ", ", ").replace("—", ", ")
+    return t
+
+
 def md_inline(s):
+    s = _dedash(s)
     s = html.escape(s)
     s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
     s = re.sub(r"`(.+?)`", r"<code>\1</code>", s)
@@ -170,6 +214,7 @@ def md_inline(s):
 
 
 def md_to_html(md):
+    md = "\n".join(_dedash(l) for l in md.split("\n"))
     out, i, lines = [], 0, md.split("\n")
     while i < len(lines):
         ln = lines[i]
@@ -227,10 +272,10 @@ def csv_section(title, path, tid):
 
 
 FIG_CAPS = {
-    "icml_fig1_methods": "Figure 1 — Method comparison across datasets (worst-group accuracy, 10 seeds). The headline result.",
-    "icml_fig2_pergroup": "Figure 2 — Per-group accuracy, ERM vs the full method. Shows WHERE the gain comes from.",
-    "icml_fig3_anchor_effect": "Figure 3 — Anchor contribution with encoder + GroupDRO held fixed, paired significance (** p<0.01). Proves the novel component works.",
-    "icml_fig4_mechanism": "Figure 4 — Anchor mechanism: (a) weight sweep, (b) which anchor loss drives the gain. Explains WHY it works.",
+    "icml_fig1_methods": "Figure 1. Method comparison across datasets, scored on worst-group accuracy over 10 seeds. This is the headline result.",
+    "icml_fig2_pergroup": "Figure 2. Per-group accuracy, plain ERM against the full method. Shows which groups the gain actually comes from.",
+    "icml_fig3_anchor_effect": "Figure 3. What the anchors add, with the encoder and GroupDRO held fixed. Stars mark paired significance, ** is p below 0.01.",
+    "icml_fig4_mechanism": "Figure 4. How the anchors work. Panel (a) sweeps the anchor weight, panel (b) shows which of the two anchor losses is doing the work.",
 }
 
 
@@ -274,10 +319,31 @@ def split_results_md(path="documentation/ICML_RESULTS.md"):
 
 
 def datasets_section():
-    h = ["<h2>Datasets &amp; setup</h2>",
-         "<p>What each dataset is, how groups are defined, and how the tables differ from one "
-         "another. <strong>Groups</strong> are the unit GroupDRO reweights; heterogeneity means "
-         "different groups see different feature spaces.</p>",
+    h = ["<h2>What this research is</h2>",
+         "<div class='fig'>"
+         "<p><strong>The problem.</strong> Real medical data is not uniform. One hospital records "
+         "8 clinical variables, another records 12. Some patients get a full lab workup, others "
+         "only fill out a questionnaire. Some mammograms have four imaging views, most have two. "
+         "Standard machine learning assumes every sample has the same features, so it either "
+         "throws away the extra information or throws away the incomplete patients. Either way, "
+         "the groups with less data end up with the worst predictions.</p>"
+         "<p><strong>The method.</strong> Three pieces that work together. First, a separate "
+         "small network per group, so each group can use its own feature set. Second, learned "
+         "reference points called class anchors in a shared space, which every group's network "
+         "gets pulled toward so the groups become comparable. Third, GroupDRO, which keeps "
+         "shifting attention to whichever group is currently doing worst.</p>"
+         "<p><strong>The claim.</strong> The contribution is not any single one of those pieces. "
+         "It is that the anchors and GroupDRO help each other. The anchors organise the shared "
+         "space so that GroupDRO can actually reweight across groups that do not even share the "
+         "same inputs. You can see this in Headline, Table 6. On NHANES-nested each piece on its "
+         "own gives almost nothing, +0.35 and +1.26, but together they give +4.06.</p>"
+         "<p><strong>What success looks like.</strong> Higher worst-group accuracy, meaning the "
+         "score of whichever group the model treats worst goes up, without giving up overall "
+         "accuracy.</p></div>",
+         "<h2>Datasets and setup</h2>",
+         "<p>Each dataset below defines groups differently. The group table for each one shows "
+         "how many groups there are, how many features each group has, and how big its test set "
+         "is. Those differences are exactly what separates one results table from another.</p>",
          "<div class='grid'>"]
     for d in DATASETS_INFO:
         rows = "".join(f"<tr><td>{html.escape(a)}</td><td>{html.escape(b)}</td>"
@@ -286,7 +352,7 @@ def datasets_section():
         h.append(
             f"<div class='fig'><h3 style='margin-top:0'>{html.escape(d['name'])}</h3>"
             f"<p><strong>Task:</strong> {html.escape(d['task'])}<br>"
-            f"<strong>Groups:</strong> {d['groups']} — {html.escape(d['split'])}</p>"
+            f"<strong>Groups:</strong> {d['groups']}, split by {html.escape(d['split'])}</p>"
             f"<p>{html.escape(d['detail'])}</p>"
             f"<table><thead><tr><th>group</th><th>features</th><th>size</th><th>R*_g</th></tr>"
             f"</thead><tbody>{rows}</tbody></table>"
@@ -309,18 +375,22 @@ def datasets_section():
 
     h.append("<h2>How to read the result tables</h2>"
              "<ul>"
-             "<li><strong>Table 1</strong> — one row per method, one column per dataset. Use it to "
-             "compare methods.</li>"
-             "<li><strong>Table 2</strong> — per dataset, every metric for every method.</li>"
-             "<li><strong>Table 3</strong> — per-GROUP breakdown. Shows which group is dragging "
-             "the worst-group number down, and how far each group is from its floor R*_g.</li>"
-             "<li><strong>Table 4</strong> — the 2×2: anchors on/off crossed with regret on/off, "
-             "with paired significance tests.</li>"
-             "<li><strong>Table 5</strong> — same method, DIFFERENT group definitions "
-             "(nested vs disjoint). Isolates the effect of how groups are constructed.</li>"
+             "<li><strong>Table 1.</strong> One row per method, one column per dataset. Use this "
+             "to compare methods against each other.</li>"
+             "<li><strong>Table 2.</strong> Every metric for every method, one dataset at a time.</li>"
+             "<li><strong>Table 3.</strong> A per group breakdown. This shows which group is "
+             "dragging the worst-group number down, and whether that group is just hard (high R*) "
+             "or being neglected by the model (high excess loss).</li>"
+             "<li><strong>Table 4.</strong> The two by two. Anchors on or off, crossed with regret "
+             "on or off, with paired significance tests. This is the table that isolates what the "
+             "new parts contribute.</li>"
+             "<li><strong>Table 5.</strong> Same method, different group definitions. This is "
+             "testing the group structure itself, not hyperparameters.</li>"
+             "<li><strong>Table 6.</strong> The synergy check, which is the paper's main "
+             "intellectual claim.</li>"
              "</ul>"
-             "<p>All numbers are mean ± std over <strong>10 seeds</strong>. Seeds vary model "
-             "initialisation; the train/test split is held fixed unless noted.</p>")
+             "<p>All numbers are averaged over 10 random seeds and shown as mean plus or minus "
+             "standard deviation.</p>")
     return "".join(h)
 
 
@@ -384,13 +454,13 @@ def build(outdir=SITE):
                            f"<td>{html.escape(c)}</td><td>{html.escape(e)}</td></tr>"
                            for a, b, c, e in info["rows"])
             body.append(f"<div class='fig'><p><strong>Task:</strong> {html.escape(info['task'])} &nbsp;·&nbsp; "
-                        f"<strong>{info['groups']} groups</strong> — {html.escape(info['split'])}</p>"
+                        f"<strong>{info['groups']} groups</strong>, split by {html.escape(info['split'])}</p>"
                         f"<p>{html.escape(info['detail'])}</p>"
                         f"<table><thead><tr><th>group</th><th>features</th><th>size</th>"
                         f"<th>R*_g</th></tr></thead><tbody>{rows}</tbody></table>"
                         f"<div class='cap'>{html.escape(info['note'])}</div></div>")
         for tname, content in parts:
-            body.append(f"<h3>{html.escape(tname)}</h3>")
+            body.append(f"<h3>{html.escape(_dedash(tname))}</h3>")
             body.append(md_to_html(content))
         pgf = [f for f in figs if "fig2" in f]
         if pgf:
@@ -428,8 +498,8 @@ def build(outdir=SITE):
                    for n, (sid, c) in enumerate(secs))
     page = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GroupDRO Heterogeneous Features — Results</title><style>{CSS}</style></head><body>
-<header><h1>GroupDRO with Heterogeneous Feature Spaces — Results</h1><nav>{nav}</nav></header>
+<title>GroupDRO with Heterogeneous Feature Spaces</title><style>{CSS}</style></head><body>
+<header><h1>GroupDRO with Heterogeneous Feature Spaces</h1><nav>{nav}</nav></header>
 <main>{body}</main><script>{JS}</script></body></html>"""
     open(f"{outdir}/index.html", "w").write(page)
     print(f"built {outdir}/index.html  ({len(figs)} figures, {len(tabs)} tabs)")

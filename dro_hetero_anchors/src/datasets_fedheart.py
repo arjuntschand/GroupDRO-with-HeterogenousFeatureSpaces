@@ -50,13 +50,14 @@ def _download_fedheart_uci(data_dir: str) -> str:
 _standalone_cache: Dict[tuple, tuple] = {}
 
 
-def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, seed: int = 43):
+def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, seed: int = 43,
+                                       impute_missing: bool = False):
     """
     Load UCI Heart Disease data and preprocess like FLamby.
     Returns: features_list, labels_list, centers_list, sets_list (each list of per-sample data),
              center_stats (for normalization). Result is cached by (data_dir, seed).
     """
-    cache_key = (os.path.abspath(data_dir), train_frac, seed)
+    cache_key = (os.path.abspath(data_dir), train_frac, seed, impute_missing)
     if cache_key in _standalone_cache:
         return _standalone_cache[cache_key]
     data_dir = _download_fedheart_uci(data_dir)
@@ -74,8 +75,18 @@ def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, 
         path = os.path.join(data_dir, fname)
 
         df = pd.read_csv(path, header=None)
-        df = df.replace("?", np.nan).drop([10, 11, 12], axis=1).dropna(axis=0)
-        df = df.apply(pd.to_numeric)
+        df = df.replace("?", np.nan).drop([10, 11, 12], axis=1)
+        df = df.apply(pd.to_numeric, errors="coerce")
+        if impute_missing:
+            # Keep every patient and fill missing values with that SITE's median (the label
+            # column is never missing, so it is untouched). Dropping rows instead discards
+            # 63% of Switzerland, which is missing cholesterol on most records, leaving only
+            # ~10 test samples for that group. FLamby's own benchmark imputes rather than drops.
+            feat = df.columns[:-1]
+            df[feat] = df[feat].fillna(df[feat].median())
+            df = df.dropna(axis=0)          # drops only rows with a missing LABEL
+        else:
+            df = df.dropna(axis=0)
 
         center_X = df.iloc[:, :-1]
         center_y = df.iloc[:, -1]
@@ -144,10 +155,12 @@ def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, 
 class _StandaloneHeartDiseaseDataset(Dataset):
     """Standalone UCI-based dataset (no FLamby). One center, train or test."""
 
-    def __init__(self, center: int, train: bool, data_dir: str, seed: int = 43, train_frac: float = 0.66):
+    def __init__(self, center: int, train: bool, data_dir: str, seed: int = 43, train_frac: float = 0.66,
+                 impute_missing: bool = False):
         self.center = center
         self.train = train
-        features, labels, centers, sets, _ = _load_and_preprocess_heart_disease(data_dir, train_frac=train_frac, seed=seed)
+        features, labels, centers, sets, _ = _load_and_preprocess_heart_disease(
+            data_dir, train_frac=train_frac, seed=seed, impute_missing=impute_missing)
         self.features = [f for i, f in enumerate(features) if centers[i] == center and sets[i] == ("train" if train else "test")]
         self.labels = [labels[i] for i in range(len(centers)) if centers[i] == center and sets[i] == ("train" if train else "test")]
         self.labels = torch.from_numpy(np.array(self.labels, dtype=np.int64))
@@ -247,7 +260,8 @@ class CombinedFedHeartDataset(Dataset):
                  label_noise_rate: Optional[List[float]] = None,
                  feature_mask: Optional[List[Optional[List[int]]]] = None,
                  input_noise_std: Optional[List[float]] = None,
-                 subsample_seed: Optional[int] = None):
+                 subsample_seed: Optional[int] = None,
+                 impute_missing: bool = False):
         self.train = train
         self.centers = centers if centers is not None else list(range(NUM_CLIENTS))
         self.seed = seed
@@ -274,7 +288,8 @@ class CombinedFedHeartDataset(Dataset):
                 data_root = os.path.join(os.path.dirname(__file__), "..", "..", "datasets", "fed_heart_disease")
             data_root = os.path.abspath(data_root)
             self.datasets = [
-                _StandaloneHeartDiseaseDataset(center=c, train=train, data_dir=data_root, seed=seed, train_frac=train_frac)
+                _StandaloneHeartDiseaseDataset(center=c, train=train, data_dir=data_root, seed=seed,
+                                               train_frac=train_frac, impute_missing=impute_missing)
                 for c in self.centers
             ]
 
@@ -538,6 +553,7 @@ def build_fedheart_loaders(
     feature_mask: Optional[List[Optional[List[int]]]] = None,
     input_noise_std: Optional[List[float]] = None,
     subsample_seed: Optional[int] = None,
+    impute_missing: bool = False,
 ) -> Tuple[DataLoader, DataLoader, Dict]:
     """Build train and test DataLoaders for Fed-Heart Disease.
     
@@ -582,10 +598,12 @@ def build_fedheart_loaders(
         feature_mask=feature_mask,
         input_noise_std=input_noise_std,
         subsample_seed=subsample_seed,
+        impute_missing=impute_missing,
     )
     test_dataset = CombinedFedHeartDataset(
         train=False, centers=centers, data_root=data_root,
         seed=seed, train_frac=train_frac,
+        impute_missing=impute_missing,
     )
     
     # Get statistics

@@ -392,6 +392,7 @@ def train(cfg):
         feature_mask=cfg.get("feature_mask"),
         input_noise_std=cfg.get("input_noise_std"),
         subsample_seed=subsample_seed,
+        impute_missing=cfg.get("impute_missing", False),
     )
 
     # Print dataset summary and hyperparameters

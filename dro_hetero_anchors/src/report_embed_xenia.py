@@ -13,8 +13,21 @@ import pandas as pd
 GROUPS = ["g1", "g2", "g3", "g4", "g5", "g6"]
 HEAD = {"g4", "g6"}
 METHOD_ORDER = ["erm", "groupdro", "align_only", "regret_only", "ours", "group_only"]
-PRETTY = {"erm": "ERM", "groupdro": "GroupDRO (R*=0)", "align_only": "Ablation: align-only",
-          "regret_only": "Ablation: regret-only", "ours": "Ours (anchors+regret)",
+# Display names. IMPORTANT: in this codebase every non-ERM arm has GroupDRO switched on.
+# The `regret` flag does not replace GroupDRO, it changes what drives the lambda update:
+# raw loss L_g (standard GroupDRO, i.e. R*=0) versus excess loss L_g - R*_g (regret-DRO).
+# The internal key "align_only" is therefore a misnomer: that arm is anchors + GroupDRO,
+# not alignment on its own. These labels match the tabular naming so the two can be put
+# side by side:
+#     align_only  ==  tabular "Ours_GDRO"     (anchors + standard GroupDRO)
+#     ours        ==  tabular "Ours_Regret"   (anchors + regret-DRO)
+# Note there is no anchors-without-DRO arm here (tabular's "AnchorsOnly"); Xenia's spec
+# does not define one, so that cell of the ablation is absent on EMBED.
+PRETTY = {"erm": "ERM",
+          "groupdro": "GroupDRO (raw loss)",
+          "align_only": "Ours: anchors + GroupDRO",
+          "regret_only": "Regret-DRO (no anchors)",
+          "ours": "Ours: anchors + regret-DRO",
           "group_only": "Group-only (dedicated)"}
 
 

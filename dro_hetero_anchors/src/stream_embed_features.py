@@ -14,7 +14,7 @@ Then train locally on the cache (minutes) with train_embed_xenia.py.
 """
 from __future__ import annotations
 import argparse, json, os, shutil, subprocess, sys, time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import numpy as np
 import pandas as pd
 import torch
@@ -95,7 +95,7 @@ def fetch_bytes(rel, profile=None):
 
 
 def decode(src, size=224):
-    """src: filesystem path OR raw DICOM bytes."""
+    """src: filesystem path OR raw DICOM bytes. Returns uint8 (small to pickle)."""
     import pydicom
     from pydicom.pixel_data_handlers.util import apply_voi_lut
     from PIL import Image
@@ -109,7 +109,29 @@ def decode(src, size=224):
         arr = arr.max() - arr
     arr = (arr - arr.min()) / (arr.max() - arr.min() + 1e-8)
     return np.asarray(Image.fromarray((arr * 255).astype(np.uint8)).resize((size, size)),
-                      dtype=np.float32) / 255.0
+                      dtype=np.uint8)
+
+
+# module-level worker so it is picklable by ProcessPoolExecutor. DICOM decode is CPU-bound
+# Python work, so threads are GIL-serialized (observed: 1.5 of 8 cores busy, 4 img/s).
+# Separate processes each get their own GIL and their own boto3 client -> real parallelism.
+_WORKER_PROFILE = None
+
+
+def _init_worker(profile):
+    global _WORKER_PROFILE
+    _WORKER_PROFILE = profile
+    get_s3(profile, pool=8)
+
+
+def _fetch_decode(rel):
+    b = fetch_bytes(rel, _WORKER_PROFILE)
+    if b is None:
+        return None
+    try:
+        return (rel, decode(b))
+    except Exception:
+        return None
 
 
 @torch.no_grad()
@@ -146,18 +168,9 @@ def main():
     vit = build_vit(device)
     mean, std = IMAGENET_MEAN.to(device), IMAGENET_STD.to(device)
 
-    get_s3(args.profile, pool=max(64, args.workers * 2))   # warm the shared client
     t0 = time.time()
-
-    def fetch_and_decode(rel):
-        """download bytes -> decode, entirely in memory (never touches disk)."""
-        b = fetch_bytes(rel, args.profile)
-        if b is None:
-            return None
-        try:
-            return (rel, decode(b))
-        except Exception:
-            return None
+    pool = ProcessPoolExecutor(max_workers=args.workers,
+                               initializer=_init_worker, initargs=(args.profile,))
 
     for ci in range(0, len(todo), args.chunk):
         chunk = todo[ci:ci + args.chunk]
@@ -166,7 +179,8 @@ def main():
         def flush():
             if not buf_img:
                 return
-            x = torch.from_numpy(np.stack(buf_img)).to(device).unsqueeze(1).repeat(1, 3, 1, 1)
+            arr = np.stack(buf_img).astype(np.float32) / 255.0
+            x = torch.from_numpy(arr).to(device).unsqueeze(1).repeat(1, 3, 1, 1)
             x = (x - mean) / std
             f = vit(x).float().cpu().numpy().astype(np.float16)
             for r, v in zip(buf_rel, f):
@@ -174,15 +188,14 @@ def main():
             buf_img.clear(); buf_rel.clear()
 
         ok = 0
-        # download+decode in parallel, feed the GPU as results stream in
-        with ThreadPoolExecutor(max_workers=args.workers) as ex:
-            for res in ex.map(fetch_and_decode, chunk):
-                if res is None:
-                    continue
-                ok += 1
-                buf_rel.append(res[0]); buf_img.append(res[1])
-                if len(buf_img) >= args.batch:
-                    flush()
+        # download+decode across PROCESSES (true parallel), GPU fed as results stream back
+        for res in pool.map(_fetch_decode, chunk, chunksize=8):
+            if res is None:
+                continue
+            ok += 1
+            buf_rel.append(res[0]); buf_img.append(res[1])
+            if len(buf_img) >= args.batch:
+                flush()
         flush()
         # checkpoint (resumable)
         np.save(emb_path, np.stack(embs).astype(np.float16))
@@ -194,6 +207,7 @@ def main():
         print(f"  [{pct:5.1f}%] chunk {ci//args.chunk+1}: {ok}/{len(chunk)} ok, "
               f"cached {len(embs)}, {rate:.0f} img/s, ETA {eta:.1f}h", flush=True)
 
+    pool.shutdown(wait=True)
     print(f"DONE: {len(embs)} embeddings -> {emb_path} "
           f"({os.path.getsize(emb_path)/1e6:.1f} MB)", flush=True)
 

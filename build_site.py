@@ -154,7 +154,7 @@ def load(path):
 def summarize(by_seed, tail=None):
     """Per-seed summary stats, then mean/std across seeds."""
     worst_acc, mean_acc, worst_loss, mean_f1, max_excess = [], [], [], [], []
-    wt_acc, wt_f1, tail_acc = [], [], []
+    wt_acc, wt_f1, tail_acc, n_params = [], [], [], []
     worst_who, excess_who = [], []
     for _, groups in by_seed.items():
         if not groups:
@@ -184,6 +184,9 @@ def summarize(by_seed, tail=None):
         # Step 6 of the spec calls worst-group loss and max excess loss the headline numbers,
         # and expects them to point at different groups: a group can be far from the shared
         # model's reach (high raw loss) while already at its own floor (low excess).
+        npv = [g["n_params"] for g in groups.values() if g["n_params"] == g["n_params"]]
+        if npv:
+            n_params.append(max(npv))
         exs = [g["excess"] for g in groups.values() if g["excess"] == g["excess"]]
         if exs:
             max_excess.append(max(exs))
@@ -203,7 +206,8 @@ def summarize(by_seed, tail=None):
     return dict(worst_acc=ms(worst_acc), mean_acc=ms(mean_acc),
                 worst_loss=ms(worst_loss), mean_f1=ms(mean_f1),
                 max_excess=ms(max_excess), wt_acc=ms(wt_acc), wt_f1=ms(wt_f1),
-                tail_acc=ms(tail_acc), worst_group=modal(worst_who),
+                tail_acc=ms(tail_acc), n_params=(max(n_params) if n_params else None),
+                worst_group=modal(worst_who),
                 excess_group=modal(excess_who), seeds=len(worst_acc))
 
 
@@ -296,7 +300,11 @@ def headline_table(data, tail=None):
             f"{cell(s['tail_acc'])}{cell(s['wt_acc'])}{cell(s['wt_f1'])}"
             f"{cell(s['worst_loss'], 3)}{cell(s['max_excess'], 3)}"
             f"<td class='sw'>{html.escape(s['excess_group'] or '')}</td>"
-            f"<td class='dim'>{s['seeds']}</td></tr>")
+            # Step 5 asks for parameter counts on every row, because row 4 (REMIND) is a
+            # different architecture and the comparison is meaningless without them.
+            + (f"<td class='dim'>{int(s['n_params']):,}</td>"
+               if s.get("n_params") else "<td class='na'>—</td>")
+            + f"<td class='dim'>{s['seeds']}</td></tr>")
     foot = ("<p class='legend'>Best is marked separately for each encoder, since a "
             "common-feature model and a per-group model do not see the same inputs. "
             "<b>Tied</b> means a paired t-test over shared seeds cannot separate it from the "
@@ -311,7 +319,8 @@ def headline_table(data, tail=None):
             "<th>worst-group loss <span class='hint'>lower better</span></th>"
             "<th>max excess loss <span class='hint'>lower better</span></th>"
             "<th class='sw'>which</th>"
-            "<th>seeds</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>" + foot)
+            "<th>params</th><th>seeds</th></tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table>" + foot)
 
 
 def rstar_strip(data):

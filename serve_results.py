@@ -12,6 +12,7 @@ import argparse, csv, html, io, os, re, shutil
 
 # Paper-facing docs only. Everything else stays on disk but off the site.
 DOCS = [
+    ("Paper Draft", "documentation/PAPER_RESULTS_DRAFT.md"),
     ("Results", "documentation/ICML_RESULTS.md"),
     ("Anchor Analysis", "documentation/ANCHOR_RESULTS.md"),
     ("EMBED", "documentation/EMBED_XENIA.md"),

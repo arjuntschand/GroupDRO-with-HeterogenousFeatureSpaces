@@ -26,7 +26,7 @@ not part of the core alignment claim.
 | link | status | evidence |
 |---|---|---|
 | 1. per-group encoders help | supported | synthetic overlap sweep, +0.15 at full overlap rising to +23.94 at zero overlap |
-| 2. the alignment is class-conditional | **not supported** | random anchor targets do as well as real ones, on both NHANES and EMBED |
+| 2. the alignment is class-conditional | **not supported, settled** | random anchor targets match real ones on 3 datasets, both loss forms, 10 seeds each |
 | 3. groups become geometrically consistent | **supported and now measured** | cross-group latent misalignment falls from 2.24 to 0.16 over 5 seeds |
 
 ## Link 3: the alignment is real and we can measure it
@@ -67,8 +67,9 @@ matters, this should break the method.
 
 Real anchors lead on three of the four rows but nothing reaches significance, and on EMBED tail
 the random anchors are actually ahead. **We cannot claim class-conditional structure is the
-operative mechanism.** The write-up should say the anchors align group latent distributions, and
-drop the "class-conditional" qualifier, unless the pending runs change the picture.
+operative mechanism.** The write-up should say the anchors align group latent distributions and
+drop the "class-conditional" qualifier. The pending runs have now finished and did not change
+the picture (see below).
 
 ## An implementation gap that partly explains this
 
@@ -95,24 +96,31 @@ control: under the pooled form, scrambling labels still leaves a loss that colla
 space, so alignment survives and the control cannot tell the two hypotheses apart.
 
 Eq. 18 is now available on the tabular trainers behind `per_group_fit` (default off, so every
-earlier result still reproduces). A single-seed check on NHANES-disjoint:
+earlier result still reproduces).
 
-| arm | worst-group | group_align |
-|---|---|---|
-| pooled / real | 75.05 | 0.164 |
-| pooled / random | 76.22 | 0.105 |
-| pergroup / real | **76.55** | 0.112 |
-| pergroup / random | 76.23 | 0.090 |
+**The 10-seed answer: eq. 18 does not rescue the class-conditional claim.** A single-seed check
+had suggested it might, showing real minus random flipping from -1.17 to +0.32. That was noise.
+At 10 seeds on both NHANES modes:
 
-real minus random goes from -1.17 under the pooled form to +0.32 under eq. 18, which is the
-direction the claim predicts, and per-group/real is the best arm on the board. That is one seed,
-so it is a hint and nothing more. A 10-seed version on both NHANES modes is running.
+| mode | fit form | real | random | real - random | p |
+|---|---|---|---|---|---|
+| disjoint | pooled | 75.79 | 76.54 | -0.75 | 0.16 |
+| disjoint | **per-group (eq. 18)** | 76.54 | 76.73 | **-0.19** | 0.68 |
+| nested | pooled | 74.51 | 73.45 | +1.06 | 0.11 |
+| nested | **per-group (eq. 18)** | 74.33 | 73.66 | **+0.68** | 0.25 |
 
-Against that, EMBED already used eq. 18 and still shows no significant real-versus-random gap.
-One fair caveat there: EMBED's groups are view-subsets of the same breast, so their features are
-highly redundant and alignment may be close to free no matter what the targets are. That is the
-same redundancy that predicts our null against GroupDRO on EMBED. NHANES-disjoint, where groups
-have genuinely private features, is the sharper test.
+The class-conditional claim is now tested on three datasets, under both forms of the loss, at
+10 seeds each, and it fails every time. We should treat this as settled and state it plainly in
+the paper rather than leave it open.
+
+Eq. 18 is still worth keeping for two reasons that have nothing to do with the control. It is
+what the GroupDRO section of the write-up actually specifies, so the implementation should match
+it. And it measurably improves both alignment and accuracy on disjoint: `group_align` 0.152 ->
+0.121 and worst-group 75.79 -> 76.54.
+
+The alignment effect, meanwhile, is enormous and holds at 10 seeds. With anchors off,
+`group_align` is 3.030 on disjoint and 7.651 on nested. With them on it is about 0.12 in both.
+That is a 25 to 65 fold improvement, and it is the part of the claim the evidence supports.
 
 ## A labelling problem in the baselines
 

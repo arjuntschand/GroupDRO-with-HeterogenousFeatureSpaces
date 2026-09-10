@@ -180,6 +180,17 @@ blockquote{border-left:3px solid var(--acc);margin:12px 0;padding:2px 0 2px 14px
 strong{color:var(--fg)}
 .meta{color:var(--mut);font-size:12px;margin-bottom:14px}
 hr{border:0;border-top:1px solid var(--bd);margin:26px 0}
+/* in-page jump menu for the consolidated Results tab, which is long by design */
+.jump{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 22px;padding:11px 13px;
+background:var(--panel);border:1px solid var(--bd);border-radius:9px}
+.jump a{color:var(--acc2);text-decoration:none;font-size:12.5px;padding:4px 10px;
+border:1px solid var(--bd);border-radius:6px}
+.jump a:hover{background:var(--bg);border-color:var(--acc2)}
+/* anchored headings should not hide under the sticky header when jumped to */
+h2[id]{scroll-margin-top:76px}
+details{margin:14px 0;border:1px solid var(--bd);border-radius:9px;padding:4px 13px;
+background:var(--panel)}
+summary{font-size:13px}
 """
 
 JS = """
@@ -436,47 +447,48 @@ def build(outdir=SITE):
 
     cross, per_ds = split_results_md()
 
-    # 1. Overview
-    tabs.append(("Overview", "sec-info"))
-    secs.append(("sec-info", datasets_section()))
-
-    # 1b. Paper draft: the written-up results, first thing after the overview
-    if os.path.exists("documentation/PAPER_RESULTS_DRAFT.md"):
-        tabs.append(("Paper Draft", "sec-draft"))
-        secs.append(("sec-draft", md_to_html(open("documentation/PAPER_RESULTS_DRAFT.md").read())))
-
-    # 1c. Claim audit: which claims the runs support and which they do not. Sits right after the
-    # draft because it is the thing a reader (or Xenia) should see before reading any table.
-    if os.path.exists("documentation/CLAIM_AUDIT.md"):
-        tabs.append(("Claim Audit", "sec-claims"))
-        secs.append(("sec-claims", md_to_html(open("documentation/CLAIM_AUDIT.md").read())))
-
-    # 1d. NHANES nested vs disjoint: what each mode is and why both are reported. This was the
-    # single most common point of confusion when reading the dataset tabs.
-    if os.path.exists("documentation/NHANES_MODES.md"):
-        tabs.append(("NHANES modes", "sec-nhmodes"))
-        secs.append(("sec-nhmodes", md_to_html(open("documentation/NHANES_MODES.md").read())))
-
-    # 2. Headline (cross-dataset tables + main figure)
-    hl = ["<h2>Headline results</h2>"]
+    # ── Tab 1: Start here ────────────────────────────────────────────────────────────────
+    # The site used to open on a dense dataset-inventory page and spread its content over
+    # eleven tabs, which meant a reader had to already know the project to navigate it.
+    # It now opens on a plain-language summary and consolidates into five tabs organised by
+    # what someone wants to know, rather than by which script produced the numbers.
+    start = []
+    if os.path.exists("documentation/START_HERE.md"):
+        start.append(md_to_html(open("documentation/START_HERE.md").read()))
+    # the single most important table sits directly under the summary
     for k in cross:
         if k.startswith("Table 1"):
-            hl.append(md_to_html(cross[k]))
-    hl.append(figblock([f for f in figs if "fig1" in f]))
+            start.append("<hr><h2>Headline table</h2>")
+            start.append(md_to_html(cross[k]))
+    start.append(figblock([f for f in figs if "fig1" in f]))
+    tabs.append(("Start here", "sec-start")); secs.append(("sec-start", "".join(start)))
+
+    # ── Tab 2: Results ───────────────────────────────────────────────────────────────────
+    # Everything that used to be five separate tabs (Headline, Fed-Heart, NHANES-nested,
+    # NHANES-disjoint, EMBED) is now one scrollable page with a jump menu at the top. Each
+    # dataset keeps its own context box so a table is never shown without saying what its
+    # groups are.
+    res = ["<h2>Results by dataset</h2>",
+           "<p>Four datasets. Each section starts with what the groups actually are, then the "
+           "numbers. Worst-group accuracy is the column to watch.</p>",
+           "<div class='jump'>"]
+    for anchor, name in [("r-fedheart", "Fed-Heart"), ("r-nhnested", "NHANES nested"),
+                         ("r-nhdisjoint", "NHANES disjoint"), ("r-embed", "EMBED")]:
+        res.append(f"<a href='#{anchor}'>{name}</a>")
+    res.append("</div>")
     for k in cross:
         if k.startswith("Table 6"):
-            hl.append(md_to_html(cross[k]))
-    tabs.append(("Headline", "sec-headline")); secs.append(("sec-headline", "".join(hl)))
+            res.append(md_to_html(cross[k]))
 
-    # 3. One tab per dataset
-    DS_TABS = [("Fed-Heart", "Fed-Heart"), ("NHANES-nested", "NHANES-nested (natural)"),
-               ("NHANES-disjoint", "NHANES-disjoint (synthetic)")]
-    for label, key in DS_TABS:
+    DS_TABS = [("Fed-Heart", "Fed-Heart", "r-fedheart"),
+               ("NHANES-nested", "NHANES-nested (natural)", "r-nhnested"),
+               ("NHANES-disjoint", "NHANES-disjoint (synthetic)", "r-nhdisjoint")]
+    for label, key, anchor in DS_TABS:
         parts = per_ds.get(key)
         if not parts:
             continue
         info = next((d for d in DATASETS_INFO if d["name"].startswith(label)), None)
-        body = [f"<h2>{html.escape(key)}</h2>"]
+        body = [f"<h2 id='{anchor}'>{html.escape(key)}</h2>"]
         if info:
             rows = "".join(f"<tr><td>{html.escape(a)}</td><td>{html.escape(b)}</td>"
                            f"<td>{html.escape(c)}</td><td>{html.escape(e)}</td></tr>"
@@ -502,30 +514,12 @@ def build(outdir=SITE):
             for tname, content in parts:
                 body.append(f"<h3>{html.escape(_dedash(tname))}</h3>")
                 body.append(md_to_html(content))
-        pgf = [f for f in figs if "fig2" in f]
-        if pgf:
-            body.append(figblock(pgf, "Per-group figure (all datasets)"))
-        sid = "sec-" + label.lower().replace("-", "")
-        tabs.append((label, sid)); secs.append((sid, "".join(body)))
+        res.append("".join(body) + "<hr>")
 
-    # 4. Mechanism (anchor analysis + 2x2 + parameter test + figs 3/4)
-    mech = ["<h2>Mechanism &amp; ablations</h2>"]
-    for k in cross:
-        if k.startswith("Table 4") or k.startswith("Table 5"):
-            mech.append(md_to_html(cross[k]))
-    mech.append(figblock([f for f in figs if "fig3" in f or "fig4" in f]))
-    if os.path.exists("documentation/MECHANISM_CONTROLS.md"):
-        mech.append("<hr>")
-        mech.append(md_to_html(open("documentation/MECHANISM_CONTROLS.md").read()))
-    if os.path.exists("documentation/ANCHOR_RESULTS.md"):
-        mech.append("<hr>")
-        mech.append(md_to_html(open("documentation/ANCHOR_RESULTS.md").read()))
-    tabs.append(("Mechanism", "sec-mech")); secs.append(("sec-mech", "".join(mech)))
-
-    # 5. EMBED: production results first, methodology notes collapsed underneath
-    emb = []
+    # EMBED goes into the same Results page rather than its own tab
+    emb = ["<h2 id='r-embed'>EMBED (mammography)</h2>"]
     if os.path.exists("runs/embed_xenia_production/REPORT.md"):
-        emb.append("<h2>EMBED, full dataset (128,680 rows / 22,997 patients)</h2>")
+        emb.append("<p class='meta'>Full dataset, 128,680 rows across 22,997 patients.</p>")
         emb.append("<div class='fig'><p>Frozen ViT-Base backbone, per-view projections into "
                    "per-group MLPs, shared head, four diagonal Gaussian class anchors. Six "
                    "groups defined by which mammogram views a breast has. Two head groups "
@@ -545,27 +539,63 @@ def build(outdir=SITE):
                    "61.10 to 59.80 (+1.30 for real anchors, p=0.35) and tail-mean from 67.00 to "
                    "67.50 (-0.50 for real anchors, p=0.21). Neither is significant, so on EMBED "
                    "we cannot show the class-conditional structure is what does the work. See "
-                   "the Claim Audit tab.</p></div>")
+                   "the What holds up tab.</p></div>")
         emb.append(md_to_html(open("runs/embed_xenia_production/REPORT.md").read()))
     if os.path.exists("documentation/EMBED_XENIA.md"):
-        emb.append("<hr><details><summary style='cursor:pointer;color:var(--mut);padding:8px 0'>"
+        emb.append("<details><summary style='cursor:pointer;color:var(--mut);padding:8px 0'>"
                    "Methodology, data construction, and the earlier 13% pilot</summary>"
                    "<div style='opacity:.8'>")
         emb.append(md_to_html(open("documentation/EMBED_XENIA.md").read()))
         emb.append("</div></details>")
-    if emb:
-        tabs.append(("EMBED", "sec-embed")); secs.append(("sec-embed", "".join(emb)))
+    res.append("".join(emb))
+    pgf = [f for f in figs if "fig2" in f]
+    if pgf:
+        res.append(figblock(pgf, "Per-group accuracy across datasets"))
+    tabs.append(("Results", "sec-results")); secs.append(("sec-results", "".join(res)))
 
+    # ── Tab 3: What holds up ─────────────────────────────────────────────────────────────
+    # The claim audit and the mechanism evidence belong together: one says which claims survive,
+    # the other is the evidence they are judged against. They were previously two tabs apart.
+    hold = []
+    if os.path.exists("documentation/CLAIM_AUDIT.md"):
+        hold.append(md_to_html(open("documentation/CLAIM_AUDIT.md").read()))
+    hold.append("<hr><h2>Ablations and mechanism controls</h2>")
+    for k in cross:
+        if k.startswith("Table 4") or k.startswith("Table 5"):
+            hold.append(md_to_html(cross[k]))
+    hold.append(figblock([f for f in figs if "fig3" in f or "fig4" in f]))
+    for doc, cap in [("documentation/MECHANISM_CONTROLS.md", "Mechanism controls"),
+                     ("documentation/ANCHOR_RESULTS.md", "Anchor weight analysis")]:
+        if os.path.exists(doc):
+            hold.append(f"<details><summary style='cursor:pointer;color:var(--mut);"
+                        f"padding:8px 0'>{html.escape(cap)} (detail)</summary>"
+                        f"<div style='opacity:.85'>{md_to_html(open(doc).read())}</div></details>")
+    tabs.append(("What holds up", "sec-holds")); secs.append(("sec-holds", "".join(hold)))
+
+    # ── Tab 4: Reference ─────────────────────────────────────────────────────────────────
+    # Glossary, dataset inventory and the NHANES modes explainer. Reference material a reader
+    # dips into, so it is one tab rather than three.
+    ref = [datasets_section()]
+    if os.path.exists("documentation/NHANES_MODES.md"):
+        ref.append("<hr>")
+        ref.append(md_to_html(open("documentation/NHANES_MODES.md").read()))
+    tabs.append(("Reference", "sec-ref")); secs.append(("sec-ref", "".join(ref)))
+
+    # ── Tab 5: Paper draft ───────────────────────────────────────────────────────────────
+    if os.path.exists("documentation/PAPER_RESULTS_DRAFT.md"):
+        tabs.append(("Paper draft", "sec-draft"))
+        secs.append(("sec-draft", md_to_html(open("documentation/PAPER_RESULTS_DRAFT.md").read())))
+
+    # ── Tab 6: Data ──────────────────────────────────────────────────────────────────────
     # Run logs used to have their own tab. Removed: raw console tails are debugging output, not
     # a result, and they pushed the tabs a reader actually needs further down the bar. The logs
     # are still in the repo under runs/*.log for anyone who wants to audit a specific run.
-
-    # csvs
-    ch = ["<h2>Raw metrics (metrics_long.csv)</h2>",
-          "<p>Per-group rows in the Step-6 schema: accuracy, macro_f1, loss, R_star, excess_loss.</p>"]
+    ch = ["<h2>Raw per-seed numbers</h2>",
+          "<p>One row per group per seed: accuracy, macro-F1, loss, R*, excess loss. This is the "
+          "source data behind every table on this site, if you want to check something.</p>"]
     for k, (title, path) in enumerate(CSVS):
         ch.append(csv_section(title, path, f"csv{k}"))
-    tabs.append(("Raw CSVs", "sec-csv")); secs.append(("sec-csv", "".join(ch)))
+    tabs.append(("Data", "sec-csv")); secs.append(("sec-csv", "".join(ch)))
 
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "
                   f"class='{'on' if n == 0 else ''}'>{html.escape(t)}</a>"

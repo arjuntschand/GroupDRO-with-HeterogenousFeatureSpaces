@@ -120,7 +120,10 @@ def load(path):
                 "acc": float(acc) * 100,
                 "f1": float(r.get("macro_f1") or "nan") * 100,
                 "loss": float(r.get("loss") or "nan"),
+                "excess": float(r.get("excess_loss") or "nan"),
+                "rstar": float(r.get("R_star") or "nan"),
                 "n": float(r.get("n") or 0),
+                "n_params": float(r.get("n_params") or "nan"),
             }
         except ValueError:
             continue
@@ -129,7 +132,7 @@ def load(path):
 
 def summarize(by_seed):
     """Per-seed summary stats, then mean/std across seeds."""
-    worst_acc, mean_acc, worst_loss, mean_f1 = [], [], [], []
+    worst_acc, mean_acc, worst_loss, mean_f1, max_excess = [], [], [], [], []
     for _, groups in by_seed.items():
         if not groups:
             continue
@@ -142,12 +145,19 @@ def summarize(by_seed):
             worst_loss.append(max(losses))
         if f1s:
             mean_f1.append(sum(f1s) / len(f1s))
+        # Step 6 of the spec calls worst-group loss and max excess loss the headline numbers,
+        # and expects them to point at different groups: a group can be far from the shared
+        # model's reach (high raw loss) while already at its own floor (low excess).
+        exs = [g["excess"] for g in groups.values() if g["excess"] == g["excess"]]
+        if exs:
+            max_excess.append(max(exs))
     def ms(v):
         if not v:
             return None
         return (sum(v) / len(v), st.stdev(v) if len(v) > 1 else 0.0)
     return dict(worst_acc=ms(worst_acc), mean_acc=ms(mean_acc),
-                worst_loss=ms(worst_loss), mean_f1=ms(mean_f1), seeds=len(worst_acc))
+                worst_loss=ms(worst_loss), mean_f1=ms(mean_f1),
+                max_excess=ms(max_excess), seeds=len(worst_acc))
 
 
 def cell(v, digits=1):
@@ -235,7 +245,7 @@ def headline_table(data):
             f"<td class='sw'>{html.escape(dro_c)}</td>"
             f"<td class='sw'>{html.escape(anc_c)}</td>"
             f"{cell(s['worst_acc'])}{cell(s['mean_acc'])}{cell(s['mean_f1'])}"
-            f"{cell(s['worst_loss'], 3)}"
+            f"{cell(s['worst_loss'], 3)}{cell(s['max_excess'], 3)}"
             f"<td class='dim'>{s['seeds']}</td></tr>")
     foot = ("<p class='legend'>Best is marked separately for each encoder, since a "
             "common-feature model and a per-group model do not see the same inputs. "
@@ -246,7 +256,24 @@ def headline_table(data):
             "<th>worst-group acc <span class='hint'>higher better</span></th>"
             "<th>mean acc</th><th>macro-F1</th>"
             "<th>worst-group loss <span class='hint'>lower better</span></th>"
+            "<th>max excess loss <span class='hint'>lower better</span></th>"
             "<th>seeds</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>" + foot)
+
+
+def rstar_strip(data):
+    """R*_g is a property of the data, not of a method, so it is shown once above the table
+    rather than repeated in every row."""
+    vals = {}
+    for by_seed in data.values():
+        for gr in by_seed.values():
+            for g, m in gr.items():
+                if m["rstar"] == m["rstar"] and m["rstar"] != 0:
+                    vals.setdefault(g, []).append(m["rstar"])
+    if not vals:
+        return ""
+    cells = " · ".join(f"<b>{html.escape(g)}</b> {sum(v)/len(v):.3f}"
+                       for g, v in sorted(vals.items()))
+    return f"<p class='legend'>Reference loss R*: {cells}</p>"
 
 
 def pergroup_table(data, glegend, metric="acc"):
@@ -506,6 +533,14 @@ def build(outdir=SITE):
             body.append(f"<div class='card'>{headline_table(data)}</div>")
             body.append("<h3>Accuracy by group</h3>")
             body.append(f"<div class='card'>{pergroup_table(data, d['groups'], 'acc')}</div>")
+            body.append("<h3>Excess loss by group</h3>")
+            body.append("<p class='blurb'>Loss above each group's own reference loss R*. This "
+                        "separates a group the model is neglecting (low R*, high excess) from "
+                        "one that is simply hard (high R*, low excess). R* is measured once by "
+                        "training on that group alone with 5-fold cross validation, and is the "
+                        "same constant for every method.</p>")
+            body.append(f"<div class='card'>{rstar_strip(data)}"
+                        f"{pergroup_table(data, d['groups'], 'excess')}</div>")
             body.append("<h3>Loss by group</h3>")
             body.append(f"<div class='card'>{pergroup_table(data, d['groups'], 'loss')}</div>")
         sid = "sec-" + d["key"]

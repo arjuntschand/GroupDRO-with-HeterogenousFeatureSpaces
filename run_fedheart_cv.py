@@ -65,6 +65,8 @@ def read_best(run_dir):
             "overall": fl(best, "test_overall_acc"),
             "balanced": fl(best, "test_balanced_acc"),
             "per_group_acc": lst("test_per_group_acc"),
+            "per_group_loss": lst("test_per_group_loss"),
+            "per_group_f1": lst("test_per_group_f1"),
             "per_group_counts": lst("test_per_group_counts")}
 
 
@@ -126,7 +128,15 @@ def main():
                 G = min(len(p) for p in pg)
                 acc = np.array([p[:G] for p in pg]); cnt = np.array([c[:G] for c in cn])
                 pooled = (acc * cnt).sum(0) / np.maximum(cnt.sum(0), 1)
+                def pool(key):
+                    vv = [m.get(key) for m in fold_metrics if m.get(key)]
+                    if not vv or len(vv) != len(cn):
+                        return None
+                    a = np.array(vv); w = np.array(cn)
+                    return ((a * w).sum(0) / np.maximum(w.sum(0), 1)).tolist()
                 results[label][seed] = {
+                    "per_group_loss": pool("per_group_loss"),
+                    "per_group_f1": pool("per_group_f1"),
                     "per_group_acc": pooled.tolist(),
                     "per_group_n": cnt.sum(0).tolist(),
                     "worst": float(pooled.min()),

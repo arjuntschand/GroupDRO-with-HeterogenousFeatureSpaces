@@ -25,7 +25,14 @@ import yaml
 
 BASE = "experiments/fedheart_exp_paper_hetagg_gdro.yaml"
 METHODS = [   # (label, common_encoder, groupdro, anchor_weight, use_regret)
-    ("ERM",         True,  False, 0.001, False),
+    # Same 2x2x2 grid as the tabular matrix (encoder x DRO x anchors). The cross-validated
+    # protocol previously ran only the per-group half, so the encoder axis was never varied
+    # here even though this is the protocol we actually trust for Fed-Heart.
+    ("ERM",                 True,  False, 0.001, False),
+    ("PerGroupOnly",        False, False, 0.001, False),
+    ("Shared_GDRO",         True,  True,  0.001, False),
+    ("Shared_Anchors",      True,  False, 0.1,   False),
+    ("Shared_Anchors_GDRO", True,  True,  0.1,   False),
     ("GroupDRO",    False, True,  0.001, False),
     ("RegretDRO",   False, True,  0.001, True),
     ("AnchorsOnly", False, False, 0.1,   False),

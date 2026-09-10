@@ -20,12 +20,25 @@ SITE = "site"
 # ── datasets ────────────────────────────────────────────────────────────────────────────
 # key: (tab label, csv path, one-line descriptor, group legend, accuracy column)
 DATASETS = [
-    dict(key="fedheart", label="Fed-Heart", path="runs/matrix_fedheart/metrics_long.csv",
+    # Fed-Heart reads the 5-fold cross-validated run, not the single-split matrix. The old
+    # protocol dropped every row with a missing value (Switzerland is missing cholesterol on
+    # most records, so 63% of that site vanished) and then tested on 20% of the remainder,
+    # leaving Switzerland with 10 test patients. Worst-group accuracy could only move in
+    # 10-point steps and half the seeds landed on identical values, which is what made the
+    # summary table crown a winner that a paired test did not support. Median imputation plus
+    # rotating folds evaluates all 925 patients, Switzerland included at 125.
+    dict(key="fedheart", label="Fed-Heart", path="runs/fedheart_cv/metrics_long.csv",
          task="Binary heart-disease prediction", split="4 hospitals",
          blurb="Four hospitals, each recording a different subset of clinical tests. The "
-               "heterogeneity is real, not constructed.",
-         groups={"g0": "Cleveland, 10 features", "g1": "Hungarian, 8 features",
-                 "g2": "Switzerland, 8 features", "g3": "VA, 9 features"}),
+               "heterogeneity is real, not constructed. Evaluated with 5-fold cross "
+               "validation and median imputation, so every one of the 925 patients is tested.",
+         caveat="5 seeds x 5 folds, every patient held out exactly once, per-group accuracy "
+                "pooled by fold count. Group sizes are Cleveland 305, Hungarian 295, "
+                "Switzerland 125, VA 200. The earlier single-split protocol tested Switzerland "
+                "on 10 patients and is superseded. Loss and macro-F1 are blank because the "
+                "cross-validation runner recorded accuracy only.",
+         groups={"g0": "Cleveland, 305 patients", "g1": "Hungarian, 295 patients",
+                 "g2": "Switzerland, 125 patients", "g3": "VA, 200 patients"}),
     dict(key="nhnested", label="NHANES nested",
          path="runs/matrix_nhanes_nested/metrics_long.csv",
          task="Binary cardiovascular disease prediction", split="assessment completeness",
@@ -61,7 +74,7 @@ METHODS = [
     ("Shared_Anchors",      ["Shared_Anchors"],                  "Anchors (shared encoder)",  "ours"),
     ("AnchorsOnly",         ["AnchorsOnly", "anchors_only"],     "Anchors, no DRO",           "ours"),
     ("Shared_Anchors_GDRO", ["Shared_Anchors_GDRO"],             "Anchors + DRO (shared)",    "ours"),
-    ("Ours_GDRO",           ["Ours_GDRO", "align_only"],         "Anchors + GroupDRO",        "ours"),
+    ("Ours_GDRO",           ["Ours_GDRO", "Ours", "align_only"], "Anchors + GroupDRO",        "ours"),
     ("RegretDRO",           ["RegretDRO", "regret_only"],        "Regret-DRO, no anchors",    "base"),
     ("Ours_Regret",         ["Ours_Regret", "ours"],             "Anchors + Regret-DRO",      "ours"),
     ("group_only",          ["group_only"],                      "Dedicated per-group model", "base"),

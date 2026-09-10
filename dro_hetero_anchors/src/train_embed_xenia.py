@@ -193,6 +193,14 @@ METHOD_FLAGS = {
     # 2x2 (anchors x DRO) has an empty cell and we cannot tell whether the anchors help on
     # their own or only in combination with DRO, which is exactly the synergy question.
     "anchors_only": dict(dro=False, anchors=True, regret=False, select="avg_loss"),
+    # Mechanism control: identical to "align_only" except each sample is pulled toward a
+    # RANDOM class anchor instead of its own. Same loss, same parameters, same magnitude,
+    # but the class-conditional structure is destroyed. On both NHANES modes this control
+    # matched the real anchors, which would mean the class structure is not what helps.
+    # EMBED has 4 classes rather than 2, so random assignment is a far harsher scramble
+    # and is the sharper test of that story.
+    "rand_anchor":  dict(dro=True,  anchors=True, regret=False, select="avg_loss",
+                         random_anchor_targets=True),
     "groupdro":    dict(dro=True,  anchors=False, regret=False, select="worst_group_loss"),
     "align_only":  dict(dro=True,  anchors=True,  regret=False, select="avg_loss"),
     "regret_only": dict(dro=True,  anchors=False, regret=True,  select="max_excess"),
@@ -272,7 +280,13 @@ def train_one(method, data, masks, device, rstar, seed,
                 y = sub["y"][sel]
                 logits, z = model(g, feats)
                 lt = F.cross_entropy(logits, y)
-                lf = anchor_fit_loss(z, y, model.anchors) if flags["anchors"] else torch.zeros((), device=device)
+                if flags["anchors"]:
+                    y_anchor = y
+                    if flags.get("random_anchor_targets"):
+                        y_anchor = torch.randint(0, NUM_CLASSES, y.shape, device=y.device)
+                    lf = anchor_fit_loss(z, y_anchor, model.anchors)
+                else:
+                    lf = torch.zeros((), device=device)
                 raw.append((lt + lam_fit * lf).detach())
                 comp = (lt - rstar_t[gi]) + lam_fit * lf     # objective term (R* is a constant)
                 task_total = task_total + lam[gi] * comp

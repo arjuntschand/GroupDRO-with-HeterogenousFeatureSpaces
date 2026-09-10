@@ -30,6 +30,7 @@ PRETTY = {"erm": "ERM",
           "align_only": "Ours: anchors + GroupDRO",
           "regret_only": "Regret-DRO (no anchors)",
           "ours": "Ours: anchors + regret-DRO",
+          "rand_anchor": "Control: RANDOM anchor targets",
           "group_only": "Group-only (dedicated)"}
 
 

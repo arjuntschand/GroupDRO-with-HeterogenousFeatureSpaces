@@ -653,11 +653,22 @@ def build(outdir=SITE):
             tail = d.get("tail")
             # figures first: they are generated from this same CSV by make_figures.py, so a
             # figure can never disagree with the table under it
-            figs = [(f"figs/{d['key']}_ladder.png",
-                     "What each step of the pipeline is worth. Error bars are 95% confidence "
-                     "intervals over seeds."),
-                    (f"figs/{d['key']}_pergroup.png",
-                     "Per-group accuracy, common-features baseline against the full method.")]
+            if d["key"] == "embed":
+                figs = [(f"figs/{d['key']}_lambda.png",
+                         "Where each method spends its group weight, averaged over 10 seeds. "
+                         "GroupDRO collapses onto g4 alone; ours splits across g4 and g6. "
+                         "Neither puts weight on the tail groups. g5 is the clearest case: it "
+                         "has by far the highest reference loss at 1.28, so it is intrinsically "
+                         "hard rather than neglected, and regret correctly declines to push on "
+                         "it. That is the rule working as designed, and it is also why regret "
+                         "does not raise worst-group accuracy here.")]
+            else:
+                figs = [(f"figs/{d['key']}_ladder.png",
+                         "What each step of the pipeline is worth. Error bars are 95% confidence "
+                         "intervals over seeds."),
+                        (f"figs/{d['key']}_pergroup.png",
+                         "Per-group accuracy, common-features baseline against the full "
+                         "method.")]
             shown = [(u, c) for u, c in figs if os.path.exists(os.path.join(SITE, u))]
             if shown:
                 body.append("<div class='grid'>" + "".join(

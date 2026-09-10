@@ -90,6 +90,48 @@ def fig_pergroup(data, label, glegend, path):
     return True
 
 
+def fig_rstar_lambda(run, path):
+    """The plot Step 6 asks for: R*_g on x, final lambda_g on y, one line per method.
+
+    A ladder chart is useless on EMBED because every arm is per-group there, so the first rung
+    is just ERM. This is the informative figure: it shows where each method decides to spend
+    its group weight, and whether that choice tracks how hard a group actually is.
+    """
+    import json, glob
+    rs_path = os.path.join(run, "rstar.json")
+    if not os.path.exists(rs_path):
+        return False
+    rs = json.load(open(rs_path))
+    series = {}
+    for meth, lab, col in [("groupdro", "GroupDRO (row 2)", BASE),
+                           ("ours", "Ours (row 5)", OURS)]:
+        acc = {}
+        for f in glob.glob(os.path.join(run, f"curve_{meth}_s*.json")):
+            d = json.load(open(f))
+            for g, l in zip(d["groups"], d["lambda"]):
+                acc.setdefault(g, []).append(l)
+        if acc:
+            series[lab] = ({g: float(np.mean(v)) for g, v in acc.items()}, col)
+    if not series:
+        return False
+    gs = sorted(rs, key=lambda g: rs[g])
+    fig, ax = plt.subplots(figsize=(6.4, 4.0))
+    for lab, (lam, col) in series.items():
+        ax.plot([rs[g] for g in gs], [lam.get(g, np.nan) for g in gs],
+                marker="o", ms=6, color=col, label=lab, lw=1.8)
+    for g in gs:
+        top = max(v[0].get(g, 0) for v in series.values())
+        ax.annotate(g, (rs[g], top), fontsize=8.5, color=INK,
+                    xytext=(4, 5), textcoords="offset points")
+    ax.set_xlabel("group reference loss  R*_g   (higher = intrinsically harder)", fontsize=10)
+    ax.set_ylabel("final group weight  lambda_g", fontsize=10)
+    ax.set_title("Where each method spends its group weight", fontsize=11, color=INK)
+    ax.legend(fontsize=9, frameon=False)
+    ax.spines[["top", "right"]].set_visible(False); ax.grid(alpha=.18)
+    fig.tight_layout(); fig.savefig(path, dpi=140); plt.close(fig)
+    return True
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     made = []
@@ -97,7 +139,18 @@ def main():
         data = load(d["path"])
         if not data:
             continue
-        for fn, f in [(f"{d['key']}_ladder.png", lambda p: fig_ladder(data, d["label"], p)),
+        jobs = [(f"{d['key']}_ladder.png", lambda p: fig_ladder(data, d["label"], p)),
+                (f"{d['key']}_pergroup.png",
+                 lambda p: fig_pergroup(data, d["label"], d["groups"], p))]
+        if d["key"] == "embed":
+            # every EMBED arm is per-group, so a ladder's first rung is just ERM and the chart
+            # says nothing the table does not. The weight plot is what the spec asks for.
+            jobs = [(f"{d['key']}_lambda.png",
+                     lambda p: fig_rstar_lambda(os.path.dirname(d["path"]), p))]
+        for fn, f in jobs:
+            if f(os.path.join(OUT, fn)):
+                made.append(fn)
+        for fn, f in [] if True else [(f"{d['key']}_ladder.png", lambda p: fig_ladder(data, d["label"], p)),
                       (f"{d['key']}_pergroup.png",
                        lambda p: fig_pergroup(data, d["label"], d["groups"], p))]:
             if f(os.path.join(OUT, fn)):

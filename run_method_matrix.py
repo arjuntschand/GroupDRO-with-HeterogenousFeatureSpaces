@@ -33,8 +33,24 @@ SEEDS = [42, 1337, 7, 2024, 31337, 11, 22, 33, 44, 55]
 ANCHOR_ON, ANCHOR_OFF = 0.1, 0.001
 
 # (label, common_encoder, groupdro, use_regret, anchor_weight)
+#
+# Two different baselines are needed and they were being conflated. "ERM" here is a SHARED
+# single encoder, so the ERM -> Ours gap bundles three separate changes: adding per-group
+# encoders, adding anchors, and adding GroupDRO. Per-group encoding is itself one of the
+# contributions (the synthetic overlap sweep shows it is worth up to +23.94 on its own at
+# zero feature overlap), so folding it into the baseline gap both overstates what the anchors
+# do and understates what the architecture does.
+#
+# PerGroupOnly isolates it: per-group encoders into a shared latent space and a shared head,
+# with no anchors and no DRO. That makes the decomposition additive and readable:
+#     ERM -> PerGroupOnly   = value of per-group encoders
+#     PerGroupOnly -> GroupDRO = value of DRO reweighting
+#     GroupDRO -> Ours_GDRO = value of the anchors
+# It also matches what "ERM" means on EMBED, where XeniaEmbedModel always has per-group MLP_g,
+# so EMBED's ERM row was already a PerGroupOnly row under a different name.
 METHODS = [
     ("ERM",            True,  False, False, ANCHOR_OFF),
+    ("PerGroupOnly",   False, False, False, ANCHOR_OFF),
     ("GroupDRO",       False, True,  False, ANCHOR_OFF),
     ("RegretDRO",      False, True,  True,  ANCHOR_OFF),
     ("AnchorsOnly",    False, False, False, ANCHOR_ON),

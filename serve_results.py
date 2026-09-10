@@ -68,7 +68,16 @@ DATASETS_INFO = [
 ]
 
 METHODS_INFO = [
-    ("ERM", "One shared encoder, plain cross entropy. The naive baseline with no group awareness."),
+    ("ERM", "One single shared encoder for every group, plain cross entropy. The naive baseline "
+            "with no group awareness at all. Important: on the tabular datasets this baseline "
+            "does NOT have per-group encoders, so the gap from ERM to the full method bundles "
+            "three separate changes together. On EMBED the model always has per-group encoders, "
+            "so EMBED's ERM row is really a PerGroupOnly row. Read the two datasets accordingly."),
+    ("PerGroupOnly", "Per-group encoders mapping into a shared latent space, one shared "
+                     "classifier on top, and nothing else. No anchors, no DRO. This is the arm "
+                     "that isolates what the per-group architecture is worth by itself, which "
+                     "matters because the architecture is one of the contributions rather than "
+                     "part of the baseline."),
     ("GroupDRO", "Per-group encoders plus GroupDRO, which reweights groups by their raw loss. This "
                  "is the standard robustness baseline, and the same thing as setting R* to zero."),
     ("Regret-DRO", "Same idea, but it reweights by regret instead of raw loss. Regret is how far a "
@@ -436,6 +445,12 @@ def build(outdir=SITE):
         tabs.append(("Paper Draft", "sec-draft"))
         secs.append(("sec-draft", md_to_html(open("documentation/PAPER_RESULTS_DRAFT.md").read())))
 
+    # 1c. Claim audit: which claims the runs support and which they do not. Sits right after the
+    # draft because it is the thing a reader (or Xenia) should see before reading any table.
+    if os.path.exists("documentation/CLAIM_AUDIT.md"):
+        tabs.append(("Claim Audit", "sec-claims"))
+        secs.append(("sec-claims", md_to_html(open("documentation/CLAIM_AUDIT.md").read())))
+
     # 2. Headline (cross-dataset tables + main figure)
     hl = ["<h2>Headline results</h2>"]
     for k in cross:
@@ -513,7 +528,18 @@ def build(outdir=SITE):
                    "default of 0.02 the group weights never move off their initial "
                    "proportions, so every DRO variant trains identically to ERM. These "
                    "results use 0.5 with uniform initialisation, matching what REMIND uses on "
-                   "this same dataset.</p></div>")
+                   "this same dataset.</p>"
+                   "<p><strong>Note on the ERM row.</strong> Unlike the tabular datasets, EMBED's "
+                   "model always uses per-group encoders, so the ERM row here is really a "
+                   "per-group-encoders-only baseline. It is not the shared-encoder ERM used on "
+                   "NHANES and Fed-Heart. The tabular matrix is being re-run with a matching "
+                   "PerGroupOnly arm so the two can be compared directly.</p>"
+                   "<p><strong>Random-anchor control, 9 paired seeds.</strong> Swapping each "
+                   "sample's own class anchor for a random one changes worst-group accuracy from "
+                   "61.10 to 59.80 (+1.30 for real anchors, p=0.35) and tail-mean from 67.00 to "
+                   "67.50 (-0.50 for real anchors, p=0.21). Neither is significant, so on EMBED "
+                   "we cannot show the class-conditional structure is what does the work. See "
+                   "the Claim Audit tab.</p></div>")
         emb.append(md_to_html(open("runs/embed_xenia_production/REPORT.md").read()))
     if os.path.exists("documentation/EMBED_XENIA.md"):
         emb.append("<hr><details><summary style='cursor:pointer;color:var(--mut);padding:8px 0'>"

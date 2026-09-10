@@ -657,12 +657,13 @@ def build(outdir=SITE):
                 figs = [(f"figs/{d['key']}_ladder.png",
                          "What each step is worth. EMBED has no common-features rung: g1 is "
                          "{FFDM CC} and g3 is {FFDM MLO}, so the six groups share no view and "
-                         "there is no shared-feature model to build. The ladder starts from "
-                         "per-group ERM instead. Each rung changes exactly one thing, so the "
-                         "last one holds the DRO variant at R*=0 and switches only the anchors "
-                         "on. The full method as the spec defines it (row 5) also swaps the DRO "
-                         "update to regret, which is worth a further +0.5 to 61.9; the two "
-                         "ingredients interact and are compared properly in the table below."),
+                         "there is no shared-feature model to build, so the chart starts from "
+                         "per-group ERM. Red bars have the anchors on. The interaction is "
+                         "visible here: Regret-DRO on its own does nothing (57.8, identical to "
+                         "ERM), but paired with the anchors it reaches 61.9. Regret needs the "
+                         "anchors, because it compares each group against its own reference "
+                         "loss and that comparison is only meaningful once the groups share a "
+                         "latent space."),
                         (f"figs/{d['key']}_pergroup.png",
                          "Per-group accuracy, per-group ERM against the full method. The gain "
                          "is concentrated in g2, one of the rare tail groups."),
@@ -676,8 +677,11 @@ def build(outdir=SITE):
                          "does not raise worst-group accuracy here.")]
             else:
                 figs = [(f"figs/{d['key']}_ladder.png",
-                         "What each step of the pipeline is worth. Error bars are 95% confidence "
-                         "intervals over seeds."),
+                         "What each step is worth, building up from the baseline a practitioner "
+                         "would use today. Red bars have the anchors on. The last two are the "
+                         "anchor arms of the 2x2, shown against their anchor-free counterparts "
+                         "so the effect of the anchors can be read off directly under each DRO "
+                         "variant. Error bars are 95% confidence intervals over 10 seeds."),
                         (f"figs/{d['key']}_pergroup.png",
                          "Per-group accuracy, common-features baseline against the full "
                          "method.")]

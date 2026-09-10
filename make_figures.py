@@ -24,17 +24,25 @@ from build_site import load, DATASETS, worst_by_seed
 OUT = "site/figs"
 INK, BASE, OURS = "#16181d", "#9aa1ac", "#b03a3a"
 
-LADDER = [("common features\nERM",        ["ERM"]),
-          ("+ per-group\nencoders",       ["PerGroupOnly", "erm"]),
-          ("+ GroupDRO",                  ["GroupDRO", "groupdro"]),
-          ("+ anchors\n(full method)",    ["Ours_GDRO", "Ours", "align_only"])]
+# Every bar after the first turns on one more thing, and the last two are the anchor arms of
+# the spec's 2x2. Showing GroupDRO and Regret side by side with and without anchors is what
+# makes the interaction visible: on EMBED regret alone does nothing while regret plus anchors
+# is worth +4.
+LADDER = [("ERM\ncommon features",        ["ERM"]),
+          ("+ per-group\nencoders",        ["PerGroupOnly", "erm"]),
+          ("+ GroupDRO",                   ["GroupDRO", "groupdro"]),
+          ("+ Regret-DRO",                 ["RegretDRO", "regret_only"]),
+          ("+ anchors\n& GroupDRO",        ["Ours_GDRO", "Ours", "align_only"]),
+          ("+ anchors\n& Regret-DRO",      ["Ours_Regret", "ours"])]
 
 # EMBED cannot have a common-features rung: g1 is {FFDM CC} and g3 is {FFDM MLO}, so the
 # intersection over all six groups is empty and there is no shared-view model to build.
 # Its ladder therefore starts at per-group ERM.
-LADDER_EMBED = [("ERM\n(per-group)", ["erm"]),
-                ("+ GroupDRO",       ["groupdro"]),
-                ("+ anchors",        ["align_only"])]
+LADDER_EMBED = [("ERM\nper-group encoders", ["erm"]),
+                ("+ GroupDRO",              ["groupdro"]),
+                ("+ Regret-DRO",            ["regret_only"]),
+                ("+ anchors\n& GroupDRO",   ["align_only"]),
+                ("+ anchors\n& Regret-DRO", ["ours"])]
 
 
 def pick(data, aliases):
@@ -56,13 +64,13 @@ def fig_ladder(data, label, path, rungs=None):
         xs.append(name); mus.append(np.mean(v)); errs.append(ci95(v))
     if len(xs) < 2:
         return False
-    fig, ax = plt.subplots(figsize=(6.2, 3.6))
-    cols = [BASE] * (len(xs) - 1) + [OURS]
+    fig, ax = plt.subplots(figsize=(6.2 + 0.5 * max(0, len(xs) - 4), 3.7))
+    cols = [OURS if "anchors" in n else BASE for n in xs]
     ax.bar(range(len(xs)), mus, yerr=errs, capsize=4, color=cols,
            edgecolor="none", width=.62)
     for i, (m, e) in enumerate(zip(mus, errs)):
         ax.text(i, m + e + .5, f"{m:.1f}", ha="center", fontsize=9.5, color=INK)
-    ax.set_xticks(range(len(xs))); ax.set_xticklabels(xs, fontsize=9)
+    ax.set_xticks(range(len(xs))); ax.set_xticklabels(xs, fontsize=8.5)
     ax.set_ylabel("worst-group accuracy (%)", fontsize=10)
     ax.set_title(f"{label}: what each step is worth", fontsize=11, color=INK)
     lo = min(mus) - max(6, max(errs) * 2); ax.set_ylim(max(0, lo), max(mus) + max(errs) + 4)

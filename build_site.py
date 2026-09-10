@@ -39,8 +39,8 @@ DATASETS = [
          caveat="5 seeds x 5 folds, every patient held out exactly once, per-group accuracy "
                 "pooled by fold count. Group sizes are Cleveland 305, Hungarian 295, "
                 "Switzerland 125, VA 200. The earlier single-split protocol tested Switzerland "
-                "on 10 patients and is superseded. Loss and macro-F1 are blank because the "
-                "cross-validation runner recorded accuracy only.",
+                "on 10 patients and is superseded; every figure here comes from the "
+                "cross-validated runs.",
          groups={"g0": "Cleveland, 305 patients", "g1": "Hungarian, 295 patients",
                  "g2": "Switzerland, 125 patients", "g3": "VA, 200 patients"}),
     dict(key="nhnested", label="NHANES",

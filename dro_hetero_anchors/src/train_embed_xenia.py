@@ -367,6 +367,17 @@ def main():
                     help="lambda step size. Xenia's spec is 0.02, which on EMBED's 1:1000 "
                          "group imbalance is too gentle to move lambda off the initial "
                          "proportions, making GroupDRO behave identically to ERM.")
+    # The spec's "Sizes you can change" table says to always sweep lam_fit over 0.1, 1, 10.
+    # It was only ever run at the 1.0 default because there was no flag for it.
+    ap.add_argument("--lam-fit", type=float, default=1.0,
+                    help="weight on the anchor alignment term; spec says sweep 0.1, 1, 10")
+    ap.add_argument("--lam-sep", type=float, default=1.0,
+                    help="weight on the anchor separation term")
+    # Driving the max player from TRAIN loss lets it be fooled by tail memorisation: g5 has
+    # roughly 40 training rows, so its train loss collapses, its excess goes to zero, and its
+    # lambda never grows. Validation excess is not memorised.
+    ap.add_argument("--dro-signal", choices=["train", "val"], default="train",
+                    help="whether the lambda update reads train or validation excess")
     ap.add_argument("--uniform-lambda-init", action="store_true",
                     help="initialise lambda uniformly instead of at group proportions. With "
                          "proportional init the four tail groups share only 1.5%% of the "
@@ -408,6 +419,8 @@ def main():
                 print(f"  (skip unknown method {method})"); continue
             model, info = train_one(method, data, masks, device, rstar, seed, epochs=args.epochs,
                                     gamma=args.dro_gamma,
+                                    lam_fit=args.lam_fit, lam_sep=args.lam_sep,
+                                    dro_signal=args.dro_signal,
                                     uniform_lambda_init=args.uniform_lambda_init)
             ov, pg = evaluate(model, data, masks, "test", device, rstar)
             print(f"[seed {seed}] {method}: test overall={ov['overall_acc']:.3f} "

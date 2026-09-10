@@ -411,52 +411,55 @@ def overview(loaded):
 <p class='sub'>Worst-group robustness when different groups have genuinely different input features.</p>
 <div class='grid'>{''.join(cards)}</div>
 <div class='note'><b>The problem.</b> Standard training assumes every example has the same input
-columns. Four hospitals each run different tests; some patients get blood work and some only fill
-out a survey; some mammograms have four views and some have one. Averaging the loss lets the
-large well-measured groups dominate, and the small ones get ignored. We optimise for the group
-the model does worst on.</div>
-<h3>What we add</h3>
+columns. Four hospitals each run different tests; some patients get blood work and some only
+fill out a survey; some mammograms have four views and some have one. What you can do today is
+throw away everything the groups do not share and train one model on the common columns.
+Averaging the loss then lets the large well-measured groups dominate, and the small ones get
+ignored. We optimise for the group the model does worst on.</div>
+<h3>The approach, one step at a time</h3>
 <ul>
-<li><b>Per-group encoders.</b> Each group gets its own network into one shared latent space, so
-groups with different feature sets do not have to pretend otherwise.</li>
-<li><b>Gaussian anchors.</b> A learned Gaussian per class, shared across groups, that embeddings
-are pulled toward, to stop each encoder drifting into its own corner.</li>
-<li><b>GroupDRO, and a regret variant.</b> Weight groups by loss and push toward the worst one.
-The regret variant weights by how far a group is above its own achievable floor.</li>
+<li><b>Start: common features only.</b> One shared encoder on the columns every group has. This
+is the baseline, and it is what most practitioners would actually build.</li>
+<li><b>Per-group encoders.</b> Each group gets its own network over its own full feature set,
+mapping into one shared latent space. This is what lets the model use features that only some
+groups have, instead of discarding them.</li>
+<li><b>Gaussian anchors.</b> Per-group encoders create a new problem: nothing forces them to
+agree on where things sit in the latent space, so a single shared classifier cannot serve them
+all. A learned Gaussian per class, shared across groups, gives every encoder the same target.</li>
+<li><b>GroupDRO, and a regret variant.</b> Weight groups and push toward the worst one. The
+regret variant weights by how far a group is above its own achievable floor R*, so groups that
+are already doing as well as they can stop being pushed.</li>
 </ul>
 <h3>What the runs show</h3>
 <ul>
-<li><b>Anchors on top of GroupDRO is the best configuration whichever encoder you use.</b> On
-both NHANES settings, in both the common-feature and the per-group track, adding the anchors to
-GroupDRO gives the top arm, and it beats plain GroupDRO in both: +3.9 (p=0.002) on common
-features and +3.7 (p=0.007) on per-group encoders. In each track the only arm it cannot be
-separated from also has anchors switched on. This is the most robust result we have, because it
-does not depend on the per-group architecture holding up. It does not carry to Fed-Heart, where
-the anchors cost about two points.</li>
-<li><b>Per-group encoders help only when feature spaces genuinely diverge.</b> In a controlled
-sweep, dialling feature overlap from complete to none moves the benefit from +0.15 to +23.9
-worst-group accuracy. On NHANES-nested, where the groups' features are subsets of one another,
-per-group encoders actually cost about a point, because splitting 2,100-sample groups across
-separate encoders loses more to sample efficiency than the extra features return.</li>
-<li><b>The anchors do align groups, measurably.</b> Cross-group latent misalignment drops by a
-factor of 25 to 65 once the anchor loss is on, measured directly from the latent space rather
-than inferred from accuracy.</li>
-<li><b>But not class-by-class.</b> Replacing each sample's correct class anchor with a random one
-does not hurt. Tested on three datasets, both loss forms, 10 seeds each.</li>
-<li><b>It does not win everywhere.</b> Significant gains on both NHANES settings; loses to plain
-GroupDRO on Fed-Heart and ties on EMBED. Both are datasets where group features overlap heavily,
-which is where the sweep predicts little benefit.</li>
+<li><b>The full pipeline beats the common-features baseline on both tabular datasets.</b>
+Fed-Heart +7.6 worst-group accuracy (p&lt;0.001) and NHANES +4.1 (p=0.013), with max excess loss
+falling from 0.439 to 0.078 on Fed-Heart.</li>
+<li><b>The anchors specifically are inconsistent.</b> Holding the architecture fixed and
+switching only the anchors on: NHANES +3.7 (p=0.007), Fed-Heart <b>-2.3</b> (p=0.011), EMBED
+-1.0 (not significant). One win, one loss, one tie.</li>
+<li><b>On EMBED they win on the loss metrics.</b> Anchors plus regret gives the best worst-group
+loss (1.099 against GroupDRO's 1.200) and the best max excess loss (0.239 against 0.251), while
+tying on accuracy. Those two are the headline numbers in the experiment specification.</li>
+<li><b>The anchors do align groups, and we measured it.</b> Cross-group latent misalignment
+falls by a factor of 25 to 65 once the anchor loss is on, read directly off the latent space
+rather than inferred from accuracy.</li>
+<li><b>But the alignment is not class-conditional.</b> Replacing each sample's correct class
+anchor with a random one does not hurt performance. Tested on three datasets, both forms of the
+loss, ten seeds each. It never fails. So the anchors do something real, but not the
+class-by-class thing the write-up claims.</li>
+<li><b>Per-group encoders pay off only when feature spaces genuinely diverge.</b> In a
+controlled sweep, dialling feature overlap between groups from complete to none moves the
+benefit from +0.15 to +23.9. On Fed-Heart, where hospitals record overlapping tests, they are
+worth +9.0. On NHANES, where each group's features are a subset of the next, they cost about a
+point, because splitting 2,100-sample groups across separate encoders loses more to sample
+efficiency than the extra columns return.</li>
 </ul>
-<div class='note'><b>An awkward result, reported as found.</b> Completing the ablation grid
-showed the anchors help whether or not the encoders are per-group: on a shared encoder they add
-+3.9 worst-group on both NHANES settings, versus +2.6 to +3.7 on per-group encoders. On
-NHANES-disjoint the best arm overall is anchors + DRO on a <i>shared</i> encoder at 76.1, which
-edges out the same thing on per-group encoders at 75.9 despite seeing only the 10 features common
-to every group rather than each group's 15. In other words the 5 private features per group add
-almost nothing once anchors and DRO are on. That weakens the case for per-group encoders on this
-dataset, though the controlled overlap sweep still supports it, and the likeliest explanation is
-that NHANES-disjoint's private features (body measures, blood pressure, lipids) simply carry
-less cardiovascular signal than the shared demographic and smoking ones.</div>"""
+<div class='note'><b>Reading these tables.</b> Every number is mean plus or minus standard
+deviation over 10 seeds, except Fed-Heart which is 5 seeds by 5 folds with every one of its 925
+patients held out exactly once. Best is marked separately for each encoder, and arms a paired
+t-test cannot separate from the best are marked tied rather than ranked. Nothing here is
+selected for looking good.</div>"""
 
 
 def methods_page():

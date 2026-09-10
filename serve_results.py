@@ -10,9 +10,9 @@ figure in documentation/figures/, plus the raw metrics_long.csv files as searcha
 from __future__ import annotations
 import argparse, csv, html, io, os, re, shutil
 
-# Paper-facing docs only. Everything else stays on disk but off the site.
+# NOTE: DOCS is no longer consumed by build(); tabs are constructed explicitly below.
+# Kept only as a record of which documents are paper-facing.
 DOCS = [
-    ("Paper Draft", "documentation/PAPER_RESULTS_DRAFT.md"),
     ("Results", "documentation/ICML_RESULTS.md"),
     ("Anchor Analysis", "documentation/ANCHOR_RESULTS.md"),
     ("EMBED", "documentation/EMBED_XENIA.md"),
@@ -430,6 +430,11 @@ def build(outdir=SITE):
     # 1. Overview
     tabs.append(("Overview", "sec-info"))
     secs.append(("sec-info", datasets_section()))
+
+    # 1b. Paper draft: the written-up results, first thing after the overview
+    if os.path.exists("documentation/PAPER_RESULTS_DRAFT.md"):
+        tabs.append(("Paper Draft", "sec-draft"))
+        secs.append(("sec-draft", md_to_html(open("documentation/PAPER_RESULTS_DRAFT.md").read())))
 
     # 2. Headline (cross-dataset tables + main figure)
     hl = ["<h2>Headline results</h2>"]

@@ -47,13 +47,15 @@ DATASETS = [
                "availability structure.",
          groups={"g0": "survey only, 10 features", "g1": "+ exam, 13 features",
                  "g2": "+ labs, 20 features"}),
-    dict(key="nhdisjoint", label="NHANES disjoint",
-         path="runs/matrix_nhanes_disjoint/metrics_long.csv",
-         task="Binary cardiovascular disease prediction", split="constructed partition",
-         blurb="Same patients, but we split the measurements so each group has 10 shared "
-               "features plus 5 nobody else sees. Synthetic, and a deliberate stress test.",
-         groups={"g0": "10 shared + 5 questionnaire", "g1": "10 shared + 5 body/labs",
-                 "g2": "10 shared + 5 BP/lipids"}),
+    # NHANES-disjoint is cut. It was not in Xenia's spec, not in the poster, and was invented
+    # in an earlier session: each group got the 10 shared survey features plus 5 "private" ones.
+    # A feature audit shows the partition is disjoint in columns but not in information, since
+    # G0's private set is self-reported high blood pressure, high cholesterol and diabetes while
+    # G1 and G2's private sets are the MEASURED versions of the same things. The three private
+    # sets are substitutes, which is why a shared encoder on 10 features ties per-group encoders
+    # on 15 there. So it cannot test what it was built to test. The controlled overlap sweep
+    # makes the heterogeneity argument properly and is honestly labelled synthetic.
+    # Runs are kept in runs/matrix_nhanes_disjoint/ for the appendix.
     dict(key="embed", label="EMBED", path="runs/embed_xenia_production/metrics_long.csv",
          task="4-class BI-RADS breast density", split="which imaging views exist",
          blurb="Groups are which mammogram views a breast actually has. Two head groups hold "
@@ -399,17 +401,19 @@ The regret variant weights by how far a group is above its own achievable floor.
 <ul>
 <li><b>Anchors on top of GroupDRO is the best configuration whichever encoder you use.</b> On
 both NHANES settings, in both the common-feature and the per-group track, adding the anchors to
-GroupDRO gives the top arm, and it beats plain GroupDRO every time: +3.9 (p=0.002) and +3.7
-(p=0.007) on nested, +3.9 (p=0.002) and +2.7 (p=0.002) on disjoint. In each track the only arms
-it cannot be separated from also have anchors switched on. This is the most robust result we
-have, because it does not depend on the per-group architecture holding up.</li>
+GroupDRO gives the top arm, and it beats plain GroupDRO in both: +3.9 (p=0.002) on common
+features and +3.7 (p=0.007) on per-group encoders. In each track the only arm it cannot be
+separated from also has anchors switched on. This is the most robust result we have, because it
+does not depend on the per-group architecture holding up. It does not carry to Fed-Heart, where
+the anchors cost about two points.</li>
 <li><b>Per-group encoders help only when feature spaces genuinely diverge.</b> In a controlled
 sweep, dialling feature overlap from complete to none moves the benefit from +0.15 to +23.9
 worst-group accuracy. On NHANES-nested, where the groups' features are subsets of one another,
 per-group encoders actually cost about a point, because splitting 2,100-sample groups across
 separate encoders loses more to sample efficiency than the extra features return.</li>
-<li><b>The anchors do align groups, measurably.</b> Cross-group latent misalignment drops from
-3.03 to about 0.12 on NHANES-disjoint once the anchor loss is on.</li>
+<li><b>The anchors do align groups, measurably.</b> Cross-group latent misalignment drops by a
+factor of 25 to 65 once the anchor loss is on, measured directly from the latent space rather
+than inferred from accuracy.</li>
 <li><b>But not class-by-class.</b> Replacing each sample's correct class anchor with a random one
 does not hurt. Tested on three datasets, both loss forms, 10 seeds each.</li>
 <li><b>It does not win everywhere.</b> Significant gains on both NHANES settings; loses to plain
@@ -447,13 +451,22 @@ all mapping into one shared latent space with one shared classifier on top.</p>
 <div class='card'><table class='data'><thead><tr><th>arm</th><th class='sw'>encoder</th>
 <th class='sw'>DRO</th><th class='sw'>anchors</th></tr></thead>
 <tbody>{rows}</tbody></table></div>
-<div class='note'><b>What counts as ours.</b> The three switches are the contribution taken
-together: per-group encoders into a shared latent space, Gaussian class anchors, and DRO
-reweighting. Only the two rows marked <span class='tag ours'>full method</span> are the method
-itself. Everything else is either a published baseline (ERM, GroupDRO) or an ablation that
-turns one switch off to show what that switch is worth. Regret-DRO is not a separate method
-from GroupDRO; it changes what drives the group weights from raw loss to loss above a group's
-own achievable floor.</div>
+<div class='note'><b>What counts as ours.</b> The method has <b>two ingredients</b>: anchor
+alignment, which pulls every group into one shared latent space, and regret optimisation, which
+weights groups by how far each sits above its own achievable floor R* rather than by raw loss.
+The paper's ablation is the 2x2 that separates them, anchors on or off crossed with R* used or
+set to zero. Setting R* to zero recovers standard GroupDRO, so regret is a variant of the DRO
+update rather than a method of its own. Only the rows marked
+<span class='tag ours'>full method</span> are the method itself; the rest are published
+baselines or ablations with one ingredient switched off.</div>
+<div class='note'><b>Per-group encoders are the setting, not an ingredient.</b> In the
+specification every method row uses the same per-group architecture, and the anchors are
+described as the only parameters the method adds on top of it. Groups have different input
+dimensions, so per-group encoders are what makes the problem tractable at all rather than
+something to switch off. The common-feature rows in these tables go beyond that specification:
+they are an extra robustness check, restricting one shared encoder to the features every group
+has. They are worth reading because the anchor result survives them, which means it does not
+rest on the architecture. They are not part of the paper's ablation.</div>
 <h3>Metrics</h3>
 <ul>
 <li><b>Worst-group accuracy.</b> Accuracy on whichever group the model does worst on. The main

@@ -560,13 +560,25 @@ def train(cfg):
                     ce = nn.functional.cross_entropy(logits, y)
             
             # Anchor losses
-            # MECHANISM CONTROL (c): with random_anchor_targets, each sample is matched to a
-            # RANDOM anchor instead of its class anchor. Same loss, same parameters, same
-            # magnitude, but the class-conditional structure is destroyed. If the gain
-            # survives this, the structure is not what is doing the work.
+            # MECHANISM CONTROL (c): break the correspondence between a sample and its own
+            # class anchor, and see whether the gain survives.
+            #
+            # Two ways to do that, and they are not equivalent:
+            #   "permute" (default) shuffles the batch's real labels. Each pseudo-class keeps
+            #       the true class proportions and the true count, so the per-class moments are
+            #       estimated from the same number of samples as in the real run. The ONLY thing
+            #       that changes is which sample belongs to which class.
+            #   "randint" draws labels uniformly. On an imbalanced task that also changes the
+            #       class proportions (NHANES is roughly 90/10, uniform draws give 50/50), so it
+            #       confounds "class structure destroyed" with "moments estimated from different
+            #       subset sizes". Kept for comparison with the earlier runs.
             y_anchor = y
-            if cfg.get("random_anchor_targets", False):
-                y_anchor = torch.randint(0, num_classes, y.shape, device=y.device)
+            _mode = cfg.get("random_anchor_targets", False)
+            if _mode:
+                if _mode == "randint":
+                    y_anchor = torch.randint(0, num_classes, y.shape, device=y.device)
+                else:
+                    y_anchor = y[torch.randperm(y.shape[0], device=y.device)]
             m_anc, S_anc, L_norm = anchors.forward()
             # See train_nhanes.py for the full note. pooled = eq. 11-13 (class moments pooled
             # over all groups); pergroup = eq. 18, the form the GroupDRO section specifies,

@@ -654,7 +654,15 @@ def build(outdir=SITE):
             # figures first: they are generated from this same CSV by make_figures.py, so a
             # figure can never disagree with the table under it
             if d["key"] == "embed":
-                figs = [(f"figs/{d['key']}_lambda.png",
+                figs = [(f"figs/{d['key']}_ladder.png",
+                         "What each step is worth. EMBED has no common-features rung: g1 is "
+                         "{FFDM CC} and g3 is {FFDM MLO}, so the six groups share no view and "
+                         "there is no shared-feature model to build. The ladder starts from "
+                         "per-group ERM instead."),
+                        (f"figs/{d['key']}_pergroup.png",
+                         "Per-group accuracy, per-group ERM against the full method. The gain "
+                         "is concentrated in g2, one of the rare tail groups."),
+                        (f"figs/{d['key']}_lambda.png",
                          "Where each method spends its group weight, averaged over 10 seeds. "
                          "GroupDRO collapses onto g4 alone; ours splits across g4 and g6. "
                          "Neither puts weight on the tail groups. g5 is the clearest case: it "

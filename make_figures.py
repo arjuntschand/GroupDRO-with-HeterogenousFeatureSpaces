@@ -29,6 +29,13 @@ LADDER = [("common features\nERM",        ["ERM"]),
           ("+ GroupDRO",                  ["GroupDRO", "groupdro"]),
           ("+ anchors\n(full method)",    ["Ours_GDRO", "Ours", "align_only"])]
 
+# EMBED cannot have a common-features rung: g1 is {FFDM CC} and g3 is {FFDM MLO}, so the
+# intersection over all six groups is empty and there is no shared-view model to build.
+# Its ladder therefore starts at per-group ERM.
+LADDER_EMBED = [("ERM\n(per-group)",        ["erm"]),
+                ("+ GroupDRO",              ["groupdro"]),
+                ("+ anchors\n(full method)", ["ours"])]
+
 
 def pick(data, aliases):
     return next((data[a] for a in aliases if a in data), None)
@@ -39,9 +46,9 @@ def ci95(v):
     return 1.96 * v.std(ddof=1) / np.sqrt(len(v)) if len(v) > 1 else 0.0
 
 
-def fig_ladder(data, label, path):
+def fig_ladder(data, label, path, rungs=None):
     xs, mus, errs = [], [], []
-    for name, al in LADDER:
+    for name, al in (rungs or LADDER):
         b = pick(data, al)
         if not b:
             continue
@@ -65,8 +72,9 @@ def fig_ladder(data, label, path):
     return True
 
 
-def fig_pergroup(data, label, glegend, path):
-    base, ours = pick(data, ["ERM"]), pick(data, ["Ours_GDRO", "Ours", "align_only"])
+def fig_pergroup(data, label, glegend, path, base_alias=None, base_label=None):
+    base = pick(data, base_alias or ["ERM"])
+    ours = pick(data, ["Ours_GDRO", "Ours", "align_only", "ours"])
     if not (base and ours):
         return False
     gs = sorted({g for gr in base.values() for g in gr})
@@ -75,14 +83,23 @@ def fig_pergroup(data, label, glegend, path):
         return (np.mean(v), ci95(v)) if v else (np.nan, 0)
     bm = [per(base, g) for g in gs]; om = [per(ours, g) for g in gs]
     x = np.arange(len(gs)); w = .38
-    fig, ax = plt.subplots(figsize=(6.2, 3.6))
+    fig, ax = plt.subplots(figsize=(6.2 + 0.55 * max(0, len(gs) - 4), 3.6))
     ax.bar(x - w/2, [m for m, _ in bm], w, yerr=[e for _, e in bm], capsize=3,
-           label="common-features ERM", color=BASE, edgecolor="none")
+           label=base_label or "common-features ERM", color=BASE, edgecolor="none")
     ax.bar(x + w/2, [m for m, _ in om], w, yerr=[e for _, e in om], capsize=3,
            label="full method", color=OURS, edgecolor="none")
     ax.set_xticks(x)
-    ax.set_xticklabels([f"{g}\n{glegend.get(g,'').split(',')[0][:16]}" for g in gs], fontsize=8.5)
+    def short(g):
+        t = glegend.get(g, "")
+        t = t.replace("C-View ", "C").replace("FFDM ", "F").replace("{", "").replace("}", "")
+        t = t.split(" — ")[0].split(", ")
+        t = "+".join(x.strip() for x in t)
+        return t[:18]
+    ax.set_xticklabels([f"{g}\n{short(g)}" for g in gs], fontsize=8.5)
     ax.set_ylabel("accuracy (%)", fontsize=10)
+    lo = min(m - e for m, e in bm + om if m == m)
+    hi = max(m + e for m, e in bm + om if m == m)
+    ax.set_ylim(max(0, lo - 6), hi + 4)
     ax.set_title(f"{label}: per-group accuracy", fontsize=11, color=INK)
     ax.legend(fontsize=9, frameon=False)
     ax.spines[["top", "right"]].set_visible(False); ax.grid(axis="y", alpha=.18)
@@ -143,9 +160,12 @@ def main():
                 (f"{d['key']}_pergroup.png",
                  lambda p: fig_pergroup(data, d["label"], d["groups"], p))]
         if d["key"] == "embed":
-            # every EMBED arm is per-group, so a ladder's first rung is just ERM and the chart
-            # says nothing the table does not. The weight plot is what the spec asks for.
-            jobs = [(f"{d['key']}_lambda.png",
+            jobs = [(f"{d['key']}_ladder.png",
+                     lambda p: fig_ladder(data, d["label"], p, rungs=LADDER_EMBED)),
+                    (f"{d['key']}_pergroup.png",
+                     lambda p: fig_pergroup(data, d["label"], d["groups"], p,
+                                            base_alias=["erm"], base_label="ERM (per-group)")),
+                    (f"{d['key']}_lambda.png",
                      lambda p: fig_rstar_lambda(os.path.dirname(d["path"]), p))]
         for fn, f in jobs:
             if f(os.path.join(OUT, fn)):

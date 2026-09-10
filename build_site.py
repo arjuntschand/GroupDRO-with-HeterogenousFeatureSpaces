@@ -120,35 +120,85 @@ def cell(v, digits=1):
     return f"<td>{v[0]:.{digits}f}<span class='sd'>±{v[1]:.{digits}f}</span></td>"
 
 
+def worst_by_seed(by_seed):
+    """{seed: worst-group accuracy} — the paired series used for significance tests."""
+    return {sd: min(g["acc"] for g in gr.values()) for sd, gr in by_seed.items() if gr}
+
+
+def paired_p(a, b):
+    """Two-sided paired t-test over shared seeds. None if not enough pairs or zero variance."""
+    seeds = sorted(set(a) & set(b))
+    if len(seeds) < 3:
+        return None
+    d = [a[s] - b[s] for s in seeds]
+    m = sum(d) / len(d)
+    if all(abs(x - m) < 1e-12 for x in d):
+        return None if abs(m) > 1e-12 else 1.0
+    sd = st.stdev(d)
+    tstat = m / (sd / len(d) ** 0.5)
+    try:
+        from scipy import stats as sps
+        return float(sps.t.sf(abs(tstat), len(d) - 1) * 2)
+    except ImportError:
+        return None
+
+
 def headline_table(data):
-    """method x [worst-group acc, mean acc, macro-F1, worst-group loss]"""
-    rows, summaries = [], {}
+    """method x [worst-group acc, mean acc, macro-F1, worst-group loss].
+
+    Ranking by raw mean alone is misleading when the spread across seeds is larger than the
+    gap between arms, which happens here whenever a group's test set is small. So the top row
+    by mean is compared against every other arm with a paired t-test over shared seeds, and
+    anything that is not significantly worse is marked as tied rather than beaten.
+    """
+    rows, summaries, series = [], {}, {}
     for key, aliases, label, kind in METHODS:
         by_seed = next((data[a] for a in aliases if a in data), None)
         if not by_seed:
             continue
         summaries[key] = (label, kind, summarize(by_seed))
+        series[key] = worst_by_seed(by_seed)
     if not summaries:
         return "<p class='na'>No runs yet.</p>"
-    # best worst-group accuracy, ignoring the random-anchor control
-    best = max((s["worst_acc"][0] for _, k, s in summaries.values()
-                if k != "ctrl" and s["worst_acc"]), default=None)
+
+    ranked = [k for k, (_, kind, s) in summaries.items() if kind != "ctrl" and s["worst_acc"]]
+    top = max(ranked, key=lambda k: summaries[k][2]["worst_acc"][0], default=None)
+    tied = set()
+    if top:
+        tied.add(top)
+        for k in ranked:
+            if k == top:
+                continue
+            p = paired_p(series[top], series[k])
+            if p is None or p >= 0.05:
+                tied.add(k)
+
     for key, (label, kind, s) in summaries.items():
-        star = (s["worst_acc"] and best is not None
-                and abs(s["worst_acc"][0] - best) < 1e-9)
+        is_tied = key in tied
         tag = {"ours": "<span class='tag ours'>ours</span>",
                "ctrl": "<span class='tag ctrl'>control</span>"}.get(kind, "")
+        if key == top:
+            note = "<span class='tag best'>best</span>"
+        elif is_tied:
+            note = "<span class='tag tied'>tied</span>"
+        else:
+            note = ""
         rows.append(
-            f"<tr class='{'best' if star else ''}'>"
-            f"<td class='m'>{html.escape(label)}{tag}</td>"
+            f"<tr class='{'best' if is_tied else ''}'>"
+            f"<td class='m'>{html.escape(label)}{tag}{note}</td>"
             f"{cell(s['worst_acc'])}{cell(s['mean_acc'])}{cell(s['mean_f1'])}"
             f"{cell(s['worst_loss'], 3)}"
             f"<td class='dim'>{s['seeds']}</td></tr>")
+    foot = ""
+    if len(tied) > 1:
+        foot = (f"<p class='legend'>{len(tied)} arms are statistically tied for best on "
+                f"worst-group accuracy (paired t-test over shared seeds, p &ge; 0.05). "
+                f"Treat them as equivalent rather than ranked.</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
             "<th>worst-group acc <span class='hint'>higher better</span></th>"
             "<th>mean acc</th><th>macro-F1</th>"
             "<th>worst-group loss <span class='hint'>lower better</span></th>"
-            "<th>seeds</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>")
+            "<th>seeds</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>" + foot)
 
 
 def pergroup_table(data, glegend, metric="acc"):
@@ -227,6 +277,8 @@ tr.best td:first-child{box-shadow:inset 3px 0 0 var(--bestline)}
   border-radius:4px;margin-left:8px;vertical-align:1px;font-weight:600}
 .tag.ours{color:var(--ours);border:1px solid var(--ours)}
 .tag.ctrl{color:var(--faint);border:1px solid var(--line)}
+.tag.best{color:var(--bestline);border:1px solid var(--bestline)}
+.tag.tied{color:var(--faint);border:1px solid var(--line)}
 .na,.dim{color:var(--faint)}
 .legend{color:var(--dim);font-size:12.5px;margin:2px 0 14px}
 .legend b{color:var(--ink);font-weight:600}
@@ -256,18 +308,28 @@ def overview(loaded):
     cards = []
     for d in DATASETS:
         data = loaded[d["key"]]
-        best_lbl, best_val = "—", None
+        cands, series = {}, {}
         for key, aliases, label, kind in METHODS:
             by_seed = next((data[a] for a in aliases if a in data), None)
             if not by_seed or kind == "ctrl":
                 continue
             s = summarize(by_seed)
-            if s["worst_acc"] and (best_val is None or s["worst_acc"][0] > best_val):
-                best_val, best_lbl = s["worst_acc"][0], label
-        v = f"{best_val:.1f}%" if best_val is not None else "—"
+            if s["worst_acc"]:
+                cands[key] = (label, s["worst_acc"][0])
+                series[key] = worst_by_seed(by_seed)
+        if not cands:
+            cards.append(f"<div class='stat'><div class='k'>{html.escape(d['label'])}</div>"
+                         f"<div class='v'>—</div><div class='d'>runs in progress</div></div>")
+            continue
+        top = max(cands, key=lambda k: cands[k][1])
+        n_tied = sum(1 for k in cands if k != top
+                     and (paired_p(series[top], series[k]) or 1.0) >= 0.05)
+        # Naming a single winner is only honest when it actually beats the field.
+        sub = (f"tied with {n_tied} other arm{'s' if n_tied > 1 else ''}"
+               if n_tied else html.escape(cands[top][0]))
         cards.append(f"<div class='stat'><div class='k'>{html.escape(d['label'])}</div>"
-                     f"<div class='v'>{v}</div>"
-                     f"<div class='d'>best worst-group<br>{html.escape(best_lbl)}</div></div>")
+                     f"<div class='v'>{cands[top][1]:.1f}%</div>"
+                     f"<div class='d'>best worst-group<br>{sub}</div></div>")
     return f"""
 <h2>GroupDRO across heterogeneous feature spaces</h2>
 <p class='sub'>Worst-group robustness when different groups have genuinely different input features.</p>
@@ -361,6 +423,9 @@ def build(outdir=SITE):
         body = [f"<h2>{html.escape(d['label'])}</h2>",
                 f"<p class='sub'>{html.escape(d['task'])} · grouped by {html.escape(d['split'])}</p>",
                 f"<p class='blurb'>{html.escape(d['blurb'])}</p>"]
+        if d.get("caveat"):
+            body.append(f"<div class='note'><b>Read with care.</b> "
+                        f"{html.escape(d['caveat'])}</div>")
         if not data:
             body.append("<p class='na' style='margin-top:30px'>Runs in progress.</p>")
         else:

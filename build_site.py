@@ -493,13 +493,15 @@ def overview(loaded):
         sig = "" if (pv is None or pv >= 0.05) else ", significant"
         base_lbl = "common-features ERM" if "ERM" in data else "per-group ERM"
 
-        # If a published BASELINE is significantly ahead of the full method, say which. Limited
-        # to baselines on purpose: the ablation arms include our own anchors on a shared
-        # encoder, and flagging that here would read as though something else beat the method
-        # when it is really a variant of it. The tables mark best-per-encoder either way.
+        # Flag only arms that are EXTERNAL to the method, meaning a shared encoder and no
+        # anchors: common-features ERM, and GroupDRO as Sagawa et al. published it. Everything
+        # per-group already contains component 1 of the method (the group-specific
+        # representation functions), so calling it a baseline that "beat us" misreads our own
+        # architecture as someone else's. Per-encoder bests are marked in the tables regardless,
+        # so nothing is hidden by narrowing this.
         beat = None
         for key, aliases, label, enc, dro, anc, kind in METHODS:
-            if kind != "base":
+            if enc != "shared" or anc != "—":
                 continue
             other = next((data[a] for a in aliases if a in data), None)
             if not other:

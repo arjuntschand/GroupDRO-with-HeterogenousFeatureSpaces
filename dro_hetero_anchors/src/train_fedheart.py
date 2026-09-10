@@ -567,9 +567,27 @@ def train(cfg):
             y_anchor = y
             if cfg.get("random_anchor_targets", False):
                 y_anchor = torch.randint(0, num_classes, y.shape, device=y.device)
-            moments = per_class_batch_moments(z, y_anchor, num_classes, eps)
             m_anc, S_anc, L_norm = anchors.forward()
-            l_fit = anchor_fit_loss(m_anc, S_anc, moments, eps)
+            # See train_nhanes.py for the full note. pooled = eq. 11-13 (class moments pooled
+            # over all groups); pergroup = eq. 18, the form the GroupDRO section specifies,
+            # where each group's class-c cloud is pulled to anchor c on its own.
+            if cfg.get("per_group_fit", False):
+                l_fit = z.new_zeros(())
+                n_gr = 0
+                for gid in encoders.keys():
+                    gm = (g == gid)
+                    if gm.sum() < 2:
+                        continue
+                    mom_g = per_class_batch_moments(z[gm], y_anchor[gm], num_classes, eps)
+                    if not mom_g:
+                        continue
+                    l_fit = l_fit + anchor_fit_loss(m_anc, S_anc, mom_g, eps)
+                    n_gr += 1
+                if n_gr:
+                    l_fit = l_fit / n_gr
+            else:
+                moments = per_class_batch_moments(z, y_anchor, num_classes, eps)
+                l_fit = anchor_fit_loss(m_anc, S_anc, moments, eps)
             l_sep = anchor_sep_loss(m_anc, S_anc, L_norm, head, num_classes, J, device,
                                     sep_method=sep_method, margin=sep_margin, eps=eps)
             

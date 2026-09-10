@@ -45,6 +45,8 @@ def read_best(run_dir):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lams", nargs="+", type=float, default=[0.001, 0.1, 0.3])
+    ap.add_argument("--arms", nargs="+", default=None,
+                    help="explicit 'fit,sep' pairs, e.g. 0.001,0.001 0.1,0 (fit-only)")
     ap.add_argument("--seeds", nargs="+", type=int, default=[1337, 42, 7])
     ap.add_argument("--base", default=BASE)
     ap.add_argument("--epochs", type=int, default=50)
@@ -63,38 +65,45 @@ def main():
     base["num_workers"] = args.num_workers
     base["batch_size"] = args.batch_size
     os.makedirs(args.out, exist_ok=True)
+    if args.arms:
+        arms = []
+        for a in args.arms:
+            f, s = (float(x) for x in a.split(","))
+            arms.append((f"fit{f}_sep{s}", f, s))
+    else:
+        arms = [(str(l), l, l) for l in args.lams]
     results = {}
 
-    for lam in args.lams:
-        results[lam] = {}
+    for label, lfit, lsep in arms:
+        results[label] = {}
         for seed in args.seeds:
             cfg = copy.deepcopy(base)
-            cfg["lambda_fit"] = lam
-            cfg["lambda_sep"] = lam
+            cfg["lambda_fit"] = lfit
+            cfg["lambda_sep"] = lsep
             cfg["seed"] = seed
-            cfg["run_dir"] = f"{args.out}/lam{lam}_s{seed}"
+            cfg["run_dir"] = f"{args.out}/{label}_s{seed}"
             cfg["groupdro_enabled"] = True
-            print(f"\n=== [textcaps] lam={lam} seed={seed} ===", flush=True)
+            print(f"\n=== [textcaps] {label} (fit={lfit} sep={lsep}) seed={seed} ===", flush=True)
             try:
                 train_textcaps(cfg)
                 m = read_best(cfg["run_dir"]) or {}
-                results[lam][seed] = m
+                results[label][seed] = m
                 print(f"  -> worst={m.get('worst', float('nan')):.4f} "
                       f"overall={m.get('overall', float('nan')):.4f} per_group={m.get('per_group','')[:40]}",
                       flush=True)
             except Exception as e:
                 print(f"  FAILED: {e}", flush=True)
-                results[lam][seed] = {"worst": float("nan")}
+                results[label][seed] = {"worst": float("nan")}
 
     print("\n\n########## TEXTCAPS ANCHOR SWEEP ##########")
-    print(f"{'λ':>8} | worst-group (mean±std) | overall | n")
-    for lam in args.lams:
-        w = [results[lam][s].get("worst", float("nan")) for s in args.seeds]
+    print(f"{'arm':>16} | worst-group (mean±std) | overall | n")
+    for label, _, _ in arms:
+        w = [results[label][s].get("worst", float("nan")) for s in args.seeds]
         w = [x for x in w if x == x]
-        o = [results[lam][s].get("overall", float("nan")) for s in args.seeds]
+        o = [results[label][s].get("overall", float("nan")) for s in args.seeds]
         o = [x for x in o if x == x]
         if w:
-            print(f"{lam:>8} | {np.mean(w)*100:5.2f} ± {np.std(w)*100:4.2f}        | "
+            print(f"{label:>16} | {np.mean(w)*100:5.2f} ± {np.std(w)*100:4.2f}        | "
                   f"{np.mean(o)*100 if o else 0:5.2f} | {len(w)}")
     json.dump(results, open(f"{args.out}/results.json", "w"),
               default=lambda o: None, indent=2)

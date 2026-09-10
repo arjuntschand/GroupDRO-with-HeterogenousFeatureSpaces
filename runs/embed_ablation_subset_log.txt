@@ -1,0 +1,8 @@
+[cell=erm_shared seed=42] per_view=False gdro=False anchors=False
+           Best tail acc: 0.7454 | Best overall acc: 0.7759   train_embed.py:206
+[cell=gdro_shared seed=42] per_view=False gdro=True anchors=False
+           Best tail acc: 0.7616 | Best overall acc: 0.7699   train_embed.py:206
+[cell=anchors_gdro_shared seed=42] per_view=False gdro=True anchors=True
+           Best tail acc: 0.7593 | Best overall acc: 0.7843   train_embed.py:206
+[cell=full seed=42] per_view=True gdro=True anchors=True
+[05:27:56] Best tail acc: 0.7662 | Best overall acc: 0.7735   train_embed.py:206

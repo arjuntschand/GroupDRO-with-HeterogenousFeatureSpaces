@@ -36,6 +36,8 @@ def main():
                          "(for decomposing which anchor loss drives the gain)")
     ap.add_argument("--seeds", nargs="+", type=int, default=SEEDS)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--base", default=None,
+                    help="override base config path (keeps train module from --dataset)")
     args = ap.parse_args()
     # build list of (label, lambda_fit, lambda_sep)
     if args.arms:
@@ -47,6 +49,8 @@ def main():
         arms = [(str(l), l, l) for l in args.lams]
 
     base_path, mod = BASES[args.dataset]
+    if args.base:
+        base_path = args.base
     import importlib
     train = importlib.import_module(mod).train
     base = yaml.safe_load(open(base_path))

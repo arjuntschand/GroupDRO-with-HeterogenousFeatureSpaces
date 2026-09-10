@@ -196,24 +196,31 @@ def headline_table(data):
     if not summaries:
         return "<p class='na'>No runs yet.</p>"
 
+    # Rank WITHIN each encoder track rather than across the whole table. A shared-encoder arm
+    # and a per-group arm see different feature sets, so a single global winner compares two
+    # things that are not alternatives to each other. Per track the question is the useful one:
+    # given this encoder, which combination of DRO and anchors is best?
     ranked = [k for k, (_, kind, s) in summaries.items() if kind != "ctrl" and s["worst_acc"]]
-    top = max(ranked, key=lambda k: summaries[k][2]["worst_acc"][0], default=None)
-    tied = set()
-    if top:
-        tied.add(top)
-        for k in ranked:
+    tops, tied = set(), set()
+    for track in ("shared", "per-group"):
+        in_track = [k for k in ranked if summaries_meta[k][0] == track]
+        if not in_track:
+            continue
+        top = max(in_track, key=lambda k: summaries[k][2]["worst_acc"][0])
+        tops.add(top); tied.add(top)
+        for k in in_track:
             if k == top:
                 continue
-            p = paired_p(series[top], series[k])
-            if p is None or p >= 0.05:
+            pv = paired_p(series[top], series[k])
+            if pv is None or pv >= 0.05:
                 tied.add(k)
 
     for key, (label, kind, s) in summaries.items():
         is_tied = key in tied
         tag = {"full": "<span class='tag ours'>full method</span>",
                "ctrl": "<span class='tag ctrl'>control</span>"}.get(kind, "")
-        if key == top:
-            note = "<span class='tag best'>best</span>"
+        if key in tops:
+            note = "<span class='tag best'>best for this encoder</span>"
         elif is_tied:
             note = "<span class='tag tied'>tied</span>"
         else:
@@ -228,11 +235,10 @@ def headline_table(data):
             f"{cell(s['worst_acc'])}{cell(s['mean_acc'])}{cell(s['mean_f1'])}"
             f"{cell(s['worst_loss'], 3)}"
             f"<td class='dim'>{s['seeds']}</td></tr>")
-    foot = ""
-    if len(tied) > 1:
-        foot = (f"<p class='legend'>{len(tied)} arms are statistically tied for best on "
-                f"worst-group accuracy (paired t-test over shared seeds, p &ge; 0.05). "
-                f"Treat them as equivalent rather than ranked.</p>")
+    foot = ("<p class='legend'>Best is marked separately for each encoder, since a "
+            "common-feature model and a per-group model do not see the same inputs. "
+            "<b>Tied</b> means a paired t-test over shared seeds cannot separate it from the "
+            "best arm in its own track (p &ge; 0.05).</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
             "<th class='sw'>encoder</th><th class='sw'>DRO</th><th class='sw'>anchors</th>"
             "<th>worst-group acc <span class='hint'>higher better</span></th>"
@@ -391,8 +397,17 @@ The regret variant weights by how far a group is above its own achievable floor.
 </ul>
 <h3>What the runs show</h3>
 <ul>
-<li><b>Per-group encoders are the main effect.</b> In a controlled sweep, dialling feature
-overlap from complete to none moves the benefit from +0.15 to +23.9 worst-group accuracy.</li>
+<li><b>Anchors on top of GroupDRO is the best configuration whichever encoder you use.</b> On
+both NHANES settings, in both the common-feature and the per-group track, adding the anchors to
+GroupDRO gives the top arm, and it beats plain GroupDRO every time: +3.9 (p=0.002) and +3.7
+(p=0.007) on nested, +3.9 (p=0.002) and +2.7 (p=0.002) on disjoint. In each track the only arms
+it cannot be separated from also have anchors switched on. This is the most robust result we
+have, because it does not depend on the per-group architecture holding up.</li>
+<li><b>Per-group encoders help only when feature spaces genuinely diverge.</b> In a controlled
+sweep, dialling feature overlap from complete to none moves the benefit from +0.15 to +23.9
+worst-group accuracy. On NHANES-nested, where the groups' features are subsets of one another,
+per-group encoders actually cost about a point, because splitting 2,100-sample groups across
+separate encoders loses more to sample efficiency than the extra features return.</li>
 <li><b>The anchors do align groups, measurably.</b> Cross-group latent misalignment drops from
 3.03 to about 0.12 on NHANES-disjoint once the anchor loss is on.</li>
 <li><b>But not class-by-class.</b> Replacing each sample's correct class anchor with a random one

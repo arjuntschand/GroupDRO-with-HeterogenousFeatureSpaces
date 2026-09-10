@@ -151,3 +151,32 @@ Fed-Heart or EMBED.
 
 Still open: whether the anchor loss is doing something beyond constraining latent scale, and
 whether eq. 18 rescues the class-conditional claim on data with genuinely private features.
+
+## The ablation grid
+
+The method adds three separable things, so the ablation is a full 2x2x2 over them:
+
+| # | encoder | GroupDRO | anchors | arm | what it isolates |
+|---|---|---|---|---|---|
+| 1 | shared | off | off | ERM | the naive baseline |
+| 2 | per-group | off | off | PerGroupOnly | the per-group architecture alone |
+| 3 | shared | on | off | Shared_GDRO | GroupDRO as published, on a shared model |
+| 4 | per-group | on | off | GroupDRO | DRO on top of per-group encoders |
+| 5 | shared | off | on | Shared_Anchors | anchors without per-group encoders |
+| 6 | per-group | off | on | AnchorsOnly | anchors without DRO |
+| 7 | shared | on | on | Shared_Anchors_GDRO | everything except per-group encoders |
+| 8 | per-group | on | on | Ours_GDRO | the full method |
+
+Regret is a fourth, separate axis. It does not replace GroupDRO, it changes what drives the
+weight update: raw loss L_g (standard GroupDRO, equivalently R*=0) versus excess loss
+L_g - R*_g. `RegretDRO` is cell 4 with regret, `Ours_Regret` is cell 8 with regret.
+
+Only cells 1, 4, 6 and 8 existed before. Everything except ERM was per-group, so the encoder
+axis was never varied independently of the other two, and three of the eight cells had no run
+behind them.
+
+Cell 3 is the important omission. Our "GroupDRO" baseline is cell 4, which already contains the
+per-group architecture, and the architecture is one of our own contributions. GroupDRO as
+published (Sagawa et al.) reweights a shared model, which is cell 3. Without it we never showed
+the literature's actual baseline, and we could not separate "DRO helps" from "DRO helps once you
+have per-group encoders". Cells 3, 5 and 7 are running now.

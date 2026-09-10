@@ -451,6 +451,12 @@ def build(outdir=SITE):
         tabs.append(("Claim Audit", "sec-claims"))
         secs.append(("sec-claims", md_to_html(open("documentation/CLAIM_AUDIT.md").read())))
 
+    # 1d. NHANES nested vs disjoint: what each mode is and why both are reported. This was the
+    # single most common point of confusion when reading the dataset tabs.
+    if os.path.exists("documentation/NHANES_MODES.md"):
+        tabs.append(("NHANES modes", "sec-nhmodes"))
+        secs.append(("sec-nhmodes", md_to_html(open("documentation/NHANES_MODES.md").read())))
+
     # 2. Headline (cross-dataset tables + main figure)
     hl = ["<h2>Headline results</h2>"]
     for k in cross:
@@ -550,27 +556,9 @@ def build(outdir=SITE):
     if emb:
         tabs.append(("EMBED", "sec-embed")); secs.append(("sec-embed", "".join(emb)))
 
-    # run logs
-    LOGS = [("Fed-Heart cross validation", "runs/fedheart_cv.log"),
-            ("Method matrix, Fed-Heart", "runs/matrix_fedheart.log"),
-            ("Method matrix, NHANES nested", "runs/matrix_nhanes_nested.log"),
-            ("Method matrix, NHANES disjoint", "runs/matrix_nhanes_disjoint.log")]
-    lh = ["<h2>Run logs</h2>",
-          "<p>Tail of each experiment's console output, so you can see exactly what was run and "
-          "what it printed. Full logs are in the repo under <code>runs/</code>.</p>"]
-    any_log = False
-    for title, path in LOGS:
-        if not os.path.exists(path):
-            continue
-        any_log = True
-        txt = open(path, errors="ignore").read().split("\n")
-        keep = [l for l in txt if l.strip() and not l.lstrip().startswith(("Sep method", "warnings.warn"))]
-        tail = "\n".join(keep[-45:])
-        lh.append(f"<h3>{html.escape(title)}</h3>"
-                  f"<p class='meta'><code>{html.escape(path)}</code></p>"
-                  f"<pre><code>{html.escape(tail)}</code></pre>")
-    if any_log:
-        tabs.append(("Run Logs", "sec-logs")); secs.append(("sec-logs", "".join(lh)))
+    # Run logs used to have their own tab. Removed: raw console tails are debugging output, not
+    # a result, and they pushed the tabs a reader actually needs further down the bar. The logs
+    # are still in the repo under runs/*.log for anyone who wants to audit a specific run.
 
     # csvs
     ch = ["<h2>Raw metrics (metrics_long.csv)</h2>",

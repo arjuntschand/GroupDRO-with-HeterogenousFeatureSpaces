@@ -48,14 +48,33 @@ ANCHOR_ON, ANCHOR_OFF = 0.1, 0.001
 #     GroupDRO -> Ours_GDRO = value of the anchors
 # It also matches what "ERM" means on EMBED, where XeniaEmbedModel always has per-group MLP_g,
 # so EMBED's ERM row was already a PerGroupOnly row under a different name.
+# The ablation is a full 2x2x2 over the three things the method actually adds:
+#   encoder  in {shared, per-group}
+#   DRO      in {off, on}
+#   anchors  in {off, on}
+# Only 4 of the 8 cells existed before, all of them per-group except ERM, which meant the
+# encoder axis was never varied independently of the other two.
+#
+# Cell 3 (shared + DRO, no anchors) is the important omission. Our "GroupDRO" baseline is
+# per-group + DRO, so it already contains the per-group architecture, which is one of our own
+# contributions. GroupDRO as published (Sagawa et al.) reweights a SHARED model. Without cell 3
+# we never showed the literature's actual baseline, and we could not separate "DRO helps" from
+# "DRO helps once you have per-group encoders".
+#
+# (label, common_encoder, groupdro, use_regret, anchor_weight)
 METHODS = [
-    ("ERM",            True,  False, False, ANCHOR_OFF),
-    ("PerGroupOnly",   False, False, False, ANCHOR_OFF),
-    ("GroupDRO",       False, True,  False, ANCHOR_OFF),
-    ("RegretDRO",      False, True,  True,  ANCHOR_OFF),
-    ("AnchorsOnly",    False, False, False, ANCHOR_ON),
-    ("Ours_GDRO",      False, True,  False, ANCHOR_ON),
-    ("Ours_Regret",    False, True,  True,  ANCHOR_ON),
+    # --- encoder x DRO x anchors, all eight cells ---
+    ("ERM",                 True,  False, False, ANCHOR_OFF),   # 1 shared,    -,   -
+    ("PerGroupOnly",        False, False, False, ANCHOR_OFF),   # 2 per-group, -,   -
+    ("Shared_GDRO",         True,  True,  False, ANCHOR_OFF),   # 3 shared,    DRO, -
+    ("GroupDRO",            False, True,  False, ANCHOR_OFF),   # 4 per-group, DRO, -
+    ("Shared_Anchors",      True,  False, False, ANCHOR_ON),    # 5 shared,    -,   anchors
+    ("AnchorsOnly",         False, False, False, ANCHOR_ON),    # 6 per-group, -,   anchors
+    ("Shared_Anchors_GDRO", True,  True,  False, ANCHOR_ON),    # 7 shared,    DRO, anchors
+    ("Ours_GDRO",           False, True,  False, ANCHOR_ON),    # 8 per-group, DRO, anchors
+    # --- regret is a separate axis: it swaps raw loss for excess over R*_g in the DRO update ---
+    ("RegretDRO",           False, True,  True,  ANCHOR_OFF),
+    ("Ours_Regret",         False, True,  True,  ANCHOR_ON),
 ]
 
 

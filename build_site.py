@@ -64,21 +64,42 @@ DATASETS = [
 ]
 
 # ── methods ─────────────────────────────────────────────────────────────────────────────
-# display order, label, and whether the arm is one of ours. Internal names differ between the
-# tabular runner and the EMBED runner, so both spellings map to the same row.
+# Every arm is a point in the same 2x2x2 grid, so the label now names all three switches
+# explicitly instead of relying on a reader to remember what a shorthand meant. "Per-group
+# encoders only" was the worst offender: it is per-group encoders trained with plain ERM, and
+# nothing in the old name said so.
+#
+# The "ours" tag was also doing two jobs at once, marking both the full method and any arm that
+# merely contained one of its components. It now marks only the full method; component arms are
+# ablations, and the switch columns say what each one contains.
+#
+# columns: internal aliases (tabular runner / EMBED runner spellings), label,
+#          encoder, DRO, anchors, kind
 METHODS = [
-    ("ERM",                 ["ERM"],                             "ERM (shared encoder)",      "base"),
-    ("PerGroupOnly",        ["PerGroupOnly", "erm"],             "Per-group encoders only",   "ours"),
-    ("Shared_GDRO",         ["Shared_GDRO"],                     "GroupDRO (shared encoder)", "base"),
-    ("GroupDRO",            ["GroupDRO", "groupdro"],            "GroupDRO (per-group)",      "base"),
-    ("Shared_Anchors",      ["Shared_Anchors"],                  "Anchors (shared encoder)",  "ours"),
-    ("AnchorsOnly",         ["AnchorsOnly", "anchors_only"],     "Anchors, no DRO",           "ours"),
-    ("Shared_Anchors_GDRO", ["Shared_Anchors_GDRO"],             "Anchors + DRO (shared)",    "ours"),
-    ("Ours_GDRO",           ["Ours_GDRO", "Ours", "align_only"], "Anchors + GroupDRO",        "ours"),
-    ("RegretDRO",           ["RegretDRO", "regret_only"],        "Regret-DRO, no anchors",    "base"),
-    ("Ours_Regret",         ["Ours_Regret", "ours"],             "Anchors + Regret-DRO",      "ours"),
-    ("group_only",          ["group_only"],                      "Dedicated per-group model", "base"),
-    ("rand_anchor",         ["rand_anchor"],                     "Control: random anchors",   "ctrl"),
+    ("ERM",                 ["ERM"],
+     "ERM, common features",              "shared",    "—",      "—",  "base"),
+    ("Shared_GDRO",         ["Shared_GDRO"],
+     "GroupDRO, common features",         "shared",    "GroupDRO", "—", "base"),
+    ("Shared_Anchors",      ["Shared_Anchors"],
+     "Anchors + ERM, common features",    "shared",    "—",      "yes", "abl"),
+    ("Shared_Anchors_GDRO", ["Shared_Anchors_GDRO"],
+     "Anchors + GroupDRO, common feats",  "shared",    "GroupDRO", "yes", "abl"),
+    ("PerGroupOnly",        ["PerGroupOnly", "erm"],
+     "Per-group encoders + ERM",          "per-group", "—",      "—",  "base"),
+    ("GroupDRO",            ["GroupDRO", "groupdro"],
+     "Per-group encoders + GroupDRO",     "per-group", "GroupDRO", "—", "base"),
+    ("RegretDRO",           ["RegretDRO", "regret_only"],
+     "Per-group encoders + Regret-DRO",   "per-group", "Regret", "—",  "base"),
+    ("AnchorsOnly",         ["AnchorsOnly", "anchors_only"],
+     "Per-group + anchors + ERM",         "per-group", "—",      "yes", "abl"),
+    ("Ours_GDRO",           ["Ours_GDRO", "Ours", "align_only"],
+     "Per-group + anchors + GroupDRO",    "per-group", "GroupDRO", "yes", "full"),
+    ("Ours_Regret",         ["Ours_Regret", "ours"],
+     "Per-group + anchors + Regret-DRO",  "per-group", "Regret", "yes", "full"),
+    ("group_only",          ["group_only"],
+     "Dedicated model per group",         "per-group", "—",      "—",  "base"),
+    ("rand_anchor",         ["rand_anchor"],
+     "Control: random anchor targets",    "per-group", "GroupDRO", "random", "ctrl"),
 ]
 
 
@@ -164,12 +185,13 @@ def headline_table(data):
     by mean is compared against every other arm with a paired t-test over shared seeds, and
     anything that is not significantly worse is marked as tied rather than beaten.
     """
-    rows, summaries, series = [], {}, {}
-    for key, aliases, label, kind in METHODS:
+    rows, summaries, series, summaries_meta = [], {}, {}, {}
+    for key, aliases, label, enc, dro, anc, kind in METHODS:
         by_seed = next((data[a] for a in aliases if a in data), None)
         if not by_seed:
             continue
         summaries[key] = (label, kind, summarize(by_seed))
+        summaries_meta[key] = (enc, dro, anc)
         series[key] = worst_by_seed(by_seed)
     if not summaries:
         return "<p class='na'>No runs yet.</p>"
@@ -188,7 +210,7 @@ def headline_table(data):
 
     for key, (label, kind, s) in summaries.items():
         is_tied = key in tied
-        tag = {"ours": "<span class='tag ours'>ours</span>",
+        tag = {"full": "<span class='tag ours'>full method</span>",
                "ctrl": "<span class='tag ctrl'>control</span>"}.get(kind, "")
         if key == top:
             note = "<span class='tag best'>best</span>"
@@ -196,9 +218,13 @@ def headline_table(data):
             note = "<span class='tag tied'>tied</span>"
         else:
             note = ""
+        enc_c, dro_c, anc_c = (summaries_meta[key])
         rows.append(
             f"<tr class='{'best' if is_tied else ''}'>"
             f"<td class='m'>{html.escape(label)}{tag}{note}</td>"
+            f"<td class='sw'>{html.escape(enc_c)}</td>"
+            f"<td class='sw'>{html.escape(dro_c)}</td>"
+            f"<td class='sw'>{html.escape(anc_c)}</td>"
             f"{cell(s['worst_acc'])}{cell(s['mean_acc'])}{cell(s['mean_f1'])}"
             f"{cell(s['worst_loss'], 3)}"
             f"<td class='dim'>{s['seeds']}</td></tr>")
@@ -208,6 +234,7 @@ def headline_table(data):
                 f"worst-group accuracy (paired t-test over shared seeds, p &ge; 0.05). "
                 f"Treat them as equivalent rather than ranked.</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
+            "<th class='sw'>encoder</th><th class='sw'>DRO</th><th class='sw'>anchors</th>"
             "<th>worst-group acc <span class='hint'>higher better</span></th>"
             "<th>mean acc</th><th>macro-F1</th>"
             "<th>worst-group loss <span class='hint'>lower better</span></th>"
@@ -220,7 +247,7 @@ def pergroup_table(data, glegend, metric="acc"):
         return ""
     head = "".join(f"<th>{html.escape(g)}</th>" for g in gs)
     rows = []
-    for key, aliases, label, kind in METHODS:
+    for key, aliases, label, enc, dro, anc, kind in METHODS:
         by_seed = next((data[a] for a in aliases if a in data), None)
         if not by_seed:
             continue
@@ -293,6 +320,7 @@ tr.best td:first-child{box-shadow:inset 3px 0 0 var(--bestline)}
 .tag.best{color:var(--bestline);border:1px solid var(--bestline)}
 .tag.tied{color:var(--faint);border:1px solid var(--line)}
 .na,.dim{color:var(--faint)}
+table.data th.sw,table.data td.sw{text-align:left;color:var(--dim);font-size:12px;white-space:nowrap}
 .legend{color:var(--dim);font-size:12.5px;margin:2px 0 14px}
 .legend b{color:var(--ink);font-weight:600}
 .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin:22px 0}
@@ -322,7 +350,7 @@ def overview(loaded):
     for d in DATASETS:
         data = loaded[d["key"]]
         cands, series = {}, {}
-        for key, aliases, label, kind in METHODS:
+        for key, aliases, label, enc, dro, anc, kind in METHODS:
             by_seed = next((data[a] for a in aliases if a in data), None)
             if not by_seed or kind == "ctrl":
                 continue
@@ -386,27 +414,31 @@ less cardiovascular signal than the shared demographic and smoking ones.</div>""
 
 
 def methods_page():
+    """Arm table generated from METHODS so the labels can never drift from the results."""
     rows = "".join(
-        f"<tr><td class='m'>{html.escape(l)}</td><td class='dim' style='text-align:left'>{d}</td></tr>"
-        for l, d in [
-            ("ERM (shared encoder)", "One encoder for every group. The naive baseline."),
-            ("Per-group encoders only", "Per-group encoders into a shared latent space, shared head. No anchors, no DRO."),
-            ("GroupDRO (shared encoder)", "GroupDRO as published, reweighting a single shared model."),
-            ("GroupDRO (per-group)", "GroupDRO on top of per-group encoders."),
-            ("Anchors (shared encoder)", "Anchor loss without per-group encoders."),
-            ("Anchors, no DRO", "Per-group encoders plus anchors, no reweighting."),
-            ("Anchors + DRO (shared)", "Everything except the per-group encoders."),
-            ("Anchors + GroupDRO", "Full method with standard loss-based reweighting."),
-            ("Regret-DRO, no anchors", "Reweights by excess over R*, not raw loss."),
-            ("Anchors + Regret-DRO", "Full method with regret reweighting."),
-            ("Dedicated per-group model", "A separate model trained on each group alone."),
-            ("Control: random anchors", "Each sample matched to a random class anchor instead of its own."),
-        ])
+        f"<tr><td class='m'>{html.escape(label)}"
+        + ("<span class='tag ours'>full method</span>" if kind == "full" else "")
+        + ("<span class='tag ctrl'>control</span>" if kind == "ctrl" else "")
+        + f"</td><td class='sw'>{html.escape(enc)}</td><td class='sw'>{html.escape(dro)}</td>"
+          f"<td class='sw'>{html.escape(anc)}</td></tr>"
+        for _, _, label, enc, dro, anc, kind in METHODS)
     return f"""
 <h2>Methods and terms</h2>
 <p class='sub'>Every arm is a combination of three switches: per-group encoders, anchors, GroupDRO.</p>
 <h3>Arms</h3>
-<div class='card'><table class='data'><tbody>{rows}</tbody></table></div>
+<p class='blurb'>"Common features" means one shared encoder restricted to the features every
+group has. "Per-group" means each group gets its own encoder over its own full feature set,
+all mapping into one shared latent space with one shared classifier on top.</p>
+<div class='card'><table class='data'><thead><tr><th>arm</th><th class='sw'>encoder</th>
+<th class='sw'>DRO</th><th class='sw'>anchors</th></tr></thead>
+<tbody>{rows}</tbody></table></div>
+<div class='note'><b>What counts as ours.</b> The three switches are the contribution taken
+together: per-group encoders into a shared latent space, Gaussian class anchors, and DRO
+reweighting. Only the two rows marked <span class='tag ours'>full method</span> are the method
+itself. Everything else is either a published baseline (ERM, GroupDRO) or an ablation that
+turns one switch off to show what that switch is worth. Regret-DRO is not a separate method
+from GroupDRO; it changes what drives the group weights from raw loss to loss above a group's
+own achievable floor.</div>
 <h3>Metrics</h3>
 <ul>
 <li><b>Worst-group accuracy.</b> Accuracy on whichever group the model does worst on. The main

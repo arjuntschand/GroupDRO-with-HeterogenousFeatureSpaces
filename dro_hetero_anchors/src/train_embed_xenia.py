@@ -308,7 +308,22 @@ def train_one(method, data, masks, device, rstar, seed,
             ex = _group_val_excess(model, data, masks, rstar_t, groups,
                                    flags["anchors"], lam_fit, device)
             ema = decay * ema + (1 - decay) * ex
-            lam = lam * torch.exp(gamma * steps * ema)  # scale per-epoch step to match per-step cumulative
+            # One update per epoch at the SAME step size the train path uses per update.
+            #
+            # This previously read exp(gamma * steps * ema). On EMBED steps is about 1594
+            # (largest group ~51k rows at batch 32), so with gamma 0.5 the exponent reached
+            # ~797 and overflowed to inf; after normalisation lambda became exactly one-hot and
+            # the model trained on a single group, giving 9.7% overall accuracy. The intent was
+            # to match the train path's cumulative movement, but that path applies
+            # exp(gamma * excess) once every N=50 steps, so the per-epoch exponent is
+            # gamma * excess * steps/N, not gamma * excess * steps. The old line was 50x too
+            # large and applied it in one jump against a stale EMA.
+            #
+            # Using plain gamma moves lambda more slowly than the train variant by design,
+            # which is the point: the validation signal is the thing we want to react to
+            # carefully, since it is the one that is not memorised.
+            step_exp = torch.clamp(gamma * ema, max=20.0)   # exp(20) is already ~5e8
+            lam = lam * torch.exp(step_exp)
             lam = torch.clamp(lam, min=1e-8); lam = lam / lam.sum()
             model.train()
         sched.step()

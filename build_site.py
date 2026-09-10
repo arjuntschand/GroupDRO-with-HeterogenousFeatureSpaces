@@ -467,31 +467,59 @@ window.scrollTo(0,0);}
 
 
 def overview(loaded):
+    """One card per dataset: the full method's worst-group accuracy and what it gained.
+
+    These used to show whichever arm scored highest, which is not the same thing as our method
+    and did not match how the results are described anywhere else on the site. If a baseline
+    genuinely beats the full method, the card names it rather than quietly displaying the
+    baseline's number under the method's heading.
+    """
+    FULL = ["Ours_GDRO", "Ours", "ours"]      # anchors on, DRO on
+    BASELINE = ["ERM", "erm"]                  # spec row 1
     cards = []
     for d in DATASETS:
         data = loaded[d["key"]]
-        cands, series = {}, {}
-        for key, aliases, label, enc, dro, anc, kind in METHODS:
-            by_seed = next((data[a] for a in aliases if a in data), None)
-            if not by_seed or kind == "ctrl":
-                continue
-            s = summarize(by_seed, tail=None)
-            if s["worst_acc"]:
-                cands[key] = (label, s["worst_acc"][0])
-                series[key] = worst_by_seed(by_seed)
-        if not cands:
+        full = next((data[a] for a in FULL if a in data), None)
+        base = next((data[a] for a in BASELINE if a in data), None)
+        if not (full and base):
             cards.append(f"<div class='stat'><div class='k'>{html.escape(d['label'])}</div>"
                          f"<div class='v'>—</div><div class='d'>runs in progress</div></div>")
             continue
-        top = max(cands, key=lambda k: cands[k][1])
-        n_tied = sum(1 for k in cands if k != top
-                     and (paired_p(series[top], series[k]) or 1.0) >= 0.05)
-        # Naming a single winner is only honest when it actually beats the field.
-        sub = (f"tied with {n_tied} other arm{'s' if n_tied > 1 else ''}"
-               if n_tied else html.escape(cands[top][0]))
-        cards.append(f"<div class='stat'><div class='k'>{html.escape(d['label'])}</div>"
-                     f"<div class='v'>{cands[top][1]:.1f}%</div>"
-                     f"<div class='d'>best worst-group<br>{sub}</div></div>")
+        fw, bw = worst_by_seed(full), worst_by_seed(base)
+        seeds = sorted(set(fw) & set(bw))
+        f_mu = sum(fw[k] for k in seeds) / len(seeds)
+        gain = f_mu - sum(bw[k] for k in seeds) / len(seeds)
+        pv = paired_p(fw, bw)
+        sig = "" if (pv is None or pv >= 0.05) else ", significant"
+        base_lbl = "common-features ERM" if "ERM" in data else "per-group ERM"
+
+        # If a published BASELINE is significantly ahead of the full method, say which. Limited
+        # to baselines on purpose: the ablation arms include our own anchors on a shared
+        # encoder, and flagging that here would read as though something else beat the method
+        # when it is really a variant of it. The tables mark best-per-encoder either way.
+        beat = None
+        for key, aliases, label, enc, dro, anc, kind in METHODS:
+            if kind != "base":
+                continue
+            other = next((data[a] for a in aliases if a in data), None)
+            if not other:
+                continue
+            ow = worst_by_seed(other)
+            k2 = sorted(set(fw) & set(ow))
+            if not k2:
+                continue
+            o_mu = sum(ow[i] for i in k2) / len(k2)
+            p2 = paired_p(ow, fw)
+            if o_mu > f_mu and p2 is not None and p2 < 0.05:
+                if beat is None or o_mu > beat[1]:
+                    beat = (label, o_mu)
+        note = (f"<div class='d' style='color:var(--accent);margin-top:7px;font-size:11.5px'>"
+                f"{html.escape(beat[0])} scores higher ({beat[1]:.1f})</div>") if beat else ""
+        cards.append(
+            f"<div class='stat'><div class='k'>{html.escape(d['label'])}</div>"
+            f"<div class='v'>{f_mu:.1f}%</div>"
+            f"<div class='d'>full method, worst group<br>"
+            f"<b style='color:var(--ours)'>{gain:+.1f}</b> vs {base_lbl}{sig}</div>{note}</div>")
     return f"""
 <h2>GroupDRO across heterogeneous feature spaces</h2>
 <p class='sub'>Worst-group robustness when different groups have genuinely different input features.</p>

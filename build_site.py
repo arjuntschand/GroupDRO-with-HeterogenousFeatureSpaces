@@ -658,7 +658,11 @@ def build(outdir=SITE):
                          "What each step is worth. EMBED has no common-features rung: g1 is "
                          "{FFDM CC} and g3 is {FFDM MLO}, so the six groups share no view and "
                          "there is no shared-feature model to build. The ladder starts from "
-                         "per-group ERM instead."),
+                         "per-group ERM instead. Each rung changes exactly one thing, so the "
+                         "last one holds the DRO variant at R*=0 and switches only the anchors "
+                         "on. The full method as the spec defines it (row 5) also swaps the DRO "
+                         "update to regret, which is worth a further +0.5 to 61.9; the two "
+                         "ingredients interact and are compared properly in the table below."),
                         (f"figs/{d['key']}_pergroup.png",
                          "Per-group accuracy, per-group ERM against the full method. The gain "
                          "is concentrated in g2, one of the rare tail groups."),

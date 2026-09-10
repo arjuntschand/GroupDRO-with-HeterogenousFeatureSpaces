@@ -32,9 +32,9 @@ LADDER = [("common features\nERM",        ["ERM"]),
 # EMBED cannot have a common-features rung: g1 is {FFDM CC} and g3 is {FFDM MLO}, so the
 # intersection over all six groups is empty and there is no shared-view model to build.
 # Its ladder therefore starts at per-group ERM.
-LADDER_EMBED = [("ERM\n(per-group)",        ["erm"]),
-                ("+ GroupDRO",              ["groupdro"]),
-                ("+ anchors\n(full method)", ["ours"])]
+LADDER_EMBED = [("ERM\n(per-group)", ["erm"]),
+                ("+ GroupDRO",       ["groupdro"]),
+                ("+ anchors",        ["align_only"])]
 
 
 def pick(data, aliases):

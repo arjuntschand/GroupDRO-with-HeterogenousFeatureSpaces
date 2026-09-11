@@ -208,3 +208,79 @@ class FlexMoEEmbed(nn.Module):
         z = self.norm(z + a)
         h = self.moe(z)
         return self.head(h), h
+
+
+# ── Flex-MoE, faithful to the released implementation ────────────────────────────────────
+# The first version here used a Soft MoE with a single router, which is REMIND's fusion block,
+# not Flex-MoE's. The actual Flex-MoE (Yun et al., NeurIPS 2024 Spotlight,
+# github.com/UNITES-Lab/flex-moe) is a SPARSE top-k MoE with two distinct routers and a
+# two-phase training schedule:
+#
+#   missing modality bank   a learnable embedding per modality, substituted for absent ones
+#   G-Router (generalised)  used during warm-up on FULL-modality samples only, so the experts
+#                           first absorb knowledge that generalises across combinations
+#   S-Router (specialised)  after warm-up, routes each sample with a top-1 gate to the expert
+#                           owned by its observed modality combination
+#
+# Released defaults: 16 experts, top-k 4, hidden 128, 5 warm-up epochs.
+
+class FlexMoESparse(nn.Module):
+    """Sparse top-k MoE with a missing-modality bank and generalised/specialised routers."""
+
+    def __init__(self, n_modalities: int, group_mods: Dict[int, List[int]],
+                 in_dims: Sequence[int], d_model: int = 128, n_experts: int = 16,
+                 top_k: int = 4, num_classes: int = 2, dropout: float = 0.1):
+        super().__init__()
+        self.n_mod, self.d = n_modalities, d_model
+        self.group_mods = {int(k): list(v) for k, v in group_mods.items()}
+        self.n_experts, self.top_k = n_experts, top_k
+        self.proj = nn.ModuleList([nn.Linear(d, d_model) for d in in_dims])
+        # missing modality bank: one learnable vector per modality
+        self.bank = nn.Parameter(torch.randn(n_modalities, d_model) * 0.02)
+        self.experts = nn.ModuleList([
+            nn.Sequential(nn.Linear(d_model, d_model), nn.GELU(), nn.Dropout(dropout),
+                          nn.Linear(d_model, d_model))
+            for _ in range(n_experts)])
+        self.g_router = nn.Linear(d_model, n_experts)      # generalised, used in warm-up
+        self.s_router = nn.Linear(d_model, n_experts)      # specialised, top-1 after warm-up
+        # each group owns one expert; groups beyond n_experts wrap around
+        self.group_expert = {g: i % n_experts for i, g in enumerate(sorted(self.group_mods))}
+        self.norm = nn.LayerNorm(d_model)
+        self.head = nn.Linear(d_model, num_classes)
+
+    def forward(self, x_mods: List[Optional[torch.Tensor]], g: torch.Tensor,
+                warmup: bool = False):
+        B = g.shape[0]
+        toks = []
+        for mi in range(self.n_mod):
+            emb = self.bank[mi].unsqueeze(0).expand(B, -1)
+            if x_mods[mi] is not None:
+                real = self.proj[mi](x_mods[mi])
+                has = torch.tensor([mi in self.group_mods.get(int(gi), []) for gi in g.tolist()],
+                                   device=g.device).unsqueeze(-1)
+                emb = torch.where(has, real, emb)
+            toks.append(emb)
+        z = self.norm(torch.stack(toks, 1).mean(1))            # (B, d)
+
+        if warmup:
+            # G-Router: dense top-k over experts, trained on full-modality samples
+            logits = self.g_router(z)
+            topv, topi = logits.topk(self.top_k, dim=-1)
+            w = topv.softmax(-1)
+            out = z.new_zeros(B, self.d)
+            for k in range(self.top_k):
+                for e in range(self.n_experts):
+                    m = (topi[:, k] == e)
+                    if bool(m.any()):
+                        out[m] += w[m, k].unsqueeze(-1) * self.experts[e](z[m])
+        else:
+            # S-Router: top-1 gate to the expert owned by this sample's group
+            tgt = torch.tensor([self.group_expert.get(int(gi), 0) for gi in g.tolist()],
+                               device=g.device)
+            gate = self.s_router(z).softmax(-1)
+            out = z.new_zeros(B, self.d)
+            for e in range(self.n_experts):
+                m = (tgt == e)
+                if bool(m.any()):
+                    out[m] = gate[m, e].unsqueeze(-1) * self.experts[e](z[m])
+        return self.head(out), out

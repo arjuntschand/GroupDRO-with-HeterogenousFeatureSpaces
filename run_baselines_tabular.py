@@ -26,7 +26,8 @@ import torch
 import torch.nn as nn
 import yaml
 
-from dro_hetero_anchors.src.model.baselines import FlexMoEModel, ReweighLoss
+from dro_hetero_anchors.src.model.baselines import (
+    FlexMoEModel, FlexMoESparse, ReweighLoss)
 
 
 # NHANES feature layout, from datasets_nhanes.py _get_feature_config("nested")
@@ -54,6 +55,7 @@ def build_blocks(dataset: str, cfg: dict):
 
 
 def evaluate(model, loader, blocks, device, num_groups, num_classes):
+    from dro_hetero_anchors.src.model.baselines import FlexMoESparse
     model.eval()
     ce = nn.CrossEntropyLoss(reduction="none")   # eval loss stays unweighted, as elsewhere
     cg = [0] * num_groups; tg = [0] * num_groups
@@ -65,7 +67,8 @@ def evaluate(model, loader, blocks, device, num_groups, num_classes):
         for x, y, g in loader:
             x, y, g = x.to(device), y.to(device), g.to(device)
             xb = [x[:, idx] for idx in blocks]
-            logits, _ = model(xb, g)
+            out = model(xb, g, warmup=False) if isinstance(model, FlexMoESparse) else model(xb, g)
+            logits = out[0]
             loss = ce(logits, y); pred = logits.argmax(1)
             for i in range(x.size(0)):
                 gi, yi, pi = int(g[i]), int(y[i]), int(pred[i])
@@ -130,7 +133,6 @@ def main():
                                      train_frac=cfg.get("train_frac", 0.8),
                                      feature_mask=cfg.get("feature_mask"),
                                      group_max_train_samples=cfg.get("group_max_train_samples"),
-                                     data_split_seed=cfg.get("data_split_seed"),
                                      impute_missing=True)
             ng = len(cfg["groups"]); nc = cfg["num_classes"]
             counts = info.get("group_counts") or info.get("train_group_counts") or [1] * ng
@@ -144,9 +146,16 @@ def main():
                 cls_w = torch.tensor([tot / (len(tcc) * max(1, c)) for c in tcc],
                                      dtype=torch.float32, device=device)
 
-            model = FlexMoEModel(
-                [len(b) for b in blocks], group_blocks,
-                latent_dim=cfg.get("latent_dim", 64), num_classes=nc, n_experts=4).to(device)
+            if method == "FlexMoE":
+                # released defaults: 16 experts, top-k 4, hidden 128, 5 warm-up epochs
+                model = FlexMoESparse(len(blocks), group_blocks, [len(b) for b in blocks],
+                                      d_model=128, n_experts=16, top_k=4,
+                                      num_classes=nc).to(device)
+            else:
+                model = FlexMoEModel(
+                    [len(b) for b in blocks], group_blocks,
+                    latent_dim=cfg.get("latent_dim", 64), num_classes=nc,
+                    n_experts=4).to(device)
             opt = torch.optim.Adam(model.parameters(), lr=cfg.get("lr", 1e-3),
                                    weight_decay=cfg.get("weight_decay", 1e-4))
             reweigh = (ReweighLoss(ng, counts, device, class_weight=cls_w)
@@ -161,7 +170,11 @@ def main():
                 for x, y, g in tr:
                     x, y, g = x.to(device), y.to(device), g.to(device)
                     xb = [x[:, idx] for idx in blocks]
-                    logits, _ = model(xb, g)
+                    if method == "FlexMoE":
+                        # warm up the experts through the generalised router first
+                        logits, _ = model(xb, g, warmup=(ep < 5))
+                    else:
+                        logits, _ = model(xb, g)
                     if method == "Reweigh":
                         loss = reweigh(logits, y, g)
                     else:

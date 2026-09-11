@@ -773,6 +773,39 @@ def build(outdir=SITE):
         sid = "sec-" + d["key"]
         tabs.append((d["label"], sid)); secs.append((sid, "".join(body)))
 
+    # Plots tab: per-group training dynamics. Loss against epoch with that group's reference
+    # loss R* drawn as a horizontal line, and the group's DRO weight against epoch, for both
+    # the GroupDRO and the regret variant of the full method.
+    plots = ["<h2>Training dynamics</h2>",
+             "<p class='blurb'>For each configuration, one column per group. The top row is "
+             "that group's loss over training with its reference loss R* drawn as a dashed "
+             "line, so you can see whether the group sits above or below its own floor and "
+             "when it crosses. The bottom row is that group's DRO weight over training, which "
+             "shows how the max player redistributes attention.</p>",
+             "<div class='note'><b>On the weight curves.</b> These use the mean over each "
+             "epoch's updates, not the value at the end of the epoch. In softmax mode the "
+             "weight update overwrites lambda from the current batch alone, and absent groups "
+             "are masked before the softmax, so a partial final batch holding one group "
+             "produces an exact one-hot. Across NHANES runs 2427 of 2436 logged vectors were "
+             "[0, 0, 1], which made GroupDRO look permanently collapsed when the weights "
+             "actually sit near uniform throughout. The epoch mean is what drove the "
+             "gradients.</div>"]
+    DYN = [("nhanes_anchors_groupdro",  "NHANES, per-group encoders + anchors + GroupDRO"),
+           ("nhanes_anchors_regretdro", "NHANES, per-group encoders + anchors + Regret-DRO"),
+           ("fedheart_anchors_groupdro",  "Fed-Heart, per-group encoders + anchors + GroupDRO"),
+           ("fedheart_anchors_regretdro", "Fed-Heart, per-group encoders + anchors + Regret-DRO")]
+    shown = 0
+    for stem, cap in DYN:
+        rel = f"figs/dynamics/{stem}.png"
+        if not os.path.exists(os.path.join(SITE, rel)):
+            continue
+        shown += 1
+        plots.append(f"<h3>{html.escape(cap)}</h3>"
+                     f"<div class='fig'><img src='{rel}' alt=''></div>")
+    if not shown:
+        plots.append("<p class='na'>Runs in progress.</p>")
+    tabs.append(("Plots", "sec-plots")); secs.append(("sec-plots", "".join(plots)))
+
     tabs.append(("Methods", "sec-methods")); secs.append(("sec-methods", methods_page()))
 
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "

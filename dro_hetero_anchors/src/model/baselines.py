@@ -161,3 +161,50 @@ class FlexMoEModel(nn.Module):
         z = self.norm(z + a)
         h = self.moe(z)
         return self.head(h), h
+
+
+# ── EMBED variants ───────────────────────────────────────────────────────────────────────
+
+class FlexMoEEmbed(nn.Module):
+    """FlexMoE for EMBED: the paper's native setting, where a modality really is an image view.
+
+    Same idea as the tabular version, but the four views (C-View CC, C-View MLO, FFDM CC,
+    FFDM MLO) are the modalities and a group is the subset of views a breast actually has.
+    Absent views get the group's learnable stand-in embedding B_k instead of zeros, so every
+    sample presents four tokens to the Soft MoE regardless of what was scanned.
+
+    Parameter count is reported alongside our own model because the spec asks for it on every
+    row, row 4 being a different architecture.
+    """
+
+    def __init__(self, views: Sequence[str], group_views: Dict[str, Sequence[str]],
+                 in_dim: int = 768, proj_dim: int = 64, latent_dim: int = 64,
+                 num_classes: int = 4, n_experts: int = 4, dropout: float = 0.1):
+        super().__init__()
+        self.views = list(views)
+        self.groups = list(group_views.keys())
+        self.group_views = {g: list(v) for g, v in group_views.items()}
+        self.proj = nn.ModuleDict({v: nn.Linear(in_dim, proj_dim) for v in self.views})
+        self.missing = nn.Parameter(
+            torch.randn(len(self.groups), len(self.views), proj_dim) * 0.02)
+        self.attn = nn.MultiheadAttention(proj_dim, num_heads=4, batch_first=True,
+                                          dropout=dropout)
+        self.norm = nn.LayerNorm(proj_dim)
+        self.moe = SoftMoE(proj_dim, n_experts=n_experts, expert_hidden=latent_dim)
+        self.head = nn.Linear(proj_dim, num_classes)
+
+    def forward(self, group: str, view_feats: Dict[str, torch.Tensor]):
+        gi = self.groups.index(group)
+        any_feat = next(iter(view_feats.values()))
+        B = any_feat.shape[0]
+        toks = []
+        for vi, v in enumerate(self.views):
+            if v in view_feats:
+                toks.append(self.proj[v](view_feats[v]))
+            else:
+                toks.append(self.missing[gi, vi].unsqueeze(0).expand(B, -1))
+        z = torch.stack(toks, dim=1)                     # (B, 4, proj_dim)
+        a, _ = self.attn(z, z, z, need_weights=False)
+        z = self.norm(z + a)
+        h = self.moe(z)
+        return self.head(h), h

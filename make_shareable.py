@@ -31,7 +31,7 @@ def main():
     def sub(m):
         nonlocal embedded
         fn = m.group(1)
-        path = os.path.join(FIGS, os.path.basename(fn))
+        path = os.path.join(os.path.dirname(SRC), fn)
         if not os.path.exists(path):
             missing.append(fn); return m.group(0)
         mime = mimetypes.guess_type(path)[0] or "image/png"

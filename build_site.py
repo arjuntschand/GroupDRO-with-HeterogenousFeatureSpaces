@@ -123,7 +123,24 @@ METHODS = [
      "Dedicated model per group",         "per-group", "—",      "—",  "base"),
     ("rand_anchor",         ["rand_anchor"],
      "Control: random anchor targets",    "per-group", "GroupDRO", "random", "ctrl"),
+    # Baselines from the REMIND paper, reported as reimplementations. See
+    # model/baselines.py: the paper has no code-availability statement and we could not find
+    # a public repository, while the spec asks for the authors' released code.
+    ("Reweigh",             ["Reweigh"],
+     "Reweigh (REMIND paper)",            "shared",    "fixed 1/n", "—", "ext"),
+    ("FlexMoE",             ["FlexMoE"],
+     "FlexMoE (REMIND paper)",            "soft MoE",  "—",      "—",  "ext"),
+    ("REMIND",              ["REMIND"],
+     "REMIND (reimplementation)",         "soft MoE",  "GroupDRO", "—", "ext"),
 ]
+
+# Baseline runs live in their own directories; merged in at load time so their rows sit in the
+# same table as ours with the same metrics and seeds.
+EXTRA_SOURCES = {
+    "fedheart":  "runs/baselines_fedheart/metrics_long.csv",
+    "nhnested":  "runs/baselines_nhanes/metrics_long.csv",
+    "embed":     "runs/baselines_embed/metrics_long.csv",
+}
 
 
 def load(path):
@@ -266,7 +283,8 @@ def headline_table(data, tail=None):
     # and a per-group arm see different feature sets, so a single global winner compares two
     # things that are not alternatives to each other. Per track the question is the useful one:
     # given this encoder, which combination of DRO and anchors is best?
-    ranked = [k for k, (_, kind, s) in summaries.items() if kind != "ctrl" and s["worst_acc"]]
+    ranked = [k for k, (_, kind, s) in summaries.items()
+              if kind not in ("ctrl", "ext") and s["worst_acc"]]
     tops, tied = set(), set()
     for track in ("shared", "per-group"):
         in_track = [k for k in ranked if summaries_meta[k][0] == track]
@@ -284,7 +302,8 @@ def headline_table(data, tail=None):
     for key, (label, kind, s) in summaries.items():
         is_tied = key in tied
         tag = {"full": "<span class='tag ours'>full method</span>",
-               "ctrl": "<span class='tag ctrl'>control</span>"}.get(kind, "")
+               "ctrl": "<span class='tag ctrl'>control</span>",
+               "ext":  "<span class='tag ctrl'>external baseline</span>"}.get(kind, "")
         if key in tops:
             note = "<span class='tag best'>best for this encoder</span>"
         elif is_tied:
@@ -670,7 +689,14 @@ combinations cover about 98.5% of exams.</li>
 
 def build(outdir=SITE):
     os.makedirs(outdir, exist_ok=True)
-    loaded = {d["key"]: load(d["path"]) for d in DATASETS}
+    loaded = {}
+    for d in DATASETS:
+        data = load(d["path"])
+        extra = EXTRA_SOURCES.get(d["key"])
+        if extra and os.path.exists(extra):
+            for m, v in load(extra).items():
+                data.setdefault(m, v)
+        loaded[d["key"]] = data
 
     tabs = [("Overview", "sec-overview")]
     secs = [("sec-overview", overview(loaded))]

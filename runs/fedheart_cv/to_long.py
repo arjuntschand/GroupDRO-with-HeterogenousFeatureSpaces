@@ -36,7 +36,12 @@ with open(dst, "w", newline="") as fh:
                 ls = losses[gi] if gi < len(losses) else ""
                 f1 = f1s[gi] if gi < len(f1s) else ""
                 rs = rstar[gi] if gi < len(rstar) else ""
-                ex = max(0.0, ls - rs) if (ls != "" and rs != "") else ""
+                # Signed, NOT clamped. Xenia asked for the negative values to be visible:
+                # a group below its own reference loss is doing better than a model trained on
+                # that group alone, which is the whole point of pooling, and clamping to zero
+                # throws that information away. The lambda update keeps max(0, .) per her
+                # Step 4; this is the reporting column only.
+                ex = (ls - rs) if (ls != "" and rs != "") else ""
                 w.writerow([method, seed, f"g{gi}", cnt, acc, f1, ls, rs, ex])
                 n += 1
 print(f"wrote {dst} ({n} rows, {len(r)} methods)")

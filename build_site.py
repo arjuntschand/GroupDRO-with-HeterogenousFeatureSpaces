@@ -116,7 +116,7 @@ METHODS = [
     ("AnchorsOnly",         ["AnchorsOnly", "anchors_only"],
      "Per-group + anchors + ERM",         "per-group", "—",      "yes", "abl"),
     ("Ours_GDRO",           ["Ours_GDRO", "Ours", "align_only"],
-     "Per-group + anchors + GroupDRO",    "per-group", "GroupDRO", "yes", "full"),
+     "Per-group + anchors + GroupDRO",    "per-group", "GroupDRO", "yes", "abl"),
     ("Ours_Regret",         ["Ours_Regret", "ours"],
      "Per-group + anchors + Regret-DRO",  "per-group", "Regret", "yes", "full"),
     ("group_only",          ["group_only"],
@@ -187,6 +187,9 @@ def summarize(by_seed, tail=None):
         npv = [g["n_params"] for g in groups.values() if g["n_params"] == g["n_params"]]
         if npv:
             n_params.append(max(npv))
+        # Signed excess, not clamped: a negative value means the group is BELOW its own
+        # reference loss, i.e. the shared model beats a model trained on that group alone.
+        # That is a headline result for pooling and clamping it to zero would hide it.
         exs = [g["excess"] for g in groups.values() if g["excess"] == g["excess"]]
         if exs:
             max_excess.append(max(exs))
@@ -474,7 +477,10 @@ def overview(loaded):
     genuinely beats the full method, the card names it rather than quietly displaying the
     baseline's number under the method's heading.
     """
-    FULL = ["Ours_GDRO", "Ours", "ours"]      # anchors on, DRO on
+    # Xenia's row 5 is the method we present: per-group encoders + anchors + regret-DRO.
+    # The GroupDRO variant stays in the tables as the R*=0 point of her 2x2, but it is not
+    # what the overview leads with.
+    FULL = ["Ours_Regret", "ours", "Ours_GDRO", "Ours"]
     BASELINE = ["ERM", "erm"]                  # spec row 1
     cards = []
     for d in DATASETS:

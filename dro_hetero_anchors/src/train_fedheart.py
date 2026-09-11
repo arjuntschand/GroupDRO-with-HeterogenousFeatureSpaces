@@ -530,6 +530,7 @@ def train(cfg):
         
         loss_meter = Meter()
         acc_meter = Meter()
+        _q_epoch: List[List[float]] = []
         
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{cfg['epochs']} (lr={current_lr:.4g})")
         for x, y, g in pbar:
@@ -623,6 +624,14 @@ def train(cfg):
             # Update GroupDRO weights (after backward)
             if groupdro is not None:
                 groupdro.update_weights(groupdro._last_group_losses, groupdro._last_group_counts)
+                # Accumulate q across the epoch. In softmax mode update_weights OVERWRITES q
+                # from the current batch alone, so q at the end of an epoch reflects only the
+                # final batch. That batch is usually a partial remainder and often holds a
+                # single group, which makes the mask-absent-with-minus-inf path produce an
+                # exact one-hot. Logging that value made GroupDRO look permanently collapsed
+                # when the weights actually hover near uniform throughout training. The mean
+                # over the epoch's updates is what genuinely drove the gradients.
+                _q_epoch.append(groupdro.q.detach().cpu().tolist())
             
             # Metrics
             pred = logits.argmax(dim=1)
@@ -673,6 +682,9 @@ def train(cfg):
             "learning_rate": current_lr,
             **{f"test_{k}": v for k, v in test_metrics.items()},
             "groupdro_weights": groupdro.q.detach().cpu().tolist() if groupdro else None,
+            # mean over the epoch's updates; use THIS for training-dynamics plots
+            "groupdro_weights_mean": (
+                [sum(c)/len(c) for c in zip(*_q_epoch)] if _q_epoch else None),
             "groupdro_pi": groupdro.pi.detach().cpu().tolist() if groupdro else None,
             "groupdro_kl_penalty": groupdro._last_kl_penalty if groupdro else None,
         }

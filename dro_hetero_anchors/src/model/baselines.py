@@ -284,3 +284,48 @@ class FlexMoESparse(nn.Module):
                 if bool(m.any()):
                     out[m] = gate[m, e].unsqueeze(-1) * self.experts[e](z[m])
         return self.head(out), out
+
+
+class FlexMoESparseEmbed(nn.Module):
+    """Faithful Flex-MoE for EMBED: sparse top-k experts, missing-view bank, two routers."""
+
+    def __init__(self, views: Sequence[str], group_views: Dict[str, Sequence[str]],
+                 in_dim: int = 768, d_model: int = 128, n_experts: int = 16, top_k: int = 4,
+                 num_classes: int = 4, dropout: float = 0.1):
+        super().__init__()
+        self.views = list(views)
+        self.groups = list(group_views.keys())
+        self.group_views = {g: list(v) for g, v in group_views.items()}
+        self.n_experts, self.top_k, self.d = n_experts, top_k, d_model
+        self.proj = nn.ModuleDict({v: nn.Linear(in_dim, d_model) for v in self.views})
+        self.bank = nn.Parameter(torch.randn(len(self.views), d_model) * 0.02)
+        self.experts = nn.ModuleList([
+            nn.Sequential(nn.Linear(d_model, d_model), nn.GELU(), nn.Dropout(dropout),
+                          nn.Linear(d_model, d_model)) for _ in range(n_experts)])
+        self.g_router = nn.Linear(d_model, n_experts)
+        self.s_router = nn.Linear(d_model, n_experts)
+        self.group_expert = {g: i % n_experts for i, g in enumerate(self.groups)}
+        self.norm = nn.LayerNorm(d_model)
+        self.head = nn.Linear(d_model, num_classes)
+
+    def forward(self, group: str, view_feats: Dict[str, torch.Tensor], warmup: bool = False):
+        B = next(iter(view_feats.values())).shape[0]
+        toks = [self.proj[v](view_feats[v]) if v in view_feats
+                else self.bank[i].unsqueeze(0).expand(B, -1)
+                for i, v in enumerate(self.views)]
+        z = self.norm(torch.stack(toks, 1).mean(1))
+        out = z.new_zeros(B, self.d)
+        if warmup:
+            logits = self.g_router(z)
+            topv, topi = logits.topk(self.top_k, dim=-1)
+            w = topv.softmax(-1)
+            for k in range(self.top_k):
+                for e in range(self.n_experts):
+                    m = (topi[:, k] == e)
+                    if bool(m.any()):
+                        out[m] += w[m, k].unsqueeze(-1) * self.experts[e](z[m])
+        else:
+            e = self.group_expert[group]
+            gate = self.s_router(z).softmax(-1)[:, e].unsqueeze(-1)
+            out = gate * self.experts[e](z)
+        return self.head(out), out

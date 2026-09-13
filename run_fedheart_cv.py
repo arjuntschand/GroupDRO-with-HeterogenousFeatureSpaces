@@ -76,6 +76,8 @@ def main():
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 1337, 7])
     ap.add_argument("--out", default="runs/fedheart_cv")
     ap.add_argument("--no-impute", action="store_true")
+    ap.add_argument("--anchor-weight", type=float, default=0.1,
+                    help="lambda_fit/lambda_sep for the anchors-on arms")
     args = ap.parse_args()
 
     from dro_hetero_anchors.src.train_fedheart import train
@@ -92,7 +94,9 @@ def main():
 
     # Each fold uses a different data_split_seed, so a different 1/K is held out. Over K
     # folds every patient lands in the test set exactly once.
-    for label, shared, gdro, anch, regret in METHODS:
+    METHODS_RUN = [(l, sh, gd, (args.anchor_weight if a > 0.01 else a), rg)
+                   for (l, sh, gd, a, rg) in METHODS]
+    for label, shared, gdro, anch, regret in METHODS_RUN:
         results[label] = {}
         for seed in args.seeds:
             fold_metrics = []

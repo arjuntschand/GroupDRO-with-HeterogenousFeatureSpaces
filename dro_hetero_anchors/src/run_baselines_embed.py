@@ -22,7 +22,8 @@ import torch.nn.functional as F
 from dro_hetero_anchors.src.train_embed_xenia import (
     load_group_tensors, patient_split, _subset, estimate_optimal_losses, NUM_CLASSES)
 from dro_hetero_anchors.src.model.embed_xenia import VIEWS, GROUP_VIEWS, GROUPS
-from dro_hetero_anchors.src.model.baselines import FlexMoEEmbed, inverse_frequency_weights
+from dro_hetero_anchors.src.model.baselines import (
+    FlexMoEEmbed, FlexMoESparseEmbed, inverse_frequency_weights)
 
 
 def evaluate(model, data, masks, split, device, rstar):
@@ -34,7 +35,8 @@ def evaluate(model, data, masks, split, device, rstar):
             if m.sum() == 0:
                 continue
             sub = _subset(data[g], m, device)
-            logits, _ = model(g, sub["feats"])
+            logits, _ = (model(g, sub["feats"], warmup=False)
+                         if isinstance(model, FlexMoESparseEmbed) else model(g, sub["feats"]))
             y = sub["y"]
             loss = float(F.cross_entropy(logits, y))
             pred = logits.argmax(1)
@@ -55,11 +57,19 @@ def evaluate(model, data, masks, split, device, rstar):
 
 
 def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5e-5,
-              batch=32, n_experts=4, verbose=True):
+              batch=32, n_experts=4, capacity_matched=False, verbose=True):
     torch.manual_seed(seed); np.random.seed(seed)
     groups = [g for g in GROUPS if g in data]
     gv = {g: GROUP_VIEWS[g] for g in groups}
-    model = FlexMoEEmbed(VIEWS, gv, num_classes=NUM_CLASSES, n_experts=n_experts).to(device)
+    if method == "FlexMoE":
+        # released defaults 16 experts / d=128; capacity-matched 4 / d=64 sits beside our
+        # 276,228 parameters so the comparison isolates the architecture
+        dm, ne = (64, 4) if capacity_matched else (128, 16)
+        model = FlexMoESparseEmbed(VIEWS, gv, d_model=dm, n_experts=ne,
+                                   top_k=min(4, ne), num_classes=NUM_CLASSES).to(device)
+    else:
+        model = FlexMoEEmbed(VIEWS, gv, num_classes=NUM_CLASSES,
+                             n_experts=2 if capacity_matched else n_experts).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
     sched = torch.optim.lr_scheduler.StepLR(opt, step_size=5, gamma=0.1)
 
@@ -91,7 +101,8 @@ def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5
                 n = sub["y"].shape[0]
                 sel = torch.randint(0, n, (min(batch, n),), device=device)
                 feats = {v: t[sel] for v, t in sub["feats"].items()}
-                logits, _ = model(g, feats)
+                logits, _ = model(g, feats, warmup=(ep < 5)) \
+                    if isinstance(model, FlexMoESparseEmbed) else model(g, feats)
                 li = F.cross_entropy(logits, sub["y"][sel])
                 per[gi] = li.detach(); present[gi] = True
                 total = total + lam[gi] * li
@@ -125,6 +136,7 @@ def main():
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--split-seed", type=int, default=0)
     ap.add_argument("--rstar-folds", type=int, default=5)
+    ap.add_argument("--capacity-matched", action="store_true")
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
@@ -149,7 +161,8 @@ def main():
     rows = []
     for method in args.methods:
         for seed in args.seeds:
-            model = train_one(method, data, masks, device, rstar, seed, epochs=args.epochs)
+            model = train_one(method, data, masks, device, rstar, seed, epochs=args.epochs,
+                              capacity_matched=args.capacity_matched)
             n_params = sum(p.numel() for p in model.parameters())
             test = evaluate(model, data, masks, "test", device, rstar)
             worst = min(v["acc"] for v in test.values())

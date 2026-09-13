@@ -95,6 +95,11 @@ def main():
                     default=[42, 1337, 7, 2024, 31337, 11, 22, 33, 44, 55])
     ap.add_argument("--methods", nargs="+", default=["Reweigh", "FlexMoE", "REMIND"])
     ap.add_argument("--epochs", type=int, default=60)
+    # At released defaults Flex-MoE carries 536,354 parameters against our 30,818, a 17x
+    # capacity advantage that has nothing to do with the method. --capacity-matched sizes it
+    # to 4 experts at d=64 (35,722 params) so the comparison isolates the architecture. Both
+    # settings get reported; neither is hidden.
+    ap.add_argument("--capacity-matched", action="store_true")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -148,14 +153,15 @@ def main():
 
             if method == "FlexMoE":
                 # released defaults: 16 experts, top-k 4, hidden 128, 5 warm-up epochs
+                dm, ne = (64, 4) if args.capacity_matched else (128, 16)
                 model = FlexMoESparse(len(blocks), group_blocks, [len(b) for b in blocks],
-                                      d_model=128, n_experts=16, top_k=4,
+                                      d_model=dm, n_experts=ne, top_k=min(4, ne),
                                       num_classes=nc).to(device)
             else:
                 model = FlexMoEModel(
                     [len(b) for b in blocks], group_blocks,
                     latent_dim=cfg.get("latent_dim", 64), num_classes=nc,
-                    n_experts=4).to(device)
+                    n_experts=2 if args.capacity_matched else 4).to(device)
             opt = torch.optim.Adam(model.parameters(), lr=cfg.get("lr", 1e-3),
                                    weight_decay=cfg.get("weight_decay", 1e-4))
             reweigh = (ReweighLoss(ng, counts, device, class_weight=cls_w)
@@ -202,18 +208,21 @@ def main():
                 if min(acc) > best[0]:
                     best = (min(acc), (acc, lg, f1, tg))
             acc, lg, f1, tg = best[1]
-            print(f"  {method} s{seed}: worst={min(acc)*100:.2f} "
+            n_par = sum(p.numel() for p in model.parameters())
+            print(f"  {method} s{seed}: worst={min(acc)*100:.2f} params={n_par:,} "
                   f"per-group={[round(a*100,1) for a in acc]}", flush=True)
             for gi in range(ng):
                 rows.append(dict(method=method, seed=seed, group=f"g{gi}", n=tg[gi],
+                                 n_params=n_par,
                                  accuracy=acc[gi], macro_f1=f1[gi], loss=lg[gi],
                                  R_star=rstar[gi] if gi < len(rstar) else "",
                                  excess_loss=(lg[gi] - rstar[gi]) if gi < len(rstar) else ""))
 
     p = os.path.join(out, "metrics_long.csv")
     with open(p, "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=["method", "seed", "group", "n", "accuracy",
-                                           "macro_f1", "loss", "R_star", "excess_loss"])
+        w = csv.DictWriter(fh, fieldnames=["method", "seed", "group", "n", "n_params",
+                                           "accuracy", "macro_f1", "loss", "R_star",
+                                           "excess_loss"])
         w.writeheader(); w.writerows(rows)
     print(f"\nwrote {p}  ({len(rows)} rows)")
 

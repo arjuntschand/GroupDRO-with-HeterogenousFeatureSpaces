@@ -21,25 +21,40 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-INK, LOSS, LAM, REF = "#16181d", "#b03a3a", "#1d6f8b", "#6b7280"
+INK, LOSS, LAM, REF, TRAIN = "#16181d", "#b03a3a", "#1d6f8b", "#6b7280", "#c98b2e"
+
+
+def smooth(y, k=3):
+    """Centred moving average. NHANES converges in about five epochs and then oscillates,
+    with epoch-to-epoch jitter larger than the total drift, so the raw curve shows scatter
+    rather than a trend."""
+    if k <= 1 or len(y) < k:
+        return y
+    out = []
+    for i in range(len(y)):
+        lo, hi = max(0, i - k // 2), min(len(y), i + k // 2 + 1)
+        out.append(sum(y[lo:hi]) / (hi - lo))
+    return out
 
 
 def read(run):
     rows = list(csv.DictReader(open(os.path.join(run, "metrics.csv"))))
-    ep, loss, lam = [], [], []
+    ep, loss, lam, trloss = [], [], [], []
     for r in rows:
         try:
             ep.append(int(float(r["epoch"])))
         except Exception:
             continue
         loss.append(ast.literal_eval(r.get("test_per_group_loss") or "[]"))
+        t = r.get("train_per_group_loss") or ""
+        trloss.append(ast.literal_eval(t) if t and t != "None" else None)
         # Prefer the epoch MEAN. `groupdro_weights` is q after the final batch, and in
         # softmax mode q is overwritten from that batch alone; a partial last batch holding
         # one group produces an exact one-hot, which made GroupDRO look permanently collapsed
         # when the weights actually sit near uniform all through training.
         w = r.get("groupdro_weights_mean") or r.get("groupdro_weights") or ""
         lam.append(ast.literal_eval(w) if w and w != "None" else None)
-    return ep, loss, lam
+    return ep, loss, lam, trloss
 
 
 def load_rstar(path, n):
@@ -57,10 +72,12 @@ def main():
     ap.add_argument("--rstar", default=None)
     ap.add_argument("--tag", required=True)
     ap.add_argument("--names", nargs="*", default=None, help="group display names")
+    ap.add_argument("--smooth", type=int, default=1,
+                    help="centred moving-average window; 3 is enough for NHANES")
     ap.add_argument("--out", default="site/figs/dynamics")
     args = ap.parse_args()
 
-    ep, loss, lam = read(args.run)
+    ep, loss, lam, trloss = read(args.run)
     if not ep:
         print(f"  no epoch rows in {args.run}"); return
     G = max(len(l) for l in loss if l)
@@ -78,7 +95,15 @@ def main():
         ys = [l[gi] if gi < len(l) else None for l in loss]
         xs = [e for e, y in zip(ep, ys) if y is not None]
         ys = [y for y in ys if y is not None]
-        ax.plot(xs, ys, color=LOSS, lw=1.6, label="group loss")
+        ax.plot(xs, smooth(ys, args.smooth), color=LOSS, lw=1.8, label="test loss")
+        # train loss on the same axes: the GAP is what shows memorisation, and on the small
+        # groups it is the whole story
+        yt = [t[gi] if (t and gi < len(t)) else None for t in trloss]
+        xt = [e for e, v in zip(ep, yt) if v is not None and v == v]
+        yt = [v for v in yt if v is not None and v == v]
+        if yt:
+            ax.plot(xt, smooth(yt, args.smooth), color=TRAIN, lw=1.5, ls="-",
+                    alpha=.85, label="train loss")
         if rstar[gi] == rstar[gi] and rstar[gi] is not None:
             ax.axhline(rstar[gi], color=REF, ls="--", lw=1.4,
                        label=f"R* = {rstar[gi]:.3f}")

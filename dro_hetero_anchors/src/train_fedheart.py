@@ -531,6 +531,11 @@ def train(cfg):
         loss_meter = Meter()
         acc_meter = Meter()
         _q_epoch: List[List[float]] = []
+        # per-group TRAIN loss, accumulated over the epoch. Without this the plots can only
+        # show test loss, and the gap between the two is the thing that demonstrates
+        # memorisation on the small groups.
+        _trg_sum: Dict[int, float] = {}
+        _trg_n: Dict[int, int] = {}
         
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{cfg['epochs']} (lr={current_lr:.4g})")
         for x, y, g in pbar:
@@ -623,6 +628,9 @@ def train(cfg):
             
             # Update GroupDRO weights (after backward)
             if groupdro is not None:
+                for _gid, _gl in (groupdro._last_group_losses or {}).items():
+                    _trg_sum[_gid] = _trg_sum.get(_gid, 0.0) + float(_gl)
+                    _trg_n[_gid] = _trg_n.get(_gid, 0) + 1
                 groupdro.update_weights(groupdro._last_group_losses, groupdro._last_group_counts)
                 # Accumulate q across the epoch. In softmax mode update_weights OVERWRITES q
                 # from the current batch alone, so q at the end of an epoch reflects only the
@@ -683,6 +691,9 @@ def train(cfg):
             **{f"test_{k}": v for k, v in test_metrics.items()},
             "groupdro_weights": groupdro.q.detach().cpu().tolist() if groupdro else None,
             # mean over the epoch's updates; use THIS for training-dynamics plots
+            "train_per_group_loss": [
+                (_trg_sum.get(i, float("nan")) / _trg_n[i]) if _trg_n.get(i) else float("nan")
+                for i in range(len(cfg["groups"]))],
             "groupdro_weights_mean": (
                 [sum(c)/len(c) for c in zip(*_q_epoch)] if _q_epoch else None),
             "groupdro_pi": groupdro.pi.detach().cpu().tolist() if groupdro else None,

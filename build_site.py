@@ -791,17 +791,21 @@ def build(outdir=SITE):
              "actually sit near uniform throughout. The epoch mean is what drove the "
              "gradients.</div>"]
     plots.append(
-        "<div class='note'><b>What the Fed-Heart panels show.</b> Cleveland and Hungarian "
-        "descend below their reference losses around epoch 8 to 10 and stay there. "
-        "Switzerland and the VA do the opposite: they drop briefly, then climb steadily, the "
-        "VA from 0.57 up past 1.8. Those two groups are capped at 20 and 25 training samples, "
-        "so they are being memorised and their test loss rises while training loss keeps "
-        "falling. The weight curves underneath stay flat at about 0.25 throughout, which means "
-        "the DRO mechanism never reacts to the two groups that are degrading. It cannot: the "
-        "lambda update reads training loss, and by that signal those groups look fine. This is "
-        "the same failure the EMBED weight plot shows from the other direction, and it is an "
-        "argument for driving the max player from validation rather than training loss, or for "
-        "early stopping per group.</div>")
+        "<div class='note'><b>What the Fed-Heart panels show.</b> Each panel carries test loss "
+        "in red and train loss in amber, with that group's reference loss dashed. Cleveland "
+        "and Hungarian behave normally: both losses fall together and test ends slightly below "
+        "train. Switzerland and the VA do not. Their train loss collapses to 0.02 and 0.12 "
+        "while test loss climbs to 0.84 and 1.79, because those two groups are capped at 20 "
+        "and 25 training samples and are simply memorised.<br><br>Now look at the weight curves "
+        "underneath. All four sit flat near 0.25 for the entire run. The DRO mechanism never "
+        "reacts to the two groups that are failing, and it cannot: the lambda update reads "
+        "train loss, and by that signal Switzerland and the VA are the best-performing groups "
+        "in the dataset. The max player is being fed the one number that is actively "
+        "misleading.<br><br>This is the same failure the EMBED weight plot shows from the "
+        "other side, where GroupDRO put all of its weight on the largest group. Seeing it on "
+        "two datasets makes it a property of the update rule rather than a quirk of one. It "
+        "argues for driving the max player from validation loss, or for early stopping per "
+        "group.</div>")
     DYN = [("nhanes_anchors_groupdro",  "NHANES, per-group encoders + anchors + GroupDRO"),
            ("nhanes_anchors_regretdro", "NHANES, per-group encoders + anchors + Regret-DRO"),
            ("fedheart_anchors_groupdro",  "Fed-Heart, per-group encoders + anchors + GroupDRO"),

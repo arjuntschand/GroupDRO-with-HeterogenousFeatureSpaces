@@ -1,6 +1,7 @@
 """Fed-Heart training-dynamics runs, same two configs as NHANES, with per-epoch group
 weights logged so the lambda plots reflect what actually drove the gradients."""
 from __future__ import annotations
+import shutil
 import json, yaml
 from dro_hetero_anchors.src.train_fedheart import train
 
@@ -15,5 +16,6 @@ for tag, regret in [("anchors_groupdro", False), ("anchors_regretdro", True)]:
                lambda_fit=0.1, lambda_sep=0.1, impute_missing=True,
                use_regret=regret, optimal_losses=rstar,
                run_dir=f"runs/dynamics_fedheart/{tag}")
+    shutil.rmtree(cfg["run_dir"], ignore_errors=True)   # fresh header
     print(f"\n=== {tag} (regret={regret}) ===", flush=True)
     train(cfg)

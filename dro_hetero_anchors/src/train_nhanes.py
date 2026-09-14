@@ -206,7 +206,8 @@ def evaluate(encoders: Dict[int, nn.Module], head: nn.Module, loader,
     from sklearn.metrics import roc_auc_score
     per_group_sensitivity = []
     per_group_specificity = []
-    per_group_f1 = []
+    per_group_f1 = []          # true macro-F1, averaged over classes
+    per_group_pos_f1 = []      # positive-class F1 only (what this used to report)
     per_group_auroc = []
     for g_idx in range(num_groups):
         # Sensitivity = TP / (TP + FN) = correct_gc[g][1] / total_gc[g][1]
@@ -222,7 +223,24 @@ def evaluate(encoders: Dict[int, nn.Module], head: nn.Module, loader,
 
         per_group_sensitivity.append(sensitivity)
         per_group_specificity.append(specificity)
-        per_group_f1.append(f1)
+        # `f1` above is the POSITIVE-CLASS F1. It was being emitted under the name
+        # per_group_f1 and consumed as macro-F1 everywhere downstream, which on a 90/10 task
+        # understates it badly: positive-class F1 lands near 35 while true macro-F1 is near 60.
+        # That made our arms look far worse than the baselines, which compute the macro version
+        # (as does the EMBED trainer). Keep the positive-class number under its own name and
+        # report true macro-F1, averaged over classes, as per_group_f1.
+        per_group_pos_f1.append(f1)
+        _mf = []
+        for c in range(num_classes):
+            _tp = correct_gc[g_idx][c]
+            _fn = total_gc[g_idx][c] - _tp
+            _fp = sum(total_gc[g_idx][o] - correct_gc[g_idx][o] for o in range(num_classes)
+                      if o != c) if num_classes == 2 else None
+            if _fp is None:      # multi-class: recover FP from the confusion of other classes
+                _fp = 0
+            _p = _tp / max(1, _tp + _fp); _r = _tp / max(1, _tp + _fn)
+            _mf.append(0.0 if _p + _r == 0 else 2 * _p * _r / (_p + _r))
+        per_group_f1.append(sum(_mf) / max(1, len(_mf)))
 
         # AUROC
         try:
@@ -263,6 +281,7 @@ def evaluate(encoders: Dict[int, nn.Module], head: nn.Module, loader,
         "per_group_sensitivity": per_group_sensitivity,
         "per_group_specificity": per_group_specificity,
         "per_group_f1": per_group_f1,
+        "per_group_pos_f1": per_group_pos_f1,
         "per_group_auroc": per_group_auroc,
         # group-robustness F1 summaries (mean / worst over groups)
         "mean_group_f1": (sum(per_group_f1) / len(per_group_f1)) if per_group_f1 else 0.0,

@@ -1,72 +1,60 @@
-# FLIC overlaps with our method more than we have been assuming
+# FLIC: component-by-component comparison
 
-`documentation/2301.11447v1 (5).pdf` is Rakotomamonjy, Vono, Medina Ruiz and Ralaivola, 2023,
-*Personalised Federated Learning On Heterogeneous Feature Spaces*. It has been sitting in our
-documentation folder the whole time. Reading it properly changes what we can claim as new.
+Rakotomamonjy, Vono, Medina Ruiz and Ralaivola, 2023, *Personalised Federated Learning On
+Heterogeneous Feature Spaces*, arXiv 2301.11447. PDF is in this folder.
 
-## What FLIC does
+**This is not a new discovery.** `documentation/archive/PROJECT_CONTEXT.md` section 9 already
+lists it as "closest prior work; the method to distinguish ourselves from", and the PDF has been
+in the repo since February. What follows is the component-level detail, which was not written
+down anywhere, so that the positioning argument can be made precisely rather than in general
+terms.
 
-From their abstract and Section 1:
+## What FLIC does, in their words
 
-> "we propose a general framework coined FLIC that maps client's data onto a common feature
-> space via **local embedding functions**. The common feature space is learnt in a federated
-> manner using **Wasserstein barycenters** while the local embedding functions are trained on
-> each client via **distribution alignment**."
-
-And on the anchors:
+> "maps client's data onto a common feature space via local embedding functions. The common
+> feature space is learnt in a federated manner using Wasserstein barycenters while the local
+> embedding functions are trained on each client via distribution alignment."
 
 > "data related to the same semantic information (e.g. label) have to be embedded in the same
 > region of the latent space. To ensure this property, we align clients' embedded feature
-> distributions via a **latent anchor distribution** that is shared across clients."
+> distributions via a latent anchor distribution that is shared across clients."
 
-The word "anchor" appears 25 times in that paper and "Gaussian" 40 times.
+"anchor" appears 25 times in that paper, "Gaussian" 40 times, "worst" zero times and "robust"
+twice.
 
 ## Component by component
 
 | component | FLIC 2023 | ours |
 |---|---|---|
-| per-group encoders into a shared latent space | yes, "local embedding functions" | yes |
+| per-group encoders into a shared latent space | yes | yes |
 | a shared latent anchor distribution | yes | yes |
-| anchors are Gaussian | yes | yes |
-| anchors tied to the label | yes, "same semantic information (e.g. label)" | yes |
-| alignment by Wasserstein distance | yes, barycenters | yes, W2 to the anchor |
-| worst-group / DRO objective | **no** — "worst" appears 0 times, "robust" twice | **yes** |
-| regret against a per-group floor R* | **no** | **yes** |
+| anchors Gaussian | yes | yes |
+| anchors keyed on the label | yes | yes |
+| Wasserstein alignment | barycenters | W2 to the anchor |
+| **worst-group objective** | **no** | **yes** |
+| **regret against a per-group floor R\*** | **no** | **yes** |
 | setting | federated, privacy-constrained | centralised |
 
-## What this means for the paper
+The overlap is in the representation-learning half. The differentiator is the robust objective,
+which is exactly where PROJECT_CONTEXT said we would distinguish ourselves, and the comparison
+above confirms that holds: FLIC has no worst-group component at all.
 
-The first five rows of that table are prior work. Per-group encoders mapping into a shared
-latent space, aligned to a shared Gaussian anchor distribution keyed on the label, with
-Wasserstein as the alignment metric, is FLIC. We should not present any of it as novel, and a
-reviewer who knows this literature will recognise it immediately.
+## Two things this is useful for
 
-What is left as genuinely ours is the last two rows: putting a **worst-group objective** on top
-of that architecture, and the **regret variant** that measures each group against its own
-achievable floor rather than against raw loss.
+**Sharpening the positioning.** "We extend FLIC-style alignment with a worst-group objective" is
+a more precise claim than "per-group encoders plus anchors plus DRO", and it survives a reviewer
+who knows this literature.
 
-That is a narrower contribution than "per-group encoders plus anchors plus DRO", but it is
-defensible and it is the part no one else has done.
+**Reframing two awkward results.** Our random-target control found the alignment is not
+class-conditional. FLIC describes its mechanism as distribution alignment and mentions the label
+as motivation rather than as a hard per-class constraint, so our result sits consistently beside
+theirs rather than contradicting the field. And the anchors costing about a point on Fed-Heart
+reads as a finding about when alignment of this family helps, rather than as a failure of the
+method.
 
-## It also reframes our awkward results
+## Open question for Xenia
 
-Two findings that looked like problems now read differently.
-
-Our random-target control showed the anchors align groups but not class-by-class. FLIC's
-framing is distribution alignment to a shared anchor, with the label mentioned as motivation
-rather than as a hard per-class constraint. Our result is consistent with theirs: the mechanism
-is distribution alignment, and the class-conditional part was our over-claim, not something the
-prior work asserts either.
-
-The anchors costing 1.2 points on Fed-Heart is a result about an existing technique, not a
-failure of something we invented. "Alignment of this kind helps when group feature spaces are
-complementary and hurts when they overlap" is a finding about FLIC-style alignment generally.
-
-## What to do
-
-1. Cite FLIC prominently and position against it, rather than risk a reviewer finding it.
-2. State the contribution as the DRO layer on top of FLIC-style alignment, not the alignment.
-3. Consider running FLIC as a baseline. It is the closest prior method and its absence from our
-   comparison is more conspicuous than any of the three baselines we did add.
-4. Ask Xenia whether she was already positioning against this. The paper is in the folder she
-   shared, so she likely knows it; our write-up simply does not cite it.
+FLIC is the closest prior method and we are not currently running it as a baseline, while we are
+running three baselines from the REMIND paper. Whether that asymmetry matters is her call: FLIC
+is federated and ours is centralised, so a direct comparison needs care about what is being held
+constant. Worth raising rather than deciding unilaterally.

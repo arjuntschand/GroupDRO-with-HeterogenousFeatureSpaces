@@ -444,6 +444,12 @@ table.data th{text-align:right;padding:14px 12px 10px;font-weight:600;font-size:
   color:var(--dim);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);
   white-space:nowrap}
 table.data th:first-child,table.data td.m{text-align:left}
+table.data th{cursor:pointer;user-select:none;position:relative}
+table.data th:hover{color:var(--fg)}
+table.data th::after{content:'\2195';opacity:.25;margin-left:6px;font-size:10px}
+table.data th.asc::after{content:'\2191';opacity:.9}
+table.data th.desc::after{content:'\2193';opacity:.9}
+table.data th.def::after{content:'\2195';opacity:.25}
 table.data td{text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);
   white-space:nowrap}
 table.data tbody tr:last-child td{border-bottom:0}
@@ -480,11 +486,66 @@ li b{color:var(--ink)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 """
 
-JS = """
+JS = r"""
 function show(id,el){document.querySelectorAll('section').forEach(s=>s.classList.remove('on'));
 document.getElementById(id).classList.add('on');
 document.querySelectorAll('nav a').forEach(a=>a.classList.remove('on'));el.classList.add('on');
 window.scrollTo(0,0);}
+
+/* Sortable tables.
+   Every table on the site is authored in a deliberate order: simplest arm first, our method
+   in the middle, baselines last. That ordering carries meaning, so it stays the default and a
+   third click on a header returns to it rather than leaving the reader in a sorted state they
+   cannot undo.
+   Cells hold things like "73.5", "73.5 +/- 1.2", "0.678", "1,288,580" and "-". num() pulls the
+   leading signed number so the +/- spread and any suffix do not affect the ordering; anything
+   with no number sorts to the bottom in both directions instead of jumping around. */
+function num(td){var m=(td.textContent||'').replace(/,/g,'').match(/-?\d+(\.\d+)?/);
+  return m?parseFloat(m[0]):null;}
+function sortable(t){
+  var tb=t.tBodies[0]; if(!tb) return;
+  var rows=[].slice.call(tb.rows);
+  rows.forEach(function(r,i){r.dataset.def=i;});
+  [].slice.call(t.tHead.rows[0].cells).forEach(function(th,ci){
+    th.addEventListener('click',function(){
+      var next = th.classList.contains('desc') ? 'asc'
+               : th.classList.contains('asc')  ? 'def' : 'desc';
+      [].slice.call(t.tHead.rows[0].cells).forEach(function(o){
+        o.classList.remove('asc','desc','def');});
+      th.classList.add(next);
+      var sorted=rows.slice();
+      if(next==='def'){
+        sorted.sort(function(a,b){return a.dataset.def-b.dataset.def;});
+      }else{
+        var sign = next==='asc' ? 1 : -1;
+        /* Decide the column's type from its contents rather than its position. Method names
+           and the encoder/DRO/anchors switches are text; everything else is a measurement.
+           A column counts as numeric only if some row actually parses, so a column of dashes
+           does not silently become a numeric sort that does nothing. */
+        var numeric = rows.some(function(r){return num(r.cells[ci])!==null;});
+        sorted.sort(function(a,b){
+          var ca=a.cells[ci], cb=b.cells[ci];
+          if(numeric){
+            var x=num(ca), y=num(cb);
+            if(x===null&&y===null) return a.dataset.def-b.dataset.def;
+            if(x===null) return 1;          /* blanks last in both directions */
+            if(y===null) return -1;
+            return x===y ? a.dataset.def-b.dataset.def : sign*(x-y);
+          }
+          var s1=(ca.textContent||'').trim().toLowerCase(),
+              s2=(cb.textContent||'').trim().toLowerCase();
+          return s1===s2 ? a.dataset.def-b.dataset.def : sign*(s1<s2?-1:1);
+        });
+      }
+      sorted.forEach(function(r){tb.appendChild(r);});
+    });
+  });
+}
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('table.data').forEach(sortable);
+  document.querySelectorAll('table.data th').forEach(function(th){
+    th.title='click to sort, click again to reverse, a third time for the default order';});
+});
 """
 
 

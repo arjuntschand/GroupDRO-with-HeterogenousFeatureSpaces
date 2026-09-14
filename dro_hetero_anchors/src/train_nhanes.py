@@ -417,6 +417,7 @@ def train(cfg):
         data_split_seed=cfg.get("data_split_seed"),
         subsample_seed=subsample_seed,
         feature_mode=cfg.get("feature_mode", "nested"),
+        val_frac=cfg.get("val_frac", 0.0),
         class_balanced=cfg.get("class_balanced", False),
     )
 
@@ -427,6 +428,9 @@ def train(cfg):
     num_groups = dataset_info["num_groups"]
     num_classes = dataset_info["num_classes"]
     g_names = dataset_info.get("group_names", [f"G{i}" for i in range(num_groups)])
+
+    # Remove the DataLoader before anything serialises dataset_info.
+    _VAL_LOADER = dataset_info.pop("val_loader", None)
 
     print_nhanes_summary(dataset_info)
     print_hyperparameters(cfg, dataset_info)
@@ -706,6 +710,12 @@ def train(cfg):
         # Evaluation
         test_metrics = evaluate(encoders, head, test_loader, device, num_groups, num_classes,
                                 feature_indices=feature_indices)
+        # Model selection must not read the test set. When a validation split exists we log
+        # its metrics too, and the runners select the reported epoch on those instead.
+        _val_loader = _VAL_LOADER
+        val_metrics = (evaluate(encoders, head, _val_loader, device, num_groups, num_classes,
+                                feature_indices=feature_indices)
+                       if _val_loader is not None else None)
 
         print_epoch_results(epoch, loss_meter.avg, acc_meter.avg, test_metrics, groupdro, num_groups, num_classes, g_names)
 
@@ -728,6 +738,7 @@ def train(cfg):
             "train_acc": float(acc_meter.avg),
             "learning_rate": current_lr,
             **{f"test_{k}": v for k, v in test_metrics.items()},
+            **({f"val_{k}": v for k, v in val_metrics.items()} if val_metrics else {}),
             "groupdro_weights": groupdro.q.detach().cpu().tolist() if groupdro else None,
             # mean over the epoch's updates; use THIS for training-dynamics plots
             "train_per_group_loss": [

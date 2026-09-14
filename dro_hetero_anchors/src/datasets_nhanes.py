@@ -401,6 +401,7 @@ def _preprocess_features(df: pd.DataFrame, feature_mode: str = "nested") -> np.n
 def _load_and_preprocess_nhanes(
     data_dir: str,
     train_frac: float = 0.8,
+    val_frac: float = 0.0,        # fraction OF TRAIN held out for model selection
     seed: int = 42,
     use_post_pandemic: bool = True,
     min_group_size: int = 50,
@@ -414,7 +415,8 @@ def _load_and_preprocess_nhanes(
     Returns:
         features, labels, groups, splits, group_feature_counts, feature_indices, max_features
     """
-    cache_key = (os.path.abspath(data_dir), train_frac, seed, use_post_pandemic, feature_mode)
+    cache_key = (os.path.abspath(data_dir), train_frac, seed, use_post_pandemic,
+                 feature_mode, val_frac)
     if cache_key in _nhanes_cache:
         return _nhanes_cache[cache_key]
 
@@ -487,6 +489,23 @@ def _load_and_preprocess_nhanes(
     splits[train_idx] = "train"
     splits[test_idx] = "test"
 
+    # Carve a VALIDATION split out of train. Without one there is nothing to select the epoch
+    # on except the test set, which is what the runners were doing: they reported the epoch
+    # with the best test worst-group accuracy, making every tabular number a best-of-forty on
+    # test. Model selection has to happen on data the test set never sees.
+    if val_frac and val_frac > 0:
+        tr_strat = strat_key[train_idx]
+        try:
+            tr2_idx, val_idx = train_test_split(
+                train_idx, test_size=val_frac, random_state=seed, shuffle=True,
+                stratify=tr_strat)
+        except ValueError:
+            tr2_idx, val_idx = train_test_split(
+                train_idx, test_size=val_frac, random_state=seed, shuffle=True)
+        splits[tr2_idx] = "train"
+        splits[val_idx] = "val"
+        train_idx = tr2_idx
+
     # Per-group normalization using TRAIN stats only
     for g in sorted(feat_indices.keys()):
         g_idx = np.where(groups == g)[0]
@@ -541,7 +560,13 @@ class NHANESDataset(Dataset):
         class_balanced: bool = False,
     ):
         self.train = train
-        split_name = "train" if train else "test"
+        # `train` accepts a split NAME as well as a bool, so a validation split can be
+        # requested without changing every existing call site.
+        if isinstance(train, str):
+            split_name = train
+            self.train = (train == "train")
+        else:
+            split_name = "train" if train else "test"
         mask = splits == split_name
 
         self.features = torch.from_numpy(features[mask])
@@ -709,6 +734,7 @@ def build_nhanes_loaders(
     stratified: bool = True,
     data_root: Optional[str] = None,
     train_frac: float = 0.8,
+    val_frac: float = 0.0,
     use_post_pandemic: bool = True,
     group_max_train_samples: Optional[List[Optional[int]]] = None,
     data_split_seed: Optional[int] = None,
@@ -749,6 +775,7 @@ def build_nhanes_loaders(
             seed=split_seed,
             use_post_pandemic=use_post_pandemic,
             feature_mode=feature_mode,
+            val_frac=val_frac,
         )
 
     sub_seed = subsample_seed if subsample_seed is not None else seed
@@ -762,6 +789,8 @@ def build_nhanes_loaders(
     test_dataset = NHANESDataset(
         features, labels, groups, splits, train=False,
     )
+    val_dataset = (NHANESDataset(features, labels, groups, splits, train="val")
+                   if (val_frac and (splits == "val").any()) else None)
 
     # Statistics
     train_group_counts = train_dataset.get_group_counts()
@@ -813,6 +842,14 @@ def build_nhanes_loaders(
         num_workers=num_workers, collate_fn=collate_nhanes, pin_memory=True,
     )
 
+    val_loader = None
+    if val_dataset is not None and len(val_dataset) > 0:
+        val_loader = DataLoader(
+            val_dataset, batch_size=batch_size, shuffle=False,
+            num_workers=num_workers, collate_fn=collate_nhanes, pin_memory=True,
+        )
+    dataset_info["val_total"] = len(val_dataset) if val_dataset is not None else 0
+    dataset_info["val_loader"] = val_loader
     return train_loader, test_loader, dataset_info
 
 

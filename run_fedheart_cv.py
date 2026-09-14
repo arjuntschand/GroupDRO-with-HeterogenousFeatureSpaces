@@ -53,7 +53,18 @@ def read_best(run_dir):
             return float(r.get(k, "") or "nan")
         except Exception:
             return float("nan")
-    best = max(rows, key=lambda r: fl(r, "test_worst_group_acc"))
+    # Select the reported epoch on VALIDATION when a validation split exists. Selecting on
+    # test, which is what this did before, makes every reported number a best-of-N on the test
+    # set and biases it upward. Falls back to test only when no val column is present, and the
+    # fallback is visible in the output rather than silent.
+    sel_key = "val_worst_group_acc" if rows and rows[0].get("val_worst_group_acc") else "test_worst_group_acc"
+    if sel_key == "test_worst_group_acc":
+        globals().setdefault("_WARNED_TEST_SEL", False)
+        if not globals()["_WARNED_TEST_SEL"]:
+            print("  [warn] no validation split found; selecting the reported epoch on TEST",
+                  flush=True)
+            globals()["_WARNED_TEST_SEL"] = True
+    best = max(rows, key=lambda r: fl(r, sel_key))
     import ast
     def lst(k):
         v = best.get(k)

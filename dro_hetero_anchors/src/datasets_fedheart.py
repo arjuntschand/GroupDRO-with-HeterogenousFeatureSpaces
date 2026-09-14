@@ -51,13 +51,15 @@ _standalone_cache: Dict[tuple, tuple] = {}
 
 
 def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, seed: int = 43,
-                                       impute_missing: bool = False):
+                                       impute_missing: bool = False, val_frac: float = 0.0):
     """
     Load UCI Heart Disease data and preprocess like FLamby.
     Returns: features_list, labels_list, centers_list, sets_list (each list of per-sample data),
              center_stats (for normalization). Result is cached by (data_dir, seed).
     """
-    cache_key = (os.path.abspath(data_dir), train_frac, seed, impute_missing)
+    # val_frac belongs in the key: a cached split built without a validation set must not be
+    # handed back when one is asked for.
+    cache_key = (os.path.abspath(data_dir), train_frac, seed, impute_missing, val_frac)
     if cache_key in _standalone_cache:
         return _standalone_cache[cache_key]
     data_dir = _download_fedheart_uci(data_dir)
@@ -107,16 +109,30 @@ def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, 
             stratify=stratify,
         )
 
+        # Carve the validation set out of TRAIN, per centre, so every group is represented in
+        # it. The test fold is never touched.
+        indices_val = np.array([], dtype=int)
+        if val_frac and val_frac > 0 and len(indices_train) > 4:
+            strat_tr = current_labels.values[indices_train]
+            try:
+                indices_train, indices_val = train_test_split(
+                    indices_train, test_size=val_frac, random_state=seed, shuffle=True,
+                    stratify=strat_tr)
+            except ValueError:      # a class too small to stratify at this centre
+                indices_train, indices_val = train_test_split(
+                    indices_train, test_size=val_frac, random_state=seed, shuffle=True)
+        train_set, val_set = set(indices_train.tolist()), set(indices_val.tolist())
+
         for i in range(nb):
             x_row = center_X.iloc[i : i + 1]
             y_val = center_y.iloc[i]
             all_centers.append(cid)
-            all_sets.append("train" if i in indices_train else "test")
+            all_sets.append("train" if i in train_set else ("val" if i in val_set else "test"))
             all_features.append(x_row)
             all_labels.append(y_val)
 
-        train_idx = [i for i in range(nb) if i in indices_train]
-        test_idx = [i for i in range(nb) if i in indices_test]
+        train_idx = [i for i in range(nb) if i in train_set]
+        test_idx = [i for i in range(nb) if i in set(indices_test.tolist())]
         center_dfs.append((cid, center_X.iloc[train_idx], center_X.iloc[test_idx], center_y.iloc[train_idx], center_y.iloc[test_idx]))
 
     # Concatenate and one-hot encode (get_dummies on columns 2 and 6)
@@ -156,13 +172,17 @@ class _StandaloneHeartDiseaseDataset(Dataset):
     """Standalone UCI-based dataset (no FLamby). One center, train or test."""
 
     def __init__(self, center: int, train: bool, data_dir: str, seed: int = 43, train_frac: float = 0.66,
-                 impute_missing: bool = False):
+                 impute_missing: bool = False, val_frac: float = 0.0, split: Optional[str] = None):
         self.center = center
         self.train = train
+        # `train` stays for the existing call sites; `split` is what actually selects, so "val"
+        # can be requested without changing any of them.
+        want = split or ("train" if train else "test")
         features, labels, centers, sets, _ = _load_and_preprocess_heart_disease(
-            data_dir, train_frac=train_frac, seed=seed, impute_missing=impute_missing)
-        self.features = [f for i, f in enumerate(features) if centers[i] == center and sets[i] == ("train" if train else "test")]
-        self.labels = [labels[i] for i in range(len(centers)) if centers[i] == center and sets[i] == ("train" if train else "test")]
+            data_dir, train_frac=train_frac, seed=seed, impute_missing=impute_missing,
+            val_frac=val_frac)
+        self.features = [f for i, f in enumerate(features) if centers[i] == center and sets[i] == want]
+        self.labels = [labels[i] for i in range(len(centers)) if centers[i] == center and sets[i] == want]
         self.labels = torch.from_numpy(np.array(self.labels, dtype=np.int64))
 
     def __len__(self):
@@ -261,8 +281,11 @@ class CombinedFedHeartDataset(Dataset):
                  feature_mask: Optional[List[Optional[List[int]]]] = None,
                  input_noise_std: Optional[List[float]] = None,
                  subsample_seed: Optional[int] = None,
-                 impute_missing: bool = False):
+                 impute_missing: bool = False,
+                 val_frac: float = 0.0,
+                 split: Optional[str] = None):
         self.train = train
+        self.split = split or ("train" if train else "test")
         self.centers = centers if centers is not None else list(range(NUM_CLIENTS))
         self.seed = seed
         self.train_frac = train_frac
@@ -289,7 +312,8 @@ class CombinedFedHeartDataset(Dataset):
             data_root = os.path.abspath(data_root)
             self.datasets = [
                 _StandaloneHeartDiseaseDataset(center=c, train=train, data_dir=data_root, seed=seed,
-                                               train_frac=train_frac, impute_missing=impute_missing)
+                                               train_frac=train_frac, impute_missing=impute_missing,
+                                               val_frac=val_frac, split=self.split)
                 for c in self.centers
             ]
 
@@ -554,6 +578,7 @@ def build_fedheart_loaders(
     input_noise_std: Optional[List[float]] = None,
     subsample_seed: Optional[int] = None,
     impute_missing: bool = False,
+    val_frac: float = 0.0,
 ) -> Tuple[DataLoader, DataLoader, Dict]:
     """Build train and test DataLoaders for Fed-Heart Disease.
     
@@ -593,7 +618,7 @@ def build_fedheart_loaders(
     train_dataset = CombinedFedHeartDataset(
         train=True, centers=centers, data_root=data_root,
         group_max_samples=group_max_train_samples, seed=seed,
-        train_frac=train_frac,
+        train_frac=train_frac, val_frac=val_frac,
         label_noise_rate=label_noise_rate,
         feature_mask=feature_mask,
         input_noise_std=input_noise_std,
@@ -602,9 +627,17 @@ def build_fedheart_loaders(
     )
     test_dataset = CombinedFedHeartDataset(
         train=False, centers=centers, data_root=data_root,
-        seed=seed, train_frac=train_frac,
+        seed=seed, train_frac=train_frac, val_frac=val_frac,
         impute_missing=impute_missing,
     )
+    # Held out from train, used only to pick the reported epoch. Feature masking and noise are
+    # applied exactly as on train so the two are measured on the same input distribution.
+    val_dataset = (CombinedFedHeartDataset(
+        train=False, centers=centers, data_root=data_root, split="val",
+        seed=seed, train_frac=train_frac, val_frac=val_frac,
+        label_noise_rate=None, feature_mask=feature_mask,
+        input_noise_std=input_noise_std, impute_missing=impute_missing,
+    ) if val_frac and val_frac > 0 else None)
     
     # Get statistics
     train_group_counts = train_dataset.get_group_counts()
@@ -660,7 +693,14 @@ def build_fedheart_loaders(
         collate_fn=collate_fedheart,
         pin_memory=True,
     )
-    
+
+    if val_dataset is not None and len(val_dataset) > 0:
+        dataset_info["val_loader"] = DataLoader(
+            val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers,
+            collate_fn=collate_fedheart, pin_memory=True)
+        dataset_info["val_group_counts"] = val_dataset.get_group_counts()
+        dataset_info["val_total"] = len(val_dataset)
+
     return train_loader, test_loader, dataset_info
 
 

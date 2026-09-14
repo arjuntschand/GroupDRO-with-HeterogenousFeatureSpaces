@@ -393,7 +393,10 @@ def train(cfg):
         input_noise_std=cfg.get("input_noise_std"),
         subsample_seed=subsample_seed,
         impute_missing=cfg.get("impute_missing", False),
+        val_frac=cfg.get("val_frac", 0.0),
     )
+    # dataset_info is JSON-serialised by results_logger, so the DataLoader cannot live in it.
+    _VAL_LOADER = dataset_info.pop("val_loader", None)
 
     # Print dataset summary and hyperparameters
     print_fedheart_summary(dataset_info)
@@ -666,6 +669,11 @@ def train(cfg):
         
         # Evaluation
         test_metrics = evaluate(encoders, head, test_loader, device, num_groups, num_classes, feature_indices=feature_indices)
+        # Validation, when one was carved out of train. The runners select the reported epoch on
+        # this; without it they fall back to test, which is selection on the test set.
+        val_metrics = (evaluate(encoders, head, _VAL_LOADER, device, num_groups, num_classes,
+                                feature_indices=feature_indices)
+                       if _VAL_LOADER is not None else None)
         
         # Print epoch results
         print_epoch_results(epoch, loss_meter.avg, acc_meter.avg, test_metrics, groupdro, num_groups, num_classes)
@@ -689,6 +697,7 @@ def train(cfg):
             "train_acc": float(acc_meter.avg),
             "learning_rate": current_lr,
             **{f"test_{k}": v for k, v in test_metrics.items()},
+            **({f"val_{k}": v for k, v in val_metrics.items()} if val_metrics else {}),
             "groupdro_weights": groupdro.q.detach().cpu().tolist() if groupdro else None,
             # mean over the epoch's updates; use THIS for training-dynamics plots
             "train_per_group_loss": [

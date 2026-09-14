@@ -57,7 +57,7 @@ def evaluate(model, data, masks, split, device, rstar):
 
 
 def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5e-5,
-              batch=32, n_experts=4, capacity_matched=False, verbose=True):
+              batch=32, n_experts=128, capacity_matched=False, verbose=True):
     torch.manual_seed(seed); np.random.seed(seed)
     groups = [g for g in GROUPS if g in data]
     gv = {g: GROUP_VIEWS[g] for g in groups}
@@ -68,8 +68,11 @@ def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5
         model = FlexMoESparseEmbed(VIEWS, gv, d_model=dm, n_experts=ne,
                                    top_k=min(4, ne), num_classes=NUM_CLASSES).to(device)
     else:
-        model = FlexMoEEmbed(VIEWS, gv, num_classes=NUM_CLASSES,
-                             n_experts=2 if capacity_matched else n_experts).to(device)
+        # Paper, Implementation Details: "a REMIND MoE transformer with 128 experts and one
+        # slot per expert, embedding size 768, num of heads 8". Table 16 sweeps E in
+        # {32, 64, 128} and reports 128 as best (80.7 average).
+        ne_ = 8 if capacity_matched else n_experts
+        model = FlexMoEEmbed(VIEWS, gv, num_classes=NUM_CLASSES, n_experts=ne_).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
     sched = torch.optim.lr_scheduler.StepLR(opt, step_size=5, gamma=0.1)
 

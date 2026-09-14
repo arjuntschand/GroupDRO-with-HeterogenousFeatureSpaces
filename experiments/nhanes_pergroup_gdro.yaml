@@ -51,4 +51,3 @@ groupdro_kl_lambda: 0.0
 groupdro_uniform_init: false
 log_interval: 20
 save_every: 10
-val_frac: 0.2

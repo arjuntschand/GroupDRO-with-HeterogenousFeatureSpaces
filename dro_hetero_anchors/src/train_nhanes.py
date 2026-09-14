@@ -460,8 +460,20 @@ def train(cfg):
         for g in cfg["groups"]:
             g["input_dim"] = n_common
     else:
-        # Legacy: shared encoder sees ALL features (zero-padded)
+        # Shared encoder sees ALL features, zero-padded to the widest group. This is the
+        # capacity- and feature-matched comparison against per-group encoders: the default
+        # branch above restricts the shared encoder to the intersection of every group's
+        # features, which makes per-group vs shared a feature-access comparison rather than an
+        # architecture one.
+        #
+        # input_dim has to be widened here. The configs carry the PER-GROUP width (15 on
+        # disjoint), but the loader pads every row to max_features (25), so leaving it alone
+        # builds a 15-wide encoder and the first matmul fails on a 25-wide batch.
         feature_indices = None
+        n_pad = int(dataset_info["max_features"])
+        for g in cfg["groups"]:
+            g["input_dim"] = n_pad
+        console.log(f"[bold]Shared encoder: all features, zero-padded ({n_pad} features)[/bold]")
 
     # Build models
     group_counts = dataset_info["train_group_counts"]

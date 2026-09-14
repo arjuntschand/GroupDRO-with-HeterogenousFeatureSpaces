@@ -14,13 +14,33 @@ Three methods, requested as additional comparisons:
   REMIND    their method: the same Soft MoE fusion plus a distributionally robust outer
             loop, with the group weights lambda refreshed every N steps from per-group loss.
 
-IMPORTANT, read before quoting any of these numbers. The REMIND paper does not include a
-code-availability statement and we could not locate a public repository, so these are
-reimplementations from the paper's description, not the authors' released code. The
-experiment spec asks for "as published, use their released code". Until that code is
-obtained these should be reported as "our reimplementation" and treated as indicative. The
-most likely source of divergence is the Soft MoE configuration (expert count, token length)
-which the paper specifies only partially.
+PROVENANCE, read before quoting any of these numbers.
+
+Flex-MoE HAS released code: github.com/UNITES-Lab/Flex-MoE, NeurIPS 2024. Ours follows its
+architecture (sparse top-k gating, missing-modality bank, generalised and specialised routers)
+but is NOT a port of that code, and reading their moe_module.py shows three things we do not
+implement:
+
+  - noisy gating, where noise is added to the router logits during training for exploration
+  - a supervised routing loss, cross-entropy on the gate against ground-truth expert indices
+  - a load-balancing loss across experts
+
+Our specialised router hard-assigns each group to its expert; theirs supervises the gate toward
+that expert while still letting it learn. Expect our Flex-MoE to be a reasonable approximation
+rather than a faithful reproduction, and say so when reporting it.
+
+REMIND has NO released code. The paper carries one URL, its own arXiv link; the abstract page
+lists no repository; the corresponding author's page gives it a PDF while other projects there
+carry Code links; and the appendix states code would be released after the decision, which as
+of this writing has not happened. Ours is a reimplementation from the paper's description. The
+Soft MoE configuration (expert count, token length) is specified only partially, so this is the
+likeliest place to diverge. Report it as a reimplementation, and treat it as the
+lowest-confidence number in the comparison.
+
+Reweigh is not a separate architecture. The paper states: "we combine multi-modal MoE with
+group robustness strategies", listing it alongside GroupDRO, FairBatch and FairMixup. Ours is
+therefore the Soft MoE backbone plus fixed inverse-frequency group weighting, which matches
+that description.
 
 Adapting the modality framing to tabular data
 ---------------------------------------------

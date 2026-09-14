@@ -631,6 +631,57 @@ t-test cannot separate from the best are marked tied rather than ranked. Nothing
 selected for looking good.</div>"""
 
 
+def baseline_table(data, tail=None):
+    """Our arms and the external baselines side by side, with the Step 6 metric set.
+
+    Parameter counts are included because Step 5 requires them on every row: these are
+    different architectures, and a Soft MoE or a sparse top-k MoE at published defaults can
+    carry an order of magnitude more capacity than our model.
+    """
+    ROWS = [("Ours_Regret", "Ours: per-group + anchors + regret", "full"),
+            ("Ours", "Ours: per-group + anchors + regret", "full"),
+            ("ours", "Ours: per-group + anchors + regret", "full"),
+            ("Ours_GDRO", "Ours: per-group + anchors + GroupDRO", "abl"),
+            ("align_only", "Ours: per-group + anchors + GroupDRO", "abl"),
+            ("GroupDRO", "GroupDRO, per-group, anchors off", "base"),
+            ("groupdro", "GroupDRO, per-group, anchors off", "base"),
+            ("ERM", "ERM, common features", "base"),
+            ("erm", "ERM, per-group", "base"),
+            ("PerGroupOnly", "Per-group encoders + ERM", "base")]
+    seen, rows = set(), []
+    def cellf(v, dp=1):
+        return f"<td>{v[0]:.{dp}f}<span class='sd'>±{v[1]:.{dp}f}</span></td>" if v else "<td class='na'>—</td>"
+    def emit(key, label, kind, suffix=""):
+        if key not in data or label in seen:
+            return
+        seen.add(label)
+        s_ = summarize(data[key], tail=tail)
+        npar = s_.get("n_params")
+        tag = {"full": "<span class='tag ours'>ours</span>",
+               "ext": "<span class='tag ctrl'>external</span>"}.get(kind, "")
+        rows.append(
+            f"<tr class='{'best' if kind == 'full' else ''}'>"
+            f"<td class='m'>{html.escape(label)}{suffix}{tag}</td>"
+            f"{cellf(s_['worst_acc'])}{cellf(s_['tail_acc'])}{cellf(s_['wt_acc'])}"
+            f"{cellf(s_['wt_f1'])}{cellf(s_['worst_loss'], 3)}{cellf(s_['max_excess'], 3)}"
+            f"<td class='dim'>{int(npar):,}</td>" if npar else
+            f"<tr class='{'best' if kind == 'full' else ''}'>"
+            f"<td class='m'>{html.escape(label)}{suffix}{tag}</td>"
+            f"{cellf(s_['worst_acc'])}{cellf(s_['tail_acc'])}{cellf(s_['wt_acc'])}"
+            f"{cellf(s_['wt_f1'])}{cellf(s_['worst_loss'], 3)}{cellf(s_['max_excess'], 3)}"
+            f"<td class='na'>—</td>")
+        rows[-1] += f"<td class='dim'>{s_['seeds']}</td></tr>"
+    for k, l, kind in ROWS:
+        emit(k, l, kind)
+    for tag, lbl in [("released", " (published defaults)"), ("matched", " (capacity-matched)")]:
+        for m in ["Reweigh", "FlexMoE", "REMIND"]:
+            emit(f"{m}__{tag}", f"{m}{lbl}", "ext")
+    return ("<table class='data'><thead><tr><th>method</th>"
+            "<th>worst-group acc</th><th>tail acc</th><th>overall acc</th><th>macro-F1</th>"
+            "<th>worst-group loss</th><th>max excess</th><th>params</th><th>seeds</th>"
+            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>")
+
+
 def methods_page():
     """Arm table generated from METHODS so the labels can never drift from the results."""
     rows = "".join(
@@ -821,6 +872,43 @@ def build(outdir=SITE):
     if not shown:
         plots.append("<p class='na'>Runs in progress.</p>")
     tabs.append(("Plots", "sec-plots")); secs.append(("sec-plots", "".join(plots)))
+
+    # Baselines tab: the three methods from the REMIND paper against our arms, per dataset,
+    # at both the released hyperparameters and capacity-matched to our model.
+    bl = ["<h2>External baselines</h2>",
+          "<p class='blurb'>Reweigh, Flex-MoE and REMIND, from the REMIND paper, run on our "
+          "data with our splits, our seeds and the same R* constants as our own arms, so every "
+          "column is comparable. Each is shown twice: once at the hyperparameters its authors "
+          "published, and once resized to roughly our parameter count so the comparison "
+          "isolates the method rather than the capacity.</p>",
+          "<div class='note'><b>Provenance.</b> Flex-MoE has released code "
+          "(github.com/UNITES-Lab/flex-moe, NeurIPS 2024) and ours follows that architecture: "
+          "sparse top-k experts, a missing-modality bank, and the generalised/specialised "
+          "router pair. REMIND has no released code. Its paper contains one URL, its own arXiv "
+          "link, the abstract page lists no repository, and the corresponding author's homepage "
+          "gives REMIND a PDF link while five other papers there carry GitHub links. Our REMIND "
+          "is therefore a reimplementation from the paper's description and is labelled as one. "
+          "Reweigh is standard inverse-frequency group weighting.</div>"]
+    BL = [("fedheart", "Fed-Heart", "runs/baselines_fedheart/metrics_long.csv",
+           "runs/baselines_fedheart_matched/metrics_long.csv"),
+          ("nhnested", "NHANES", "runs/baselines_nhanes/metrics_long.csv",
+           "runs/baselines_nhanes_matched/metrics_long.csv"),
+          ("embed", "EMBED", "runs/baselines_embed/metrics_long.csv",
+           "runs/baselines_embed_matched/metrics_long.csv")]
+    for key, label, relp, matp in BL:
+        d = next(x for x in DATASETS if x["key"] == key)
+        data = loaded[key]
+        merged = dict(data)
+        for tag, path in [("released", relp), ("matched", matp)]:
+            if not os.path.exists(path):
+                continue
+            for m, v in load(path).items():
+                merged[f"{m}__{tag}"] = v
+        bl.append(f"<h3>{html.escape(label)}</h3>")
+        bl.append(f"<div class='card'>{baseline_table(merged, d.get('tail'))}</div>")
+        if not os.path.exists(matp):
+            bl.append("<p class='legend'>Capacity-matched runs still in progress.</p>")
+    tabs.append(("Baselines", "sec-baselines")); secs.append(("sec-baselines", "".join(bl)))
 
     tabs.append(("Methods", "sec-methods")); secs.append(("sec-methods", methods_page()))
 

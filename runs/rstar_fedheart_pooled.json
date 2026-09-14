@@ -1,0 +1,9 @@
+{
+  "rstar": {
+    "0": 0.31235,
+    "1": 0.408775,
+    "2": 0.228047,
+    "3": 0.443727
+  },
+  "method": "pooled-fit, group-evaluated, floored at best achieved"
+}

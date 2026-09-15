@@ -39,8 +39,10 @@ DATASETS = [
          caveat="10 seeds x 5 folds, every patient held out exactly once, per-group accuracy "
                 "pooled by fold count. Group sizes are Cleveland 305, Hungarian 295, "
                 "Switzerland 125, VA 200. The earlier single-split protocol tested Switzerland "
-                "on 10 patients and is superseded; every figure here comes from the "
-                "cross-validated runs.",
+                "on 10 patients and is superseded; every TABLE here comes from the "
+                "cross-validated runs. The two training-dynamics panels on the Plots tab are a "
+                "single fold at seed 42, because a per-epoch trajectory has no meaningful "
+                "pooling across folds.",
          groups={"g0": "Cleveland, 305 patients", "g1": "Hungarian, 295 patients",
                  "g2": "Switzerland, 125 patients", "g3": "VA, 200 patients"}),
     dict(key="nhnested", label="NHANES",
@@ -932,30 +934,34 @@ def build(outdir=SITE):
              "line, so you can see whether the group sits above or below its own floor and "
              "when it crosses. The bottom row is that group's DRO weight over training, which "
              "shows how the max player redistributes attention.</p>",
-             "<div class='note'><b>On the weight curves.</b> These use the mean over each "
-             "epoch's updates, not the value at the end of the epoch. In softmax mode the "
-             "weight update overwrites lambda from the current batch alone, and absent groups "
-             "are masked before the softmax, so a partial final batch holding one group "
-             "produces an exact one-hot. Across NHANES runs 2427 of 2436 logged vectors were "
-             "[0, 0, 1], which made GroupDRO look permanently collapsed when the weights "
-             "actually sit near uniform throughout. The epoch mean is what drove the "
-             "gradients.</div>"]
+             "<div class='note'><b>On the weight curves.</b> These are the mean over each epoch's "
+           "updates. Getting them to mean anything took three fixes. The update was a stateless "
+           "softmax over the current batch, so when regret's clamp zeroed every group it "
+           "overwrote lambda with exactly uniform; it now uses the spec's multiplicative form, "
+           "lambda *= exp(gamma * excess), which leaves lambda alone instead. The signal was "
+           "training loss, which the model memorises: Fed-Heart caps Switzerland and the VA at 20 "
+           "and 25 samples, their train loss reaches 0.02 and 0.12, and subtracting an "
+           "out-of-fold R* of 0.34 and 0.60 clamps every group to zero excess, so lambda could "
+           "not move at all. It now reads held-out loss, which is what train_embed_xenia already "
+           "did on EMBED. And gamma is 0.02, the spec's default: at 0.64 lambda compounded to a "
+           "165x ratio and collapsed onto one group in most runs, which optimises worst-group "
+           "metrics by training on a single group rather than by being robust.</div>",
+           "<div class='note'><b>What still is not solved.</b> Even at gamma 0.02, about one run "
+           "in five ends with lambda concentrated on a single group. That is a property of a "
+           "multiplicative update on a dataset this small rather than something we introduced, "
+           "and it is the reason the lambda-against-R* plot is worth reading carefully: a method "
+           "can post a good worst-group number by collapsing onto the worst group, which is not "
+           "the same as distributing attention well.</div>"]
     plots.append(
-        "<div class='note'><b>What the Fed-Heart panels show.</b> Each panel carries test loss "
-        "in red and train loss in amber, with that group's reference loss dashed. Cleveland "
-        "and Hungarian behave normally: both losses fall together and test ends slightly below "
-        "train. Switzerland and the VA do not. Their train loss collapses to 0.02 and 0.12 "
-        "while test loss climbs to 0.84 and 1.79, because those two groups are capped at 20 "
-        "and 25 training samples and are simply memorised.<br><br>Now look at the weight curves "
-        "underneath. All four sit flat near 0.25 for the entire run. The DRO mechanism never "
-        "reacts to the two groups that are failing, and it cannot: the lambda update reads "
-        "train loss, and by that signal Switzerland and the VA are the best-performing groups "
-        "in the dataset. The max player is being fed the one number that is actively "
-        "misleading.<br><br>This is the same failure the EMBED weight plot shows from the "
-        "other side, where GroupDRO put all of its weight on the largest group. Seeing it on "
-        "two datasets makes it a property of the update rule rather than a quirk of one. It "
-        "argues for driving the max player from validation loss, or for early stopping per "
-        "group.</div>")
+        "<div class='note'><b>What the Fed-Heart panels show.</b> Each panel carries test loss in red and "
+        "train loss in amber, with that group's reference loss dashed. Cleveland and Hungarian "
+        "behave normally. Switzerland and the VA do not: their train loss collapses while test "
+        "loss climbs, because those two groups are capped at 20 and 25 training samples and are "
+        "simply memorised.<br><br>The weight curves now respond to that, where previously they "
+        "sat flat at exactly 0.25 for the whole run. The max player reads held-out loss, so "
+        "memorisation no longer hides the two failing groups from it. Whether the extra weight "
+        "translates into better worst-group accuracy is a separate question, and on Fed-Heart it "
+        "largely does not, which is reported in the tables rather than argued away here.</div>")
     DYN = [("nhanes_anchors_groupdro",  "NHANES, per-group encoders + anchors + GroupDRO"),
            ("nhanes_anchors_regretdro", "NHANES, per-group encoders + anchors + Regret-DRO"),
            ("fedheart_anchors_groupdro",  "Fed-Heart, per-group encoders + anchors + GroupDRO"),

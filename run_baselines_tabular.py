@@ -105,6 +105,11 @@ def main():
     # particular drops from 125 evaluated patients to 25, which is where most of the apparent
     # variance in the Fed-Heart baseline columns was coming from.
     ap.add_argument("--folds", type=int, default=1)
+    # Our arms carve val_frac out of train to drive the DRO lambda signal. Baselines do not use
+    # that signal, but they must lose the same rows, otherwise they train on 522 patients against
+    # our 449 on Fed-Heart and the comparison measures sample size as much as method.
+    ap.add_argument("--val-frac", type=float, default=None,
+                    help="default: read val_frac from the same config our arms use")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -116,6 +121,9 @@ def main():
         from dro_hetero_anchors.src.datasets_fedheart import build_fedheart_loaders as build
         base = yaml.safe_load(open("experiments/fedheart_exp_paper_hetagg_gdro.yaml"))
         rstar_path = "runs/rstar_fedheart.json"
+
+    _VF = args.val_frac if args.val_frac is not None else float(base.get("val_frac", 0.0))
+    print(f"val_frac = {_VF}  (matched to the config our arms use)", flush=True)
 
     out = args.out or f"runs/baselines_{args.dataset}"
     os.makedirs(out, exist_ok=True)
@@ -140,6 +148,7 @@ def main():
                 tr, te, info = build(batch_size=cfg.get("batch_size", 128),
                                      seed=seed, stratified=cfg.get("stratified_batching", True),
                                      train_frac=cfg.get("train_frac", 0.8),
+                                     val_frac=_VF,
                                      use_post_pandemic=cfg.get("use_post_pandemic", True),
                                      data_split_seed=cfg.get("data_split_seed"),
                                      feature_mode=cfg.get("feature_mode", "nested"))
@@ -147,7 +156,7 @@ def main():
                 tr, te, info = build(batch_size=cfg.get("batch_size", 64),
                                      seed=split_seed,
                                      stratified=cfg.get("stratified_batching", True),
-                                     train_frac=frac,
+                                     train_frac=frac, val_frac=_VF,
                                      feature_mask=cfg.get("feature_mask"),
                                      group_max_train_samples=cfg.get("group_max_train_samples"),
                                      impute_missing=True)

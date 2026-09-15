@@ -43,7 +43,7 @@ sep_margin: 1.0
 lambda_fit: 0.001
 lambda_sep: 0.001
 groupdro_enabled: true
-groupdro_eta: 0.64
+groupdro_eta: 0.02
 groupdro_gamma: 0.9
 groupdro_update_mode: exp
 groupdro_objective: weighted

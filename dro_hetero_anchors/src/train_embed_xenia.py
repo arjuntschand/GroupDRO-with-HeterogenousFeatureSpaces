@@ -99,9 +99,65 @@ def _subset(d, m, device):
 
 # ------------------------------------------------------------ R*_g (Step 2) --
 
+def _joint_oof(data, masks, device, folds=5, epochs=40, lr=5e-4, seed=0):
+    """Out-of-fold CE per group from ONE model trained on every group at once.
+
+    The per-group estimator below fits group g in isolation. That is the same flaw the tabular
+    R* had: a shared head trained across all groups transfers information an isolated fit cannot
+    reach, so the isolated number sits above what a real model achieves. On EMBED it left 5 of 6
+    groups with an R* ABOVE a loss some arm actually reached, g5 worst at 1.280 against 0.836.
+    Since any fitted model is one measurable predictor, its honest out-of-fold risk upper-bounds
+    R*_g, and taking the min of several estimators tightens the bound without invalidating it.
+    """
+    groups = [g for g in GROUPS if g in data]
+    rng = np.random.RandomState(seed)
+    fold = {g: rng.randint(0, folds, size=int((masks[g]["train"] | masks[g]["val"]).sum()))
+            for g in groups}
+    oof = {g: [] for g in groups}
+    for f in range(folds):
+        torch.manual_seed(seed + f)
+        model = XeniaEmbedModel().to(device)
+        opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=5e-5)
+        sub = {}
+        for g in groups:
+            m = masks[g]["train"] | masks[g]["val"]
+            y = data[g]["y"][m]; feats = {v: t[m] for v, t in data[g]["feats"].items()}
+            tr, te = fold[g] != f, fold[g] == f
+            sub[g] = (feats, y, tr, te)
+        for _ in range(epochs):
+            model.train(); opt.zero_grad()
+            tot = None
+            for g in groups:
+                feats, y, tr, te = sub[g]
+                if tr.sum() == 0:
+                    continue
+                ftr = {v: feats[v][tr].to(device) for v in GROUP_VIEWS[g]}
+                lg, _ = model(g, ftr)
+                l = F.cross_entropy(lg, y[tr].to(device))
+                tot = l if tot is None else tot + l
+            if tot is not None:
+                tot.backward(); opt.step()
+        model.eval()
+        with torch.no_grad():
+            for g in groups:
+                feats, y, tr, te = sub[g]
+                if te.sum() == 0:
+                    continue
+                fte = {v: feats[v][te].to(device) for v in GROUP_VIEWS[g]}
+                lg, _ = model(g, fte)
+                oof[g] += F.cross_entropy(lg, y[te].to(device),
+                                          reduction="none").cpu().numpy().tolist()
+    return {g: float(np.mean(v)) for g, v in oof.items() if v}
+
+
 def estimate_optimal_losses(data, masks, device, folds=5, epochs=40, lr=5e-4, seed=0):
-    """R*_g = 5-fold out-of-fold CE of a dedicated per-group model (its own view
-    projections + MLP_g + head, CE only). Uses train+val rows of each group."""
+    """R*_g = out-of-fold CE, minimised over a per-group fit and a joint fit.
+
+    The per-group fit is Xenia's Step 2 model. The joint fit shares the head across groups,
+    which is what the deployed method does and what a small group benefits from. Each is a valid
+    upper bound on the Bayes risk, so the minimum is the tighter honest estimate. Scored strictly
+    out of fold on train+val rows, never on test."""
+    joint = _joint_oof(data, masks, device, folds=folds, epochs=epochs, lr=lr, seed=seed)
     rstar = {}
     for g, d in data.items():
         m = masks[g]["train"] | masks[g]["val"]
@@ -138,7 +194,11 @@ def estimate_optimal_losses(data, masks, device, folds=5, epochs=40, lr=5e-4, se
                 logits, _ = model(g, fte)
                 ce = F.cross_entropy(logits, yte, reduction="none").cpu().numpy()
             oof[te] = ce
-        rstar[g] = float(oof.mean())
+        per_group = float(oof.mean())
+        rstar[g] = min(per_group, joint.get(g, float("inf")))
+        if joint.get(g, float("inf")) < per_group:
+            print(f"  R*[{g}]: joint fit {joint[g]:.3f} beats group-only {per_group:.3f}",
+                  flush=True)
     return rstar
 
 

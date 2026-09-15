@@ -371,6 +371,9 @@ def train(cfg):
     
     set_seed(cfg["seed"])
     ensure_dir(cfg["run_dir"])
+    # NOTE: build_fedheart_loaders calls torch.manual_seed with the SPLIT seed internally, so
+    # this set_seed does not survive to model construction. It is reapplied after the loaders
+    # are built, just below. See the comment there.
     
     # Build data loaders
     console.log("Loading Fed-Heart Disease dataset...")
@@ -397,6 +400,15 @@ def train(cfg):
     )
     # dataset_info is JSON-serialised by results_logger, so the DataLoader cannot live in it.
     _VAL_LOADER = dataset_info.pop("val_loader", None)
+
+    # Reseed AFTER the loaders. build_fedheart_loaders calls torch.manual_seed(split_seed)
+    # internally, which overwrites the set_seed above. Under K-fold CV the split seed is
+    # 1000+fold, identical across experiment seeds, so every seed was building byte-identical
+    # model weights: seeds 42 and 1337 both produced encoder weight-sum -3.086846113204956.
+    # Fed-Heart's seed-to-seed variation was coming only from subsample_seed, which changes
+    # which training patients survive the group_max_train_samples caps, never from
+    # initialisation. NHANES was unaffected because it calls set_seed after its loader already.
+    set_seed(cfg["seed"])
 
     # Print dataset summary and hyperparameters
     print_fedheart_summary(dataset_info)

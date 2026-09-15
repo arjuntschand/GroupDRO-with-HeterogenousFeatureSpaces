@@ -151,6 +151,13 @@ def main():
                                      feature_mask=cfg.get("feature_mask"),
                                      group_max_train_samples=cfg.get("group_max_train_samples"),
                                      impute_missing=True)
+            # build_fedheart_loaders and build_nhanes_loaders both call torch.manual_seed with
+            # the SPLIT seed internally. Under K-fold that split seed is 1000+fold, identical for
+            # every experiment seed, so seeding before the loader leaves every seed with the same
+            # model initialisation and all 10 "seeds" return byte-identical results. Reseed here,
+            # after the loaders and before the model, so the seed actually reaches the weights.
+            torch.manual_seed(seed); np.random.seed(seed)
+
             ng = len(cfg["groups"]); nc = cfg["num_classes"]
             counts = info.get("group_counts") or info.get("train_group_counts") or [1] * ng
             # Inverse-frequency class weights, identical to train_nhanes.py:473. Without this

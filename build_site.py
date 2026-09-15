@@ -704,15 +704,19 @@ def baseline_table(data, tail=None):
     # NHANES matrix calls that same arm "Ours_GDRO" and EMBED calls its regret arm "ours".
     # Mapping "Ours" to the regret label put it behind Ours_Regret's identical label, and
     # emit()'s duplicate-label guard then dropped it, so Fed-Heart showed no anchors+GroupDRO row.
-    ROWS = [("Ours_Regret", "Ours: per-group + anchors + regret", "full"),
-            ("ours", "Ours: per-group + anchors + regret", "full"),
-            ("Ours_GDRO", "Ours: per-group + anchors + GroupDRO", "abl"),
-            ("Ours", "Ours: per-group + anchors + GroupDRO", "abl"),
-            ("align_only", "Ours: per-group + anchors + GroupDRO", "abl"),
-            ("GroupDRO", "GroupDRO, per-group, anchors off", "base"),
-            ("groupdro", "GroupDRO, per-group, anchors off", "base"),
+    # Labels must match the per-dataset tabs exactly. They did not: the same run appeared as
+    # "Per-group encoders + GroupDRO" on the Fed-Heart tab and "GroupDRO, per-group, anchors off"
+    # here, and as "Per-group + anchors + Regret-DRO" there and "Ours: per-group + anchors +
+    # regret" here. The numbers always agreed, but two names for one arm reads as two results.
+    ROWS = [("Ours_Regret", "Per-group + anchors + Regret-DRO", "full"),
+            ("ours", "Per-group + anchors + Regret-DRO", "full"),
+            ("Ours_GDRO", "Per-group + anchors + GroupDRO", "abl"),
+            ("Ours", "Per-group + anchors + GroupDRO", "abl"),
+            ("align_only", "Per-group + anchors + GroupDRO", "abl"),
+            ("GroupDRO", "Per-group encoders + GroupDRO", "base"),
+            ("groupdro", "Per-group encoders + GroupDRO", "base"),
             ("ERM", "ERM, common features", "base"),
-            ("erm", "ERM, per-group", "base"),
+            ("erm", "Per-group encoders + ERM", "base"),
             ("PerGroupOnly", "Per-group encoders + ERM", "base")]
     seen, rows = set(), []
     def cellf(v, dp=1):

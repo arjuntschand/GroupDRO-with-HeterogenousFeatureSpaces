@@ -954,9 +954,16 @@ def build(outdir=SITE):
            "runs/baselines_fedheart_matched/metrics_long.csv"),
           ("nhnested", "NHANES", "runs/baselines_nhanes/metrics_long.csv",
            "runs/baselines_nhanes_matched/metrics_long.csv"),
+          # REMIND's published-defaults row comes from the 128-expert run, which is what the
+          # paper specifies ("128 experts and one slot per expert") and what its Table 16
+          # reports as best of {32, 64, 128}. runs/baselines_embed predates that correction and
+          # holds a 4-expert REMIND, which is not the authors' configuration.
           ("embed", "EMBED", "runs/baselines_embed/metrics_long.csv",
-           "runs/baselines_embed_matched/metrics_long.csv")]
-    for key, label, relp, matp in BL:
+           "runs/baselines_embed_matched/metrics_long.csv",
+           "runs/baselines_embed_remind128/metrics_long.csv")]
+    for row in BL:
+        key, label, relp, matp = row[0], row[1], row[2], row[3]
+        overrides = row[4] if len(row) > 4 else None
         d = next(x for x in DATASETS if x["key"] == key)
         data = loaded[key]
         merged = dict(data)
@@ -965,6 +972,10 @@ def build(outdir=SITE):
                 continue
             for m, v in load(path).items():
                 merged[f"{m}__{tag}"] = v
+        # a corrected run replaces that method's published-defaults row rather than adding one
+        if overrides and os.path.exists(overrides):
+            for m, v in load(overrides).items():
+                merged[f"{m}__released"] = v
         bl.append(f"<h3>{html.escape(label)}</h3>")
         bl.append(f"<div class='card'>{baseline_table(merged, d.get('tail'))}</div>")
         if not os.path.exists(matp):

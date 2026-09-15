@@ -839,8 +839,29 @@ combinations cover about 98.5% of exams.</li>
 <span class='tag ours'>ours</span> include at least one component we add.</div>"""
 
 
+def _sync_figs(outdir=SITE):
+    """Copy figs/ into site/figs/ before building.
+
+    The page references figs/... relative to the site root, so the file it actually reads is
+    site/figs/... . plot_training_dynamics writes to figs/ at the repo root, and nothing copied
+    between the two, so regenerated figures silently never reached the page: site/figs/dynamics
+    still held images from a run two fixes earlier while figs/dynamics held the current ones.
+    """
+    import shutil
+    for root, _, files in os.walk("figs"):
+        for fn in files:
+            if not fn.lower().endswith((".png", ".jpg", ".svg")):
+                continue
+            src = os.path.join(root, fn)
+            dst = os.path.join(outdir, src)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            if not os.path.exists(dst) or os.path.getmtime(src) > os.path.getmtime(dst):
+                shutil.copy2(src, dst)
+
+
 def build(outdir=SITE):
     os.makedirs(outdir, exist_ok=True)
+    _sync_figs(outdir)
     loaded = {}
     for d in DATASETS:
         data = load(d["path"])

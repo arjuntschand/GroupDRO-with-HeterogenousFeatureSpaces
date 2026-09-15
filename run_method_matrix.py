@@ -194,7 +194,9 @@ def main():
                         "macro_f1": round(pgf[gi], 5) if gi < len(pgf) else "",
                         "loss": round(L, 5) if L == L else "",
                         "R_star": round(R, 5) if R == R else "",
-                        "excess_loss": round(max(0.0, L - R), 5) if (L == L and R == R) else "",
+                        # signed, per Step 6. Clamping here floored our arms at zero while
+                        # run_baselines_tabular reports signed, biasing max-excess our way.
+                        "excess_loss": round(L - R, 5) if (L == L and R == R) else "",
                     })
 
     # metrics_long.csv (Xenia Step 6 schema)

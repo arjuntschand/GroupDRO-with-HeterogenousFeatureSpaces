@@ -52,7 +52,9 @@ class GroupDRO:
                  kl_lambda: float = 0.0,
                  uniform_init: bool = False,
                  use_regret: bool = False,
-                 optimal_losses: Optional[List[float]] = None):
+                 optimal_losses: Optional[List[float]] = None,
+                 ema_decay: float = 0.0,
+                 update_every: int = 1):
         self.num_groups = num_groups
         self.eta = eta
         self.device = device or torch.device('cpu')
@@ -65,6 +67,17 @@ class GroupDRO:
         # where L*_g is each group's optimal loss (from a per-group "personal" model).
         # Groups at their achievable floor get ~0 regret -> stop being upweighted.
         self.use_regret = use_regret
+        # EMBED_Experiments_Description.docx, "The training loop":
+        #     ema_loss[g] = DECAY * ema_loss[g] + (1 - DECAY) * L[g]        DECAY = 0.9
+        #     every N steps:  excess = max(0, ema_loss - R*);  lambda *= exp(gamma * excess)
+        # The EMA exists so a group absent from most batches does not update lambda from stale
+        # information, and the N-step cadence keeps a single noisy batch from moving lambda.
+        # Neither existed here: the tabular path recomputed q from the CURRENT batch every step.
+        # ema_decay = 0 keeps the old behaviour, so nothing changes unless a config asks for it.
+        self.ema_decay = ema_decay
+        self.update_every = max(1, int(update_every))
+        self._step = 0
+        self.ema = None
         self.set_optimal_losses(optimal_losses)
 
         # Initialize reference π based on group distribution (for KL penalty)
@@ -165,14 +178,38 @@ class GroupDRO:
             losses_tensor = torch.stack(active_losses)  # shape [G]
             active_mask_t = torch.tensor(active_mask, dtype=torch.bool, device=self.device)
 
+            # EMA over observed losses, updated only for groups present this batch, so an
+            # absent group keeps its last estimate rather than being driven to zero.
+            self._step += 1
+            if self.ema_decay > 0:
+                if self.ema is None:
+                    init = self.optimal.clone() if self.optimal is not None \
+                        else losses_tensor.clone()
+                    self.ema = init.to(self.device)
+                d = self.ema_decay
+                upd = d * self.ema + (1 - d) * losses_tensor
+                self.ema = torch.where(active_mask_t, upd, self.ema)
+                losses_tensor = self.ema.clone()
+                # only act every N steps; in between, lambda is left exactly as it was
+                if self._step % self.update_every != 0:
+                    return
+
             # Regret-DRO: drive the q-update by regret R_g = max(0, L_g - L*_g)
             # instead of raw loss, so groups at their optimum stop being upweighted.
             if self.use_regret and self.optimal is not None:
                 losses_tensor = torch.clamp(losses_tensor - self.optimal, min=0.0)
 
             if self.update_mode == 'exp':
-                # MWU on all entries; absent groups keep neutral multiplier (exp(eta*0)=1)
-                q_new = self.q * torch.exp(self.eta * losses_tensor)
+                # MWU on all entries; absent groups keep neutral multiplier (exp(eta*0)=1).
+                #
+                # The exponent is clamped for the reason train_embed_xenia documents at its
+                # line 313: unclamped it reached ~797 there, overflowed to inf, and lambda went
+                # exactly one-hot so the model trained on a single group and scored 9.7%. That
+                # runaway is what motivated the tabular configs to switch to stateless softmax,
+                # which then erased lambda whenever regret's clamp zeroed every group. Guarding
+                # the exponent keeps MWU's accumulation without the divergence.
+                q_new = self.q * torch.exp(torch.clamp(self.eta * losses_tensor, max=20.0))
+                q_new = torch.clamp(q_new, min=1e-8)
             elif self.update_mode == 'softmax':
                 # Softmax only over active groups; absent get ~0 weight
                 scaled = self.eta * losses_tensor

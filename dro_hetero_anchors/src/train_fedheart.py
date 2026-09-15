@@ -95,6 +95,8 @@ def build_models(cfg, group_counts: List[int], device: torch.device) -> Tuple[Di
             eta=cfg.get("groupdro_eta", 0.1),
             device=device,
             update_mode=cfg.get("groupdro_update_mode", "exp"),
+            ema_decay=cfg.get("groupdro_ema_decay", 0.0),
+            update_every=cfg.get("groupdro_update_every", 1),
             robust_objective=cfg.get("groupdro_objective", "weighted"),
             gamma=cfg.get("groupdro_gamma", 1.0),
             group_counts=group_counts,  # Initialize π proportional to group sizes
@@ -400,6 +402,8 @@ def train(cfg):
     )
     # dataset_info is JSON-serialised by results_logger, so the DataLoader cannot live in it.
     _VAL_LOADER = dataset_info.pop("val_loader", None)
+    # used only to drive the DRO lambda update, never for selecting the reported epoch
+    _DRO_VAL_LOADER = _VAL_LOADER if cfg.get("dro_signal", "train") == "val" else None
 
     # Reseed AFTER the loaders. build_fedheart_loaders calls torch.manual_seed(split_seed)
     # internally, which overwrites the set_seed above. Under K-fold CV the split seed is
@@ -646,7 +650,12 @@ def train(cfg):
                 for _gid, _gl in (groupdro._last_group_losses or {}).items():
                     _trg_sum[_gid] = _trg_sum.get(_gid, 0.0) + float(_gl)
                     _trg_n[_gid] = _trg_n.get(_gid, 0) + 1
-                groupdro.update_weights(groupdro._last_group_losses, groupdro._last_group_counts)
+                # With dro_signal="val" the per-epoch held-out update below is the only one.
+                # Running both would mix a memorised training signal into the same counter and
+                # starve the val path of its cadence.
+                if cfg.get("dro_signal", "train") != "val":
+                    groupdro.update_weights(groupdro._last_group_losses,
+                                            groupdro._last_group_counts)
                 # Accumulate q across the epoch. In softmax mode update_weights OVERWRITES q
                 # from the current batch alone, so q at the end of an epoch reflects only the
                 # final batch. That batch is usually a partial remainder and often holds a
@@ -679,6 +688,28 @@ def train(cfg):
             global_step += 1
             pbar.set_postfix({"loss": f"{loss_meter.avg:.3f}", "acc": f"{acc_meter.avg:.3f}"})
         
+        # DRO lambda signal, once per epoch, from HELD-OUT loss.
+        #
+        # lambda was driven by training-batch loss, which the model memorises: Fed-Heart caps
+        # Switzerland at 20 patients and VA at 25, so their train loss reaches 0.02 and 0.12
+        # while R* is 0.341 and 0.598. R* is an out-of-fold quantity, so excess =
+        # clamp(train_loss - R*, 0) is identically zero and lambda never moves. That is the flat
+        # line in the weight plots, and no change to the update rule fixes it because the signal
+        # carries no information.
+        #
+        # train_embed_xenia solves this with dro_signal="val" and says why at its line 324: the
+        # validation signal is the one that is not memorised. Same fix here. This feeds lambda
+        # only; the reported epoch is still chosen exactly as before.
+        if groupdro is not None and _DRO_VAL_LOADER is not None:
+            groupdro.update_every = 1      # this path fires once per epoch already
+            _vm = evaluate(encoders, head, _DRO_VAL_LOADER, device, num_groups, num_classes,
+                           feature_indices=feature_indices)
+            _vl = _vm.get("per_group_loss") or []
+            if _vl:
+                groupdro.update_weights(
+                    {gi: torch.tensor(float(_vl[gi]), device=device) for gi in range(len(_vl))},
+                    {gi: 1 for gi in range(len(_vl))})
+
         # Evaluation
         test_metrics = evaluate(encoders, head, test_loader, device, num_groups, num_classes, feature_indices=feature_indices)
         # Validation, when one was carved out of train. The runners select the reported epoch on

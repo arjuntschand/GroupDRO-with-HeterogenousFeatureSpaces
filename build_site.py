@@ -36,7 +36,7 @@ DATASETS = [
                "being withheld: Switzerland, for instance, is missing serum cholesterol on most "
                "of its records. Every patient is evaluated exactly once under 5-fold cross "
                "validation with median imputation, which is what the FLamby benchmark does.",
-         caveat="5 seeds x 5 folds, every patient held out exactly once, per-group accuracy "
+         caveat="10 seeds x 5 folds, every patient held out exactly once, per-group accuracy "
                 "pooled by fold count. Group sizes are Cleveland 305, Hungarian 295, "
                 "Switzerland 125, VA 200. The earlier single-split protocol tested Switzerland "
                 "on 10 patients and is superseded; every figure here comes from the "
@@ -601,8 +601,37 @@ def overview(loaded):
             if o_mu > f_mu and p2 is not None and p2 < 0.05:
                 if beat is None or o_mu > beat[1]:
                     beat = (label, o_mu)
-        note = (f"<div class='d' style='color:var(--accent);margin-top:7px;font-size:11.5px'>"
-                f"{html.escape(beat[0])} scores higher ({beat[1]:.1f})</div>") if beat else ""
+
+        # Separately from external arms, check our own ABLATIONS. Per-group GroupDRO without
+        # anchors is not someone else's baseline, it is our method minus components, so "a
+        # baseline beat us" would describe it wrongly. But the card headlined the full method
+        # while the table directly below showed the ablation scoring higher, which reads as a
+        # contradiction. Name it for what it is: the dropped components are not paying for
+        # themselves on this dataset.
+        abl = None
+        for key, aliases, label, enc, dro, anc, kind in METHODS:
+            if enc != "per-group" or anc == "yes":
+                continue
+            other = next((data[a] for a in aliases if a in data), None)
+            if not other:
+                continue
+            ow = worst_by_seed(other)
+            k2 = sorted(set(fw) & set(ow))
+            if not k2:
+                continue
+            o_mu = sum(ow[i] for i in k2) / len(k2)
+            if o_mu > f_mu and (abl is None or o_mu > abl[1]):
+                abl = (label, o_mu, paired_p(ow, fw))
+
+        if beat:
+            note = (f"<div class='d' style='color:var(--accent);margin-top:7px;font-size:11.5px'>"
+                    f"{html.escape(beat[0])} scores higher ({beat[1]:.1f})</div>")
+        elif abl:
+            sg = "" if (abl[2] is None or abl[2] >= 0.05) else f", p={abl[2]:.3f}"
+            note = (f"<div class='d' style='color:var(--accent);margin-top:7px;font-size:11.5px'>"
+                    f"ablation without anchors scores {abl[1]:.1f}{sg}</div>")
+        else:
+            note = ""
         cards.append(
             f"<div class='stat'><div class='k'>{html.escape(d['label'])}</div>"
             f"<div class='v'>{f_mu:.1f}%</div>"
@@ -666,7 +695,7 @@ efficiency than the extra columns return.</li>
 <b>Groups</b> Cleveland 305 · Hungarian 295 · Switzerland 125 · VA 200<br>
 <b>Why they differ</b> each site ran a different subset of the same workup; Switzerland is
 missing serum cholesterol on most records<br>
-<b>Protocol</b> 5 seeds x 5 folds, median imputation, every patient tested once</div></div>
+<b>Protocol</b> 10 seeds x 5 folds, median imputation, every patient tested once</div></div>
 <div class='stat'><div class='k'>NHANES</div>
 <div class='d' style='font-size:13px;margin-top:2px;line-height:1.5'>
 <b>Task</b> predict cardiovascular disease, binary, 10.5% positive<br>
@@ -686,7 +715,7 @@ combinations cover about 95% of exams, the smallest group is 0.3%<br>
 <b>Protocol</b> 10 seeds, frozen ViT-Base features</div></div>
 </div>
 <div class='note'><b>Reading these tables.</b> Every number is mean plus or minus standard
-deviation over 10 seeds, except Fed-Heart which is 5 seeds by 5 folds with every one of its 925
+deviation over 10 seeds; Fed-Heart additionally pools 5 cross-validation folds so every one of its 925
 patients held out exactly once. Best is marked separately for each encoder, and arms a paired
 t-test cannot separate from the best are marked tied rather than ranked. Nothing here is
 selected for looking good.</div>"""

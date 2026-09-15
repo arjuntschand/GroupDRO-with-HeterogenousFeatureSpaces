@@ -44,11 +44,15 @@ sep_margin: 1.0
 lambda_fit: 0.001
 lambda_sep: 0.001
 groupdro_enabled: true
-groupdro_eta: 1.0
+groupdro_eta: 0.64
 groupdro_gamma: 0.9
-groupdro_update_mode: softmax
+groupdro_update_mode: exp
 groupdro_objective: weighted
 groupdro_kl_lambda: 0.0
 groupdro_uniform_init: false
 log_interval: 20
 save_every: 10
+groupdro_ema_decay: 0.9
+groupdro_update_every: 1
+dro_signal: val
+val_frac: 0.15

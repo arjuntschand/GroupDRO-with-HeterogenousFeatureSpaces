@@ -170,7 +170,9 @@ def evaluate(model, data, masks, split, device, rstar=None):
         rs = (rstar or {}).get(g, 0.0)
         per_group[g] = {
             "n": int(m.sum()), "acc": acc, "macro_f1": float(np.mean(f1s)),
-            "loss": ce, "R_star": rs, "excess_loss": max(0.0, ce - rs),
+            # signed, per Step 6; run_baselines_embed already reports signed, so clamping
+            # here made our EMBED arms unable to show a negative excess while baselines could
+            "loss": ce, "R_star": rs, "excess_loss": ce - rs,
         }
     accs = [v["acc"] for v in per_group.values()]
     overall = {

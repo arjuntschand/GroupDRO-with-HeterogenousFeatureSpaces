@@ -97,6 +97,8 @@ def build_models(cfg, group_counts: List[int], device: torch.device,
             eta=cfg.get("groupdro_eta", 0.1),
             device=device,
             update_mode=cfg.get("groupdro_update_mode", "exp"),
+            ema_decay=cfg.get("groupdro_ema_decay", 0.0),
+            update_every=cfg.get("groupdro_update_every", 1),
             robust_objective=cfg.get("groupdro_objective", "weighted"),
             gamma=cfg.get("groupdro_gamma", 1.0),
             group_counts=group_counts,
@@ -450,6 +452,10 @@ def train(cfg):
         fi_raw = {g: (v[:limits[str(g)]] if str(g) in limits else
                       v[:limits[g]] if g in limits else v)
                   for g, v in fi_raw.items()}
+        # build_models takes its input_dim from group_feature_counts (line 76), which overrides
+        # anything set on cfg["groups"], so the truncation has to land there too or the encoder
+        # is built for 10 inputs and handed 6.
+        dataset_info["group_feature_counts"] = {int(g): len(v) for g, v in fi_raw.items()}
 
     if use_true_hetero:
         # Per-group encoders: each group gets its own feature set

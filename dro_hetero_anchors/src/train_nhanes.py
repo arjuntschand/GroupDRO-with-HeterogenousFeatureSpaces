@@ -440,10 +440,24 @@ def train(cfg):
     fi_raw = dataset_info["feature_indices"]
     use_true_hetero = not cfg.get("common_encoder", False)
 
+    # group_feature_limit truncates a group's own feature list, which raises that group's Bayes
+    # risk without touching the others. It exists to vary tau, the spread in Bayes risk across
+    # groups, which is the quantity Proposition 2's separation depends on: the ratio collapses to
+    # 1 as tau -> 0, so regret and GroupDRO are the same algorithm when every group has the same
+    # floor. Our measured tau is 0.042 on NHANES, which is why regret does nothing there.
+    limits = cfg.get("group_feature_limit") or {}
+    if limits:
+        fi_raw = {g: (v[:limits[str(g)]] if str(g) in limits else
+                      v[:limits[g]] if g in limits else v)
+                  for g, v in fi_raw.items()}
+
     if use_true_hetero:
         # Per-group encoders: each group gets its own feature set
         for gid, idx_list in fi_raw.items():
             feature_indices[int(gid)] = torch.tensor(idx_list, dtype=torch.long, device=device)
+        if limits:
+            for gid, idx_list in fi_raw.items():
+                cfg["groups"][int(gid)]["input_dim"] = len(idx_list)
         console.log("[bold]True heterogeneous feature spaces:[/bold]")
         gfc = dataset_info["group_feature_counts"]
         for gid in sorted(gfc.keys()):

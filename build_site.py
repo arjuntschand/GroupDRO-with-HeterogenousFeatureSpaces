@@ -699,10 +699,15 @@ def baseline_table(data, tail=None):
     different architectures, and a Soft MoE or a sparse top-k MoE at published defaults can
     carry an order of magnitude more capacity than our model.
     """
+    # Arm names differ per runner and "Ours" is the trap: on Fed-Heart run_fedheart_cv defines
+    # ("Ours", per-group, DRO, anchors 0.1, regret=False), i.e. the GroupDRO variant, while the
+    # NHANES matrix calls that same arm "Ours_GDRO" and EMBED calls its regret arm "ours".
+    # Mapping "Ours" to the regret label put it behind Ours_Regret's identical label, and
+    # emit()'s duplicate-label guard then dropped it, so Fed-Heart showed no anchors+GroupDRO row.
     ROWS = [("Ours_Regret", "Ours: per-group + anchors + regret", "full"),
-            ("Ours", "Ours: per-group + anchors + regret", "full"),
             ("ours", "Ours: per-group + anchors + regret", "full"),
             ("Ours_GDRO", "Ours: per-group + anchors + GroupDRO", "abl"),
+            ("Ours", "Ours: per-group + anchors + GroupDRO", "abl"),
             ("align_only", "Ours: per-group + anchors + GroupDRO", "abl"),
             ("GroupDRO", "GroupDRO, per-group, anchors off", "base"),
             ("groupdro", "GroupDRO, per-group, anchors off", "base"),

@@ -100,6 +100,11 @@ def main():
     # to 4 experts at d=64 (35,722 params) so the comparison isolates the architecture. Both
     # settings get reported; neither is hidden.
     ap.add_argument("--capacity-matched", action="store_true")
+    # Fed-Heart's own arms are evaluated with 5-fold CV over all 925 patients, so a single
+    # split here would compare them against baselines measured on 185. Switzerland in
+    # particular drops from 125 evaluated patients to 25, which is where most of the apparent
+    # variance in the Fed-Heart baseline columns was coming from.
+    ap.add_argument("--folds", type=int, default=1)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -123,8 +128,14 @@ def main():
     rows = []
     for method in args.methods:
         for seed in args.seeds:
+          fold_acc, fold_loss, fold_f1, fold_n = [], [], [], []
+          for fold in range(args.folds):
             torch.manual_seed(seed); np.random.seed(seed)
             cfg = copy.deepcopy(base); cfg["seed"] = seed
+            # fold identity goes through the loader's split seed, matching run_fedheart_cv,
+            # which sets cfg["data_split_seed"] and train_fedheart passes it as the loader seed
+            split_seed = (1000 + fold) if args.folds > 1 else cfg.get("data_split_seed", seed)
+            frac = (1.0 - 1.0 / args.folds) if args.folds > 1 else cfg.get("train_frac", 0.8)
             if args.dataset == "nhanes":
                 tr, te, info = build(batch_size=cfg.get("batch_size", 128),
                                      seed=seed, stratified=cfg.get("stratified_batching", True),
@@ -134,8 +145,9 @@ def main():
                                      feature_mode=cfg.get("feature_mode", "nested"))
             else:
                 tr, te, info = build(batch_size=cfg.get("batch_size", 64),
-                                     seed=seed, stratified=cfg.get("stratified_batching", True),
-                                     train_frac=cfg.get("train_frac", 0.8),
+                                     seed=split_seed,
+                                     stratified=cfg.get("stratified_batching", True),
+                                     train_frac=frac,
                                      feature_mask=cfg.get("feature_mask"),
                                      group_max_train_samples=cfg.get("group_max_train_samples"),
                                      impute_missing=True)
@@ -209,9 +221,19 @@ def main():
                     best = (min(acc), (acc, lg, f1, tg))
             acc, lg, f1, tg = best[1]
             n_par = sum(p.numel() for p in model.parameters())
-            print(f"  {method} s{seed}: worst={min(acc)*100:.2f} params={n_par:,} "
-                  f"per-group={[round(a*100,1) for a in acc]}", flush=True)
-            for gi in range(ng):
+            fold_acc.append(acc); fold_loss.append(lg); fold_f1.append(f1); fold_n.append(tg)
+          # pool folds the same way run_fedheart_cv does: weight each fold by its test count,
+          # so every patient contributes exactly once across the K folds
+          A = np.array(fold_acc); L = np.array(fold_loss); F = np.array(fold_f1)
+          W = np.array(fold_n, dtype=float)
+          den = np.maximum(W.sum(0), 1)
+          acc = ((A * W).sum(0) / den).tolist()
+          lg = ((L * W).sum(0) / den).tolist()
+          f1 = ((F * W).sum(0) / den).tolist()
+          tg = W.sum(0).astype(int).tolist()
+          print(f"  {method} s{seed}: worst={min(acc)*100:.2f} params={n_par:,} "
+                f"n/group={tg} per-group={[round(a*100,1) for a in acc]}", flush=True)
+          for gi in range(ng):
                 rows.append(dict(method=method, seed=seed, group=f"g{gi}", n=tg[gi],
                                  n_params=n_par,
                                  accuracy=acc[gi], macro_f1=f1[gi], loss=lg[gi],

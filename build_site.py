@@ -446,10 +446,10 @@ table.data th{text-align:right;padding:14px 12px 10px;font-weight:600;font-size:
 table.data th:first-child,table.data td.m{text-align:left}
 table.data th{cursor:pointer;user-select:none;position:relative}
 table.data th:hover{color:var(--fg)}
-table.data th::after{content:'\2195';opacity:.25;margin-left:6px;font-size:10px}
-table.data th.asc::after{content:'\2191';opacity:.9}
-table.data th.desc::after{content:'\2193';opacity:.9}
-table.data th.def::after{content:'\2195';opacity:.25}
+table.data th::after{content:'↕';opacity:.25;margin-left:6px;font-size:10px}
+table.data th.asc::after{content:'↑';opacity:.9}
+table.data th.desc::after{content:'↓';opacity:.9}
+table.data th.def::after{content:'↕';opacity:.25}
 table.data td{text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);
   white-space:nowrap}
 table.data tbody tr:last-child td{border-bottom:0}

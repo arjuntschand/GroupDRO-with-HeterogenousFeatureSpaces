@@ -1,11 +1,13 @@
 {
   "rstar": {
-    "0": 0.3137474827246547,
-    "1": 0.27642265089432755,
-    "2": 0.26571401524607213
+    "0": 0.306561,
+    "1": 0.270789,
+    "2": 0.264331
   },
-  "config": "experiments/nhanes_pergroup_gdro.yaml",
-  "folds": 5,
-  "epochs": 200,
-  "seed": 0
+  "source": "estimate_rstar_v2.py",
+  "chosen_estimator": {
+    "0": "pooled/mlp64/unw",
+    "1": "pooled/mlp64/unw",
+    "2": "pooled/mlp64/unw"
+  }
 }

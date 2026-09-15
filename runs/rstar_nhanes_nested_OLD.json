@@ -1,0 +1,11 @@
+{
+  "rstar": {
+    "0": 0.3137474827246547,
+    "1": 0.27642265089432755,
+    "2": 0.26571401524607213
+  },
+  "config": "experiments/nhanes_pergroup_gdro.yaml",
+  "folds": 5,
+  "epochs": 200,
+  "seed": 0
+}

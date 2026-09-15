@@ -1,12 +1,15 @@
 {
   "rstar": {
-    "0": 0.49934679966136675,
-    "1": 0.5924033531758973,
-    "2": 0.4240419712328326,
-    "3": 1.4799922526387188
+    "0": 0.468332,
+    "1": 0.498132,
+    "2": 0.341179,
+    "3": 0.597641
   },
-  "config": "experiments/fedheart_exp_paper_hetagg_gdro.yaml",
-  "folds": 5,
-  "epochs": 200,
-  "seed": 0
+  "source": "estimate_rstar_v2.py",
+  "chosen_estimator": {
+    "0": "pooled/mlp32/w",
+    "1": "pooled/mlp32/w",
+    "2": "group/mlp32/unw",
+    "3": "pooled/mlp32/unw"
+  }
 }

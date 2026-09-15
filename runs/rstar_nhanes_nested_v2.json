@@ -1,0 +1,13 @@
+{
+  "rstar": {
+    "0": 0.306561,
+    "1": 0.270789,
+    "2": 0.264331
+  },
+  "chosen_estimator": {
+    "0": "pooled/mlp64/unw",
+    "1": "pooled/mlp64/unw",
+    "2": "pooled/mlp64/unw"
+  },
+  "method": "uncapped; min over {group,pooled} x {linear,mlp32,mlp64}; out-of-fold on the group's own rows"
+}

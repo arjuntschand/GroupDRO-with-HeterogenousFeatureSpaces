@@ -950,29 +950,22 @@ def build(outdir=SITE):
     # loss R* drawn as a horizontal line, and the group's DRO weight against epoch, for both
     # the GroupDRO and the regret variant of the full method.
     plots = ["<h2>Training dynamics</h2>",
-             "<p class='blurb'>For each configuration, one column per group. The top row is "
-             "that group's loss over training with its reference loss R* drawn as a dashed "
-             "line, so you can see whether the group sits above or below its own floor and "
-             "when it crosses. The bottom row is that group's DRO weight over training, which "
-             "shows how the max player redistributes attention.</p>",
-             "<div class='note'><b>On the weight curves.</b> These are the mean over each epoch's "
-           "updates. Getting them to mean anything took three fixes. The update was a stateless "
-           "softmax over the current batch, so when regret's clamp zeroed every group it "
-           "overwrote lambda with exactly uniform; it now uses the spec's multiplicative form, "
-           "lambda *= exp(gamma * excess), which leaves lambda alone instead. The signal was "
-           "training loss, which the model memorises: Fed-Heart caps Switzerland and the VA at 20 "
-           "and 25 samples, their train loss reaches 0.02 and 0.12, and subtracting an "
-           "out-of-fold R* of 0.34 and 0.60 clamps every group to zero excess, so lambda could "
-           "not move at all. It now reads held-out loss, which is what train_embed_xenia already "
-           "did on EMBED. And gamma is 0.02, the spec's default: at 0.64 lambda compounded to a "
-           "165x ratio and collapsed onto one group in most runs, which optimises worst-group "
-           "metrics by training on a single group rather than by being robust.</div>",
-           "<div class='note'><b>What still is not solved.</b> Even at gamma 0.02, about one run "
-           "in five ends with lambda concentrated on a single group. That is a property of a "
-           "multiplicative update on a dataset this small rather than something we introduced, "
-           "and it is the reason the lambda-against-R* plot is worth reading carefully: a method "
-           "can post a good worst-group number by collapsing onto the worst group, which is not "
-           "the same as distributing attention well.</div>"]
+             "<div class='note'><b>Read the first two first.</b> <b>Lambda against R*</b> is the "
+             "mechanism test. R* is the lowest loss a group's own features permit, so a group "
+             "with a high R* is one no model can do much about. GroupDRO reweights on raw loss "
+             "and therefore chases exactly those groups: on NHANES its weight tracks R* with "
+             "slope +15.7 and correlation +0.94, putting 0.76 of its weight on the survey-only "
+             "group. Regret-DRO subtracts the floor first and does not track it, slope -1.85, "
+             "correlation -0.15. Fed-Heart is a null for both, because its lambda barely moves "
+             "there.<br><br><b>Per-group loss</b> shows why the max player cannot be fed training "
+             "loss. Switzerland trains on 20 patients and the VA on 25, so their train loss "
+             "collapses to near zero while test loss climbs past the R* line, the VA to nearly "
+             "three times what its features permit. By the training signal those are the two "
+             "best groups in the dataset. NHANES is the opposite regime: both groups sit above "
+             "their floor throughout and never memorise.</div>",
+             "<p class='blurb'>The four panels below are the per-run detail: one column per "
+             "group, loss over training with R* dashed, and that group's DRO weight underneath. "
+             "Single fold at seed 42.</p>"]
     plots.append(
         "<div class='note'><b>What the Fed-Heart panels show.</b> Each panel carries test loss in red and "
         "train loss in amber, with that group's reference loss dashed. Cleveland and Hungarian "
@@ -983,7 +976,12 @@ def build(outdir=SITE):
         "memorisation no longer hides the two failing groups from it. Whether the extra weight "
         "translates into better worst-group accuracy is a separate question, and on Fed-Heart it "
         "largely does not, which is reported in the tables rather than argued away here.</div>")
-    DYN = [("nhanes_anchors_groupdro",  "NHANES, per-group encoders + anchors + GroupDRO"),
+    DYN = [("fig3_lambda_vs_rstar",
+            "Groups ordered by how hard they intrinsically are. GroupDRO piles weight on the "
+            "hardest group; regret does not"),
+           ("fig4_loss_curves",
+            "Per-group loss over training, mean of 10 seeds with a one standard error band"),
+           ("nhanes_anchors_groupdro",  "NHANES, per-group encoders + anchors + GroupDRO"),
            ("nhanes_anchors_regretdro", "NHANES, per-group encoders + anchors + Regret-DRO"),
            ("fedheart_anchors_groupdro",  "Fed-Heart, per-group encoders + anchors + GroupDRO"),
            ("fedheart_anchors_regretdro", "Fed-Heart, per-group encoders + anchors + Regret-DRO")]

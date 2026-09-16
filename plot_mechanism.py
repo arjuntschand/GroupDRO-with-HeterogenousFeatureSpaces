@@ -68,39 +68,41 @@ def curves(pat, arm, key):
 
 
 def fig_lambda_vs_rstar():
-    fig, axes = plt.subplots(1, len(DS), figsize=(8.2, 3.5))
+    """Groups ordered left to right by how hard they intrinsically are, with each method's final
+    weight as a bar.
+
+    The scatter version of this was hard to read: R* on a numeric axis put Cleveland and
+    Hungarian almost on top of each other, the fitted lines implied a trend on Fed-Heart where
+    there is none, and the group names had to be rotated under the axis. Ordering the groups by
+    R* and drawing weights as bars says the same thing directly. If GroupDRO chases groups it
+    cannot help, its bars grow to the right. If regret does not, its bars stay level.
+    """
+    fig, axes = plt.subplots(1, len(DS), figsize=(9.5, 3.6))
     for ax, (name, pat, rp, gnames, _) in zip(np.atleast_1d(axes), DS):
-        R = rstar(rp)
-        for arm, lab, colour, mk in ARMS:
+        R = np.array(rstar(rp))
+        order = np.argsort(R)                       # easiest group first
+        x = np.arange(len(order)); w = 0.38
+        for k, (arm, lab, colour, _mk) in enumerate(ARMS):
             L = final_lambdas(pat, arm)
             if L is None:
                 continue
-            mu, se = L.mean(0), L.std(0) / np.sqrt(len(L))
-            ax.errorbar(R, mu, yerr=se, fmt=mk, color=colour, ms=7, capsize=3,
-                        lw=0, elinewidth=1.1, label=lab, zorder=3)
-            # least squares fit; the slope is the quantity the claim is about
-            if len(R) > 2:
-                b, a = np.polyfit(R, mu, 1)
-                xs = np.linspace(min(R), max(R), 20)
-                ax.plot(xs, a + b * xs, color=colour, lw=1.2, alpha=.55, zorder=2)
-                r = np.corrcoef(R, mu)[0, 1]
-                ax.annotate(f"{lab}: slope {b:+.2f}, r {r:+.2f}",
-                            xy=(.03, .93 if arm == "GroupDRO" else .84),
-                            xycoords="axes fraction", fontsize=7.5, color=colour)
-        for x, g in zip(R, gnames):
-            ax.annotate(g, (x, 0), xytext=(0, -26), textcoords="offset points",
-                        fontsize=6.5, ha="center", color="#6c7480", rotation=20)
+            mu, se = L.mean(0)[order], (L.std(0) / np.sqrt(len(L)))[order]
+            ax.bar(x + (k - .5) * w, mu, w, yerr=se, capsize=2.5, label=lab,
+                   color=colour, edgecolor="white", linewidth=.6, zorder=3)
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"{gnames[i]}\n$R^*$={R[i]:.2f}" for i in order], fontsize=7.5)
         ax.set_title(name, fontsize=10)
-        ax.set_xlabel(r"$R^*_g$  (group's achievable floor)", fontsize=8.5)
-        ax.grid(alpha=.25, lw=.6); ax.set_axisbelow(True)
-        ax.set_ylim(bottom=0)
+        ax.grid(axis="y", alpha=.25, lw=.6); ax.set_axisbelow(True)
+        ax.set_ylim(0, None)
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)
+        ax.annotate("harder for any model $\\rightarrow$", xy=(.5, -.28),
+                    xycoords="axes fraction", ha="center", fontsize=7.5, color="#6c7480")
     np.atleast_1d(axes)[0].set_ylabel(r"final group weight $\lambda_g$", fontsize=9)
-    np.atleast_1d(axes)[0].legend(fontsize=7.5, frameon=False, loc="upper right")
+    np.atleast_1d(axes)[0].legend(fontsize=8, frameon=False)
     fig.tight_layout()
-    fig.savefig(f"{OUT}/fig3_lambda_vs_rstar.pdf")
-    fig.savefig(f"{OUT}/fig3_lambda_vs_rstar.png", dpi=180)
+    fig.savefig(f"{OUT}/fig3_lambda_vs_rstar.pdf", bbox_inches="tight")
+    fig.savefig(f"{OUT}/fig3_lambda_vs_rstar.png", dpi=180, bbox_inches="tight")
     plt.close(fig)
     print(f"  wrote {OUT}/fig3_lambda_vs_rstar.pdf")
 

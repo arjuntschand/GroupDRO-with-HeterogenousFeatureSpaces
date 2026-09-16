@@ -146,3 +146,59 @@ def fig_loss_curves():
 if __name__ == "__main__":
     fig_lambda_vs_rstar()
     fig_loss_curves()
+
+
+def fig_full_dynamics():
+    """Complete replacement for the single-seed per-run panels.
+
+    Those showed every group and both arms but from one fold at seed 42, so the NHANES traces
+    oscillated by +/-0.1 epoch to epoch and it was impossible to tell signal from seed noise.
+    The smoothed figure that replaced them covered only two groups and only the regret arm, so it
+    was a subset rather than a substitute. This is the full thing: every group, both arms, loss
+    on the top row against that group's R*, and the group's DRO weight underneath, all averaged
+    over 10 seeds with a one standard error band.
+    """
+    for name, pat, rp, gnames, _keep in DS:
+        R = rstar(rp)
+        ng = len(gnames)
+        fig, axes = plt.subplots(2, ng, figsize=(2.75 * ng, 5.2), squeeze=False)
+        for gi in range(ng):
+            ax_l, ax_w = axes[0][gi], axes[1][gi]
+            for arm, lab, colour, _mk in ARMS:
+                C = curves(pat, arm, "test_per_group_loss")
+                if C is not None:
+                    y = C[:, :, gi]; mu = y.mean(0); se = y.std(0) / np.sqrt(len(y))
+                    x = np.arange(len(mu))
+                    ax_l.plot(x, mu, color=colour, lw=1.4, label=lab, zorder=3)
+                    ax_l.fill_between(x, mu - se, mu + se, color=colour, alpha=.20, lw=0)
+                W = curves(pat, arm, "groupdro_weights")
+                if W is not None:
+                    y = W[:, :, gi]; mu = y.mean(0); se = y.std(0) / np.sqrt(len(y))
+                    x = np.arange(len(mu))
+                    ax_w.plot(x, mu, color=colour, lw=1.4, label=lab, zorder=3)
+                    ax_w.fill_between(x, mu - se, mu + se, color=colour, alpha=.20, lw=0)
+            ax_l.axhline(R[gi], ls="--", lw=1.0, color="#6c7480", zorder=1)
+            ax_l.set_title(f"{gnames[gi]}   $R^*$={R[gi]:.2f}", fontsize=8.5)
+            ax_w.set_xlabel("epoch", fontsize=8)
+            ax_w.set_ylim(0, 1)
+            for ax in (ax_l, ax_w):
+                ax.grid(alpha=.25, lw=.6); ax.set_axisbelow(True)
+                for sp in ("top", "right"):
+                    ax.spines[sp].set_visible(False)
+            if gi:
+                ax_l.set_yticklabels([]); ax_w.set_yticklabels([])
+        axes[0][0].set_ylabel("test loss", fontsize=9)
+        axes[1][0].set_ylabel(r"group weight $\lambda_g$", fontsize=9)
+        axes[0][0].legend(fontsize=7.5, frameon=False)
+        # a shared loss axis makes the groups comparable, which is the point of the R* line
+        lo = min(a.get_ylim()[0] for a in axes[0]); hi = max(a.get_ylim()[1] for a in axes[0])
+        for a in axes[0]:
+            a.set_ylim(lo, hi)
+        fig.suptitle(f"{name}: per-group loss and DRO weight, mean of 10 seeds "
+                     r"with $\pm$1 SE", fontsize=10, y=.98)
+        fig.tight_layout(rect=(0, 0, 1, .96))
+        stem = f"{OUT}/fig5_dynamics_{name.lower().replace('-','')}"
+        fig.savefig(stem + ".pdf", bbox_inches="tight")
+        fig.savefig(stem + ".png", dpi=170, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  wrote {stem}.pdf")

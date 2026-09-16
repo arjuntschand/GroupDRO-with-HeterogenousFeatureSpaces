@@ -963,9 +963,9 @@ def build(outdir=SITE):
              "three times what its features permit. By the training signal those are the two "
              "best groups in the dataset. NHANES is the opposite regime: both groups sit above "
              "their floor throughout and never memorise.</div>",
-             "<p class='blurb'>The four panels below are the per-run detail: one column per "
-             "group, loss over training with R* dashed, and that group's DRO weight underneath. "
-             "Single fold at seed 42.</p>"]
+             "<p class='blurb'>Every panel below averages 10 seeds and shades one standard "
+             "error. The single-fold versions these replace could not separate signal from seed "
+             "noise on NHANES, where test loss oscillated by about 0.1 between epochs.</p>"]
     plots.append(
         "<div class='note'><b>What the Fed-Heart panels show.</b> Each panel carries test loss in red and "
         "train loss in amber, with that group's reference loss dashed. Cleveland and Hungarian "
@@ -977,14 +977,13 @@ def build(outdir=SITE):
         "translates into better worst-group accuracy is a separate question, and on Fed-Heart it "
         "largely does not, which is reported in the tables rather than argued away here.</div>")
     DYN = [("fig3_lambda_vs_rstar",
-            "Groups ordered by how hard they intrinsically are. GroupDRO piles weight on the "
-            "hardest group; regret does not"),
+            "Final group weight, groups ordered by how hard they intrinsically are"),
+           ("fig5_dynamics_nhanes",
+            "NHANES: every group, both methods, loss against R* and the weight underneath"),
+           ("fig5_dynamics_fedheart",
+            "Fed-Heart: every group, both methods, loss against R* and the weight underneath"),
            ("fig4_loss_curves",
-            "Per-group loss over training, mean of 10 seeds with a one standard error band"),
-           ("nhanes_anchors_groupdro",  "NHANES, per-group encoders + anchors + GroupDRO"),
-           ("nhanes_anchors_regretdro", "NHANES, per-group encoders + anchors + Regret-DRO"),
-           ("fedheart_anchors_groupdro",  "Fed-Heart, per-group encoders + anchors + GroupDRO"),
-           ("fedheart_anchors_regretdro", "Fed-Heart, per-group encoders + anchors + Regret-DRO")]
+            "The four groups where memorisation is clearest, train and test together")]
     shown = 0
     for stem, cap in DYN:
         rel = f"figs/dynamics/{stem}.png"

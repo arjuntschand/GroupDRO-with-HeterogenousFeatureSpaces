@@ -1,0 +1,2025 @@
+[
+  {
+    "tag": "erm_s42",
+    "cell": "erm_shared",
+    "seed": 42,
+    "objective": "max",
+    "best_tail_acc": 0.7638580931263859,
+    "best_overall_acc": 0.7689126733154951,
+    "best_overall_metrics": {
+      "overall_acc": 0.7689126733154951,
+      "head_acc": 0.770333437207853,
+      "tail_acc": 0.7638580931263859,
+      "worst_group_acc": 0.6986301369863014,
+      "per_group_acc": [
+        0.7734909769757312,
+        0.7671660424469413,
+        0.7669491525423728,
+        0.6986301369863014,
+        0.8117647058823529,
+        0.8108108108108109,
+        0.9,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7689126733154951,
+      "head_acc": 0.770333437207853,
+      "tail_acc": 0.7638580931263859,
+      "worst_group_acc": 0.6986301369863014,
+      "per_group_acc": [
+        0.7734909769757312,
+        0.7671660424469413,
+        0.7669491525423728,
+        0.6986301369863014,
+        0.8117647058823529,
+        0.8108108108108109,
+        0.9,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7689126733154951,
+        "head_acc": 0.770333437207853,
+        "tail_acc": 0.7638580931263859,
+        "worst_group_acc": 0.6986301369863014
+      },
+      "0.5": {
+        "overall_acc": 0.7531014351739236,
+        "head_acc": 0.7538173885945777,
+        "tail_acc": 0.7505543237250555,
+        "worst_group_acc": 0.6986301369863014
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 15.1,
+    "status": "ok"
+  },
+  {
+    "tag": "gdro_s42",
+    "cell": "gdro_shared",
+    "seed": 42,
+    "objective": "max",
+    "best_tail_acc": 0.07206208425720621,
+    "best_overall_acc": 0.06081245439065921,
+    "best_overall_metrics": {
+      "overall_acc": 0.06081245439065921,
+      "head_acc": 0.05765035836709255,
+      "tail_acc": 0.07206208425720621,
+      "worst_group_acc": 0.045662100456621,
+      "per_group_acc": [
+        0.04604853764779091,
+        0.06928838951310862,
+        0.07203389830508475,
+        0.045662100456621,
+        0.07058823529411765,
+        0.10810810810810811,
+        0.06666666666666667,
+        0.22727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.06081245439065921,
+      "head_acc": 0.05765035836709255,
+      "tail_acc": 0.07206208425720621,
+      "worst_group_acc": 0.045662100456621,
+      "per_group_acc": [
+        0.04604853764779091,
+        0.06928838951310862,
+        0.07203389830508475,
+        0.045662100456621,
+        0.07058823529411765,
+        0.10810810810810811,
+        0.06666666666666667,
+        0.22727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.06081245439065921,
+        "head_acc": 0.05765035836709255,
+        "tail_acc": 0.07206208425720621,
+        "worst_group_acc": 0.045662100456621
+      },
+      "0.5": {
+        "overall_acc": 0.06081245439065921,
+        "head_acc": 0.05765035836709255,
+        "tail_acc": 0.07206208425720621,
+        "worst_group_acc": 0.045662100456621
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 14.7,
+    "status": "ok"
+  },
+  {
+    "tag": "agdro_s42",
+    "cell": "anchors_gdro_shared",
+    "seed": 42,
+    "objective": "max",
+    "best_tail_acc": 0.7660753880266076,
+    "best_overall_acc": 0.7786426660180005,
+    "best_overall_metrics": {
+      "overall_acc": 0.7786426660180005,
+      "head_acc": 0.7821751324400125,
+      "tail_acc": 0.7660753880266076,
+      "worst_group_acc": 0.7397260273972602,
+      "per_group_acc": [
+        0.7865588052271313,
+        0.7777777777777778,
+        0.75,
+        0.7397260273972602,
+        0.8705882352941177,
+        0.7837837837837838,
+        0.8333333333333334,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7786426660180005,
+      "head_acc": 0.7821751324400125,
+      "tail_acc": 0.7660753880266076,
+      "worst_group_acc": 0.7397260273972602,
+      "per_group_acc": [
+        0.7865588052271313,
+        0.7777777777777778,
+        0.75,
+        0.7397260273972602,
+        0.8705882352941177,
+        0.7837837837837838,
+        0.8333333333333334,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7786426660180005,
+        "head_acc": 0.7821751324400125,
+        "tail_acc": 0.7660753880266076,
+        "worst_group_acc": 0.7397260273972602
+      },
+      "0.5": {
+        "overall_acc": 0.7579664315251764,
+        "head_acc": 0.7584917419756934,
+        "tail_acc": 0.7560975609756098,
+        "worst_group_acc": 0.7297297297297297
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 15.3,
+    "status": "ok"
+  },
+  {
+    "tag": "erm_s1337",
+    "cell": "erm_shared",
+    "seed": 1337,
+    "objective": "max",
+    "best_tail_acc": 0.7572062084257206,
+    "best_overall_acc": 0.7701289224033082,
+    "best_overall_metrics": {
+      "overall_acc": 0.7701289224033082,
+      "head_acc": 0.7771891555001558,
+      "tail_acc": 0.7450110864745011,
+      "worst_group_acc": 0.6486486486486487,
+      "per_group_acc": [
+        0.7790914747977598,
+        0.7752808988764045,
+        0.7690677966101694,
+        0.6757990867579908,
+        0.8,
+        0.6486486486486487,
+        0.9333333333333333,
+        0.7727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7684261736803697,
+      "head_acc": 0.7715799314428171,
+      "tail_acc": 0.7572062084257206,
+      "worst_group_acc": 0.7162162162162162,
+      "per_group_acc": [
+        0.7685127566894835,
+        0.7746566791510612,
+        0.7584745762711864,
+        0.730593607305936,
+        0.7764705882352941,
+        0.7162162162162162,
+        0.9333333333333333,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7701289224033082,
+        "head_acc": 0.7771891555001558,
+        "tail_acc": 0.7450110864745011,
+        "worst_group_acc": 0.6486486486486487
+      },
+      "0.5": {
+        "overall_acc": 0.741425443930917,
+        "head_acc": 0.7419756933624182,
+        "tail_acc": 0.7394678492239468,
+        "worst_group_acc": 0.6757990867579908
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 14.8,
+    "status": "ok"
+  },
+  {
+    "tag": "gdro_s1337",
+    "cell": "gdro_shared",
+    "seed": 1337,
+    "objective": "max",
+    "best_tail_acc": 0.3348115299334812,
+    "best_overall_acc": 0.33471174896618827,
+    "best_overall_metrics": {
+      "overall_acc": 0.33471174896618827,
+      "head_acc": 0.33468370208787784,
+      "tail_acc": 0.3348115299334812,
+      "worst_group_acc": 0.2727272727272727,
+      "per_group_acc": [
+        0.3808338518979465,
+        0.2883895131086142,
+        0.3283898305084746,
+        0.3607305936073059,
+        0.3411764705882353,
+        0.3108108108108108,
+        0.3333333333333333,
+        0.2727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.33471174896618827,
+      "head_acc": 0.33468370208787784,
+      "tail_acc": 0.3348115299334812,
+      "worst_group_acc": 0.2727272727272727,
+      "per_group_acc": [
+        0.3808338518979465,
+        0.2883895131086142,
+        0.3283898305084746,
+        0.3607305936073059,
+        0.3411764705882353,
+        0.3108108108108108,
+        0.3333333333333333,
+        0.2727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.33471174896618827,
+        "head_acc": 0.33468370208787784,
+        "tail_acc": 0.3348115299334812,
+        "worst_group_acc": 0.2727272727272727
+      },
+      "0.5": {
+        "overall_acc": 0.31111651666261253,
+        "head_acc": 0.30632595824244313,
+        "tail_acc": 0.328159645232816,
+        "worst_group_acc": 0.18181818181818182
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 15.2,
+    "status": "ok"
+  },
+  {
+    "tag": "agdro_s1337",
+    "cell": "anchors_gdro_shared",
+    "seed": 1337,
+    "objective": "max",
+    "best_tail_acc": 0.7682926829268293,
+    "best_overall_acc": 0.7659936755047434,
+    "best_overall_metrics": {
+      "overall_acc": 0.7659936755047434,
+      "head_acc": 0.7672172016204425,
+      "tail_acc": 0.761640798226164,
+      "worst_group_acc": 0.7534246575342466,
+      "per_group_acc": [
+        0.777224642190417,
+        0.7571785268414482,
+        0.7542372881355932,
+        0.7534246575342466,
+        0.8,
+        0.7567567567567568,
+        0.8333333333333334,
+        0.7727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7472634395524204,
+      "head_acc": 0.7413524462449361,
+      "tail_acc": 0.7682926829268293,
+      "worst_group_acc": 0.733458177278402,
+      "per_group_acc": [
+        0.7492221530802738,
+        0.733458177278402,
+        0.7711864406779662,
+        0.7534246575342466,
+        0.7647058823529411,
+        0.7702702702702703,
+        0.8333333333333334,
+        0.7727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7659936755047434,
+        "head_acc": 0.7672172016204425,
+        "tail_acc": 0.761640798226164,
+        "worst_group_acc": 0.7534246575342466
+      },
+      "0.5": {
+        "overall_acc": 0.7516419362685478,
+        "head_acc": 0.7494546587722032,
+        "tail_acc": 0.7594235033259423,
+        "worst_group_acc": 0.7415730337078652
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 15.3,
+    "status": "ok"
+  },
+  {
+    "tag": "erm_s7",
+    "cell": "erm_shared",
+    "seed": 7,
+    "objective": "max",
+    "best_tail_acc": 0.7516629711751663,
+    "best_overall_acc": 0.7647774264169301,
+    "best_overall_metrics": {
+      "overall_acc": 0.7647774264169301,
+      "head_acc": 0.7684636958554066,
+      "tail_acc": 0.7516629711751663,
+      "worst_group_acc": 0.7168949771689498,
+      "per_group_acc": [
+        0.7666459240821406,
+        0.7702871410736579,
+        0.7415254237288136,
+        0.7168949771689498,
+        0.8352941176470589,
+        0.7972972972972973,
+        0.7666666666666667,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7647774264169301,
+      "head_acc": 0.7684636958554066,
+      "tail_acc": 0.7516629711751663,
+      "worst_group_acc": 0.7168949771689498,
+      "per_group_acc": [
+        0.7666459240821406,
+        0.7702871410736579,
+        0.7415254237288136,
+        0.7168949771689498,
+        0.8352941176470589,
+        0.7972972972972973,
+        0.7666666666666667,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7647774264169301,
+        "head_acc": 0.7684636958554066,
+        "tail_acc": 0.7516629711751663,
+        "worst_group_acc": 0.7168949771689498
+      },
+      "0.5": {
+        "overall_acc": 0.7472634395524204,
+        "head_acc": 0.747584917419757,
+        "tail_acc": 0.746119733924612,
+        "worst_group_acc": 0.7
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 14.2,
+    "status": "ok"
+  },
+  {
+    "tag": "gdro_s7",
+    "cell": "gdro_shared",
+    "seed": 7,
+    "objective": "max",
+    "best_tail_acc": 0.22172949002217296,
+    "best_overall_acc": 0.16832887375334468,
+    "best_overall_metrics": {
+      "overall_acc": 0.16832887375334468,
+      "head_acc": 0.15363041445933312,
+      "tail_acc": 0.22062084257206208,
+      "worst_group_acc": 0.1232876712328767,
+      "per_group_acc": [
+        0.13130056004978222,
+        0.1760299625468165,
+        0.2690677966101695,
+        0.1232876712328767,
+        0.23529411764705882,
+        0.1891891891891892,
+        0.13333333333333333,
+        0.3181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.16200437849671612,
+      "head_acc": 0.14521657837332502,
+      "tail_acc": 0.22172949002217296,
+      "worst_group_acc": 0.12445550715619166,
+      "per_group_acc": [
+        0.12445550715619166,
+        0.16604244694132334,
+        0.2754237288135593,
+        0.1278538812785388,
+        0.2235294117647059,
+        0.1891891891891892,
+        0.13333333333333333,
+        0.22727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.16832887375334468,
+        "head_acc": 0.15363041445933312,
+        "tail_acc": 0.22062084257206208,
+        "worst_group_acc": 0.1232876712328767
+      },
+      "0.5": {
+        "overall_acc": 0.18876185842860618,
+        "head_acc": 0.17918354627609848,
+        "tail_acc": 0.22283813747228381,
+        "worst_group_acc": 0.1232876712328767
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 15.2,
+    "status": "ok"
+  },
+  {
+    "tag": "agdro_s7",
+    "cell": "anchors_gdro_shared",
+    "seed": 7,
+    "objective": "max",
+    "best_tail_acc": 0.7738359201773836,
+    "best_overall_acc": 0.7788859158355631,
+    "best_overall_metrics": {
+      "overall_acc": 0.7788859158355631,
+      "head_acc": 0.7824867559987535,
+      "tail_acc": 0.7660753880266076,
+      "worst_group_acc": 0.7436440677966102,
+      "per_group_acc": [
+        0.7822028624766646,
+        0.7827715355805244,
+        0.7436440677966102,
+        0.771689497716895,
+        0.8470588235294118,
+        0.7567567567567568,
+        0.8333333333333334,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7630746776939917,
+      "head_acc": 0.7600498597693985,
+      "tail_acc": 0.7738359201773836,
+      "worst_group_acc": 0.7503121098626716,
+      "per_group_acc": [
+        0.7697573117610454,
+        0.7503121098626716,
+        0.7648305084745762,
+        0.7579908675799086,
+        0.8470588235294118,
+        0.7837837837837838,
+        0.8,
+        0.7727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7788859158355631,
+        "head_acc": 0.7824867559987535,
+        "tail_acc": 0.7660753880266076,
+        "worst_group_acc": 0.7436440677966102
+      },
+      "0.5": {
+        "overall_acc": 0.7599124300656774,
+        "head_acc": 0.7600498597693985,
+        "tail_acc": 0.7594235033259423,
+        "worst_group_acc": 0.7333333333333333
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 14.5,
+    "status": "ok"
+  },
+  {
+    "tag": "erm_s2024",
+    "cell": "erm_shared",
+    "seed": 2024,
+    "objective": "max",
+    "best_tail_acc": 0.7638580931263859,
+    "best_overall_acc": 0.7774264169301873,
+    "best_overall_metrics": {
+      "overall_acc": 0.7774264169301873,
+      "head_acc": 0.7852913680274228,
+      "tail_acc": 0.7494456762749445,
+      "worst_group_acc": 0.6940639269406392,
+      "per_group_acc": [
+        0.776602364654636,
+        0.7940074906367042,
+        0.7584745762711864,
+        0.6940639269406392,
+        0.788235294117647,
+        0.7702702702702703,
+        0.8,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7538311846266116,
+      "head_acc": 0.7510127765659084,
+      "tail_acc": 0.7638580931263859,
+      "worst_group_acc": 0.7297128589263421,
+      "per_group_acc": [
+        0.7722464219041693,
+        0.7297128589263421,
+        0.75,
+        0.7625570776255708,
+        0.788235294117647,
+        0.7702702702702703,
+        0.9,
+        0.7727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7774264169301873,
+        "head_acc": 0.7852913680274228,
+        "tail_acc": 0.7494456762749445,
+        "worst_group_acc": 0.6940639269406392
+      },
+      "0.5": {
+        "overall_acc": 0.7518851860861104,
+        "head_acc": 0.7544406357120599,
+        "tail_acc": 0.7427937915742794,
+        "worst_group_acc": 0.6940639269406392
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 14.2,
+    "status": "ok"
+  },
+  {
+    "tag": "gdro_s2024",
+    "cell": "gdro_shared",
+    "seed": 2024,
+    "objective": "max",
+    "best_tail_acc": 0.35033259423503327,
+    "best_overall_acc": 0.37752371685721237,
+    "best_overall_metrics": {
+      "overall_acc": 0.37752371685721237,
+      "head_acc": 0.3851667186039265,
+      "tail_acc": 0.35033259423503327,
+      "worst_group_acc": 0.25882352941176473,
+      "per_group_acc": [
+        0.4007467330429372,
+        0.36953807740324596,
+        0.3347457627118644,
+        0.4063926940639269,
+        0.25882352941176473,
+        0.3783783783783784,
+        0.43333333333333335,
+        0.2727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.37752371685721237,
+      "head_acc": 0.3851667186039265,
+      "tail_acc": 0.35033259423503327,
+      "worst_group_acc": 0.25882352941176473,
+      "per_group_acc": [
+        0.4007467330429372,
+        0.36953807740324596,
+        0.3347457627118644,
+        0.4063926940639269,
+        0.25882352941176473,
+        0.3783783783783784,
+        0.43333333333333335,
+        0.2727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.37752371685721237,
+        "head_acc": 0.3851667186039265,
+        "tail_acc": 0.35033259423503327,
+        "worst_group_acc": 0.25882352941176473
+      },
+      "0.5": {
+        "overall_acc": 0.3799562150328387,
+        "head_acc": 0.3870364599563727,
+        "tail_acc": 0.35476718403547675,
+        "worst_group_acc": 0.2727272727272727
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 15.2,
+    "status": "ok"
+  },
+  {
+    "tag": "agdro_s2024",
+    "cell": "anchors_gdro_shared",
+    "seed": 2024,
+    "objective": "max",
+    "best_tail_acc": 0.7549889135254989,
+    "best_overall_acc": 0.7633179275115544,
+    "best_overall_metrics": {
+      "overall_acc": 0.7633179275115544,
+      "head_acc": 0.7662823309442194,
+      "tail_acc": 0.7527716186252772,
+      "worst_group_acc": 0.730593607305936,
+      "per_group_acc": [
+        0.7641568139390168,
+        0.768414481897628,
+        0.7478813559322034,
+        0.730593607305936,
+        0.8117647058823529,
+        0.7702702702702703,
+        0.7666666666666667,
+        0.7727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7630746776939917,
+      "head_acc": 0.7653474602679963,
+      "tail_acc": 0.7549889135254989,
+      "worst_group_acc": 0.726027397260274,
+      "per_group_acc": [
+        0.7691350342252644,
+        0.7615480649188514,
+        0.7563559322033898,
+        0.726027397260274,
+        0.8235294117647058,
+        0.7432432432432432,
+        0.7666666666666667,
+        0.7727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7633179275115544,
+        "head_acc": 0.7662823309442194,
+        "tail_acc": 0.7527716186252772,
+        "worst_group_acc": 0.730593607305936
+      },
+      "0.5": {
+        "overall_acc": 0.7462904402821698,
+        "head_acc": 0.7454035525085696,
+        "tail_acc": 0.7494456762749445,
+        "worst_group_acc": 0.7
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 14.5,
+    "status": "ok"
+  },
+  {
+    "tag": "erm_s31337",
+    "cell": "erm_shared",
+    "seed": 31337,
+    "objective": "max",
+    "best_tail_acc": 0.779379157427938,
+    "best_overall_acc": 0.7798589151058136,
+    "best_overall_metrics": {
+      "overall_acc": 0.7798589151058136,
+      "head_acc": 0.7799937675288252,
+      "tail_acc": 0.779379157427938,
+      "worst_group_acc": 0.7351598173515982,
+      "per_group_acc": [
+        0.7741132545115121,
+        0.785892634207241,
+        0.7860169491525424,
+        0.7351598173515982,
+        0.8,
+        0.7972972972972973,
+        0.8666666666666667,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7798589151058136,
+      "head_acc": 0.7799937675288252,
+      "tail_acc": 0.779379157427938,
+      "worst_group_acc": 0.7351598173515982,
+      "per_group_acc": [
+        0.7741132545115121,
+        0.785892634207241,
+        0.7860169491525424,
+        0.7351598173515982,
+        0.8,
+        0.7972972972972973,
+        0.8666666666666667,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7798589151058136,
+        "head_acc": 0.7799937675288252,
+        "tail_acc": 0.779379157427938,
+        "worst_group_acc": 0.7351598173515982
+      },
+      "0.5": {
+        "overall_acc": 0.7625881780588665,
+        "head_acc": 0.7591149890931754,
+        "tail_acc": 0.7749445676274944,
+        "worst_group_acc": 0.7272727272727273
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 14.2,
+    "status": "ok"
+  },
+  {
+    "tag": "gdro_s31337",
+    "cell": "gdro_shared",
+    "seed": 31337,
+    "objective": "max",
+    "best_tail_acc": 0.07317073170731707,
+    "best_overall_acc": 0.09924592556555582,
+    "best_overall_metrics": {
+      "overall_acc": 0.09924592556555582,
+      "head_acc": 0.10657525708943597,
+      "tail_acc": 0.07317073170731707,
+      "worst_group_acc": 0.045662100456621,
+      "per_group_acc": [
+        0.08898568761667704,
+        0.12421972534332085,
+        0.0847457627118644,
+        0.045662100456621,
+        0.07058823529411765,
+        0.05405405405405406,
+        0.1,
+        0.13636363636363635
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.09754317684261737,
+      "head_acc": 0.10439389217824868,
+      "tail_acc": 0.07317073170731707,
+      "worst_group_acc": 0.045662100456621,
+      "per_group_acc": [
+        0.08711885500933417,
+        0.12172284644194757,
+        0.0847457627118644,
+        0.045662100456621,
+        0.07058823529411765,
+        0.05405405405405406,
+        0.1,
+        0.13636363636363635
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.09924592556555582,
+        "head_acc": 0.10657525708943597,
+        "tail_acc": 0.07317073170731707,
+        "worst_group_acc": 0.045662100456621
+      },
+      "0.5": {
+        "overall_acc": 0.09778642666018,
+        "head_acc": 0.10408226861950763,
+        "tail_acc": 0.07538802660753881,
+        "worst_group_acc": 0.03333333333333333
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 15.2,
+    "status": "ok"
+  },
+  {
+    "tag": "agdro_s31337",
+    "cell": "anchors_gdro_shared",
+    "seed": 31337,
+    "objective": "max",
+    "best_tail_acc": 0.7682926829268293,
+    "best_overall_acc": 0.7769399172950621,
+    "best_overall_metrics": {
+      "overall_acc": 0.7769399172950621,
+      "head_acc": 0.7793705204113431,
+      "tail_acc": 0.7682926829268293,
+      "worst_group_acc": 0.7351598173515982,
+      "per_group_acc": [
+        0.7734909769757312,
+        0.7852684144818977,
+        0.75,
+        0.7351598173515982,
+        0.8823529411764706,
+        0.8378378378378378,
+        0.7666666666666667,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7769399172950621,
+      "head_acc": 0.7793705204113431,
+      "tail_acc": 0.7682926829268293,
+      "worst_group_acc": 0.7351598173515982,
+      "per_group_acc": [
+        0.7734909769757312,
+        0.7852684144818977,
+        0.75,
+        0.7351598173515982,
+        0.8823529411764706,
+        0.8378378378378378,
+        0.7666666666666667,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7769399172950621,
+        "head_acc": 0.7793705204113431,
+        "tail_acc": 0.7682926829268293,
+        "worst_group_acc": 0.7351598173515982
+      },
+      "0.5": {
+        "overall_acc": 0.7638044271466796,
+        "head_acc": 0.7637893424742911,
+        "tail_acc": 0.7638580931263859,
+        "worst_group_acc": 0.7351598173515982
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 14.5,
+    "status": "ok"
+  },
+  {
+    "tag": "erm_s11",
+    "cell": "erm_shared",
+    "seed": 11,
+    "objective": "max",
+    "best_tail_acc": 0.7494456762749445,
+    "best_overall_acc": 0.7745074191194357,
+    "best_overall_metrics": {
+      "overall_acc": 0.7745074191194357,
+      "head_acc": 0.7831100031162356,
+      "tail_acc": 0.7439024390243902,
+      "worst_group_acc": 0.6940639269406392,
+      "per_group_acc": [
+        0.7778469197261979,
+        0.7883895131086143,
+        0.7521186440677966,
+        0.6940639269406392,
+        0.788235294117647,
+        0.7567567567567568,
+        0.8,
+        0.7727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.7674531744101192,
+      "head_acc": 0.7725148021190402,
+      "tail_acc": 0.7494456762749445,
+      "worst_group_acc": 0.7214611872146118,
+      "per_group_acc": [
+        0.7734909769757312,
+        0.7715355805243446,
+        0.7478813559322034,
+        0.7214611872146118,
+        0.788235294117647,
+        0.7432432432432432,
+        0.8333333333333334,
+        0.8181818181818182
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.7745074191194357,
+        "head_acc": 0.7831100031162356,
+        "tail_acc": 0.7439024390243902,
+        "worst_group_acc": 0.6940639269406392
+      },
+      "0.5": {
+        "overall_acc": 0.763561177329117,
+        "head_acc": 0.7687753194141477,
+        "tail_acc": 0.7450110864745011,
+        "worst_group_acc": 0.6940639269406392
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 14.8,
+    "status": "ok"
+  },
+  {
+    "tag": "gdro_s11",
+    "cell": "gdro_shared",
+    "seed": 11,
+    "objective": "max",
+    "best_tail_acc": 0.34478935698447893,
+    "best_overall_acc": 0.3592799805400146,
+    "best_overall_metrics": {
+      "overall_acc": 0.3592799805400146,
+      "head_acc": 0.36366469305079463,
+      "tail_acc": 0.3436807095343681,
+      "worst_group_acc": 0.2727272727272727,
+      "per_group_acc": [
+        0.33851897946484133,
+        0.3888888888888889,
+        0.3474576271186441,
+        0.3105022831050228,
+        0.43529411764705883,
+        0.3108108108108108,
+        0.4,
+        0.2727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "best_tail_metrics": {
+      "overall_acc": 0.34444174166869373,
+      "head_acc": 0.3443440324088501,
+      "tail_acc": 0.34478935698447893,
+      "worst_group_acc": 0.2727272727272727,
+      "per_group_acc": [
+        0.3223397635345364,
+        0.36641697877652935,
+        0.3538135593220339,
+        0.3013698630136986,
+        0.4470588235294118,
+        0.3108108108108108,
+        0.36666666666666664,
+        0.2727272727272727
+      ],
+      "per_group_counts": [
+        1607,
+        1602,
+        472,
+        219,
+        85,
+        74,
+        30,
+        22
+      ]
+    },
+    "dropout_curve": {
+      "0.0": {
+        "overall_acc": 0.3592799805400146,
+        "head_acc": 0.36366469305079463,
+        "tail_acc": 0.3436807095343681,
+        "worst_group_acc": 0.2727272727272727
+      },
+      "0.5": {
+        "overall_acc": 0.3407929944052542,
+        "head_acc": 0.34153942038018076,
+        "tail_acc": 0.33813747228381374,
+        "worst_group_acc": 0.18181818181818182
+      }
+    },
+    "num_groups": 8,
+    "head_gids": [
+      0,
+      1
+    ],
+    "tail_gids": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "group_names": [
+      "FFDM_CC+FFDM_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC+CVIEW_MLO",
+      "FFDM_CC",
+      "FFDM_MLO",
+      "FFDM_CC+CVIEW_CC",
+      "FFDM_MLO+CVIEW_MLO",
+      "FFDM_CC+FFDM_MLO+CVIEW_CC",
+      "FFDM_CC+FFDM_MLO+CVIEW_MLO"
+    ],
+    "train_group_counts": [
+      6393,
+      6398,
+      1776,
+      830,
+      371,
+      311,
+      154,
+      145
+    ],
+    "test_group_counts": [
+      1607,
+      1602,
+      472,
+      219,
+      85,
+      74,
+      30,
+      22
+    ],
+    "minutes": 14.5,
+    "status": "ok"
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "cell": "erm_shared",
+    "seed": 42,
+    "minutes": 10.5,
+    "best_tail_acc": 0.05263157894736842,
+    "best_overall_acc": 0.05263157894736842
+  },
+  {
+    "cell": "gdro_shared",
+    "seed": 42,
+    "minutes": 7.3,
+    "best_tail_acc": 0.15789473684210525,
+    "best_overall_acc": 0.15789473684210525
+  },
+  {
+    "cell": "anchors_gdro_shared",
+    "seed": 42,
+    "minutes": 5.4,
+    "best_tail_acc": 0.05263157894736842,
+    "best_overall_acc": 0.05263157894736842
+  },
+  {
+    "cell": "full",
+    "seed": 42,
+    "minutes": 3.9,
+    "best_tail_acc": 0.5789473684210527,
+    "best_overall_acc": 0.5789473684210527
+  }
+]

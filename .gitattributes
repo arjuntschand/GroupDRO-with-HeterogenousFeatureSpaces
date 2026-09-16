@@ -1,2 +1,6 @@
-# Auto detect text files and perform LF normalization
 * text=auto
+*.xpt binary
+*.data text
+*.pdf binary
+*.docx binary
+*.png binary

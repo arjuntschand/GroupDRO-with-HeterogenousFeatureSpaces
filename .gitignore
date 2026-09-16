@@ -1,12 +1,111 @@
+# ---------------------------------------------------------------------------
+# Python / editor / OS
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.DS_Store
+.mplconfig/
+venv/
+.venv/
+env/
+*.egg-info/
+.ipynb_checkpoints/
+.claude/
+scratchpad_*.txt
 
-# Datasets (never commit)
-datasets/
-exports/
+# ---------------------------------------------------------------------------
+# Datasets: never commit raw data, except the two small public tabular sets
+# that the paper's tabular results are built on (UCI Fed-Heart, CDC NHANES).
+# ---------------------------------------------------------------------------
+datasets/*
+!datasets/fed_heart_disease/
+datasets/fed_heart_disease/*
+!datasets/fed_heart_disease/processed.*.data
+!datasets/nhanes/
+datasets/nhanes/*
+!datasets/nhanes/pre_pandemic/
+!datasets/nhanes/post_pandemic/
+datasets/nhanes/pre_pandemic/*
+datasets/nhanes/post_pandemic/*
+!datasets/nhanes/pre_pandemic/*.xpt
+!datasets/nhanes/post_pandemic/*.xpt
 
-# EMBED training artifacts — the EMBED Data Use Agreement forbids releasing model
-# weights or embedding spaces trained on EMBED. Never commit EMBED run outputs
-# (checkpoints, tensorboard, embeddings). Publish results + code only.
-runs/embed_*/
-runs/embed_*.json
-*.embed.ckpt
+# ---------------------------------------------------------------------------
+# Run outputs. Git keeps the RESULTS (metrics_long.csv, results.json,
+# rstar*.json, per-epoch metrics.csv). Everything regenerable and bulky stays
+# local: checkpoints, TensorBoard events, metrics.jsonl (duplicate of
+# metrics.csv), console logs.
+# ---------------------------------------------------------------------------
+runs/**/*.ckpt
+runs/**/*.pt
+runs/**/*.pth
+runs/**/*.npy
+runs/**/*.npz
+runs/**/events.out.tfevents.*
+runs/**/metrics.jsonl
+runs/**/*.log
+runs/**/*.done
+runs/tmp_*
+runs/index.csv
+runs/metrics.sqlite
+runs_archive/
+
+# Legacy run families (MNIST/USPS, TextCaps, smoke tests, pre-protocol ad-hoc
+# runs). Their code lives in legacy/; the runs are not part of the paper.
+runs/_*/
+runs/mnist*/
+runs/usps*/
+runs/textcaps_*/
+!runs/textcaps_cached_full/
+runs/textcaps_cached_full/*
+!runs/textcaps_cached_full/results.json
+!runs/textcaps_cached_full/classes.json
+runs/smoke_*/
+runs/tb_*/
+runs/th_*/
+runs/exp_*/
+runs/sw_*/
+runs/mask_*/
+runs/fair_*/
+runs/principled_*/
+runs/v[2-5]_*/
+runs/gsw_*/
+runs/smart_*/
+runs/final_*/
+runs/nh_*/
+runs/fh_*/
+runs/fig_*
+runs/_*
+# March-2026 single-split Fed-Heart / NHANES runs (pre matrix_/cv protocol).
+runs/fedheart_*/
+!runs/fedheart_cv*/
+!runs/fedheart_uncapped/
+runs/nhanes_*/
+experiments/INDEX.csv
+
+# ---------------------------------------------------------------------------
+# EMBED (Emory mammography). The Data Use Agreement forbids releasing any
+# model weights, embeddings, or indexes derived from EMBED. This block is an
+# ALLOWLIST: everything under runs/embed_* is denied, and only the named
+# metrics summaries below are admitted. Add new files here by name only.
+# ---------------------------------------------------------------------------
+runs/embed_*
+!runs/embed_*/
+runs/embed_*/*
+!runs/embed_*/metrics_long.csv
+!runs/embed_*/rstar.json
+!runs/embed_*/REPORT.md
+!runs/embed_xenia_production/curve_*.json
+!runs/embed_*_results.json
+!runs/embed_ablation_subset_log.txt
+
+# ---------------------------------------------------------------------------
+# Generated outputs
+# ---------------------------------------------------------------------------
 site/
+exports/
+figures/
+documentation/*.pdf
+!documentation/Arjun Tschand Research Poster Spring 2026.pdf
+!documentation/GroupDRO_with_HeterogeneousFeatureSpaces (1).pdf
+!documentation/ADDEDDRO_GroupDRO_with_HeterogeneousFeatureSpaces (1) (1).pdf

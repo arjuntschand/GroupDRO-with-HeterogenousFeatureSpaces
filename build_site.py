@@ -71,7 +71,7 @@ DATASETS = [
     # on 15 there. So it cannot test what it was built to test. The controlled overlap sweep
     # makes the heterogeneity argument properly and is honestly labelled synthetic.
     # Runs are kept in runs/matrix_nhanes_disjoint/ for the appendix.
-    dict(key="embed", label="EMBED", path="runs/embed_xenia_production/metrics_long.csv",
+    dict(key="embed", label="EMBED", path="runs/embed_fix_final/metrics_long.csv",
          task="4-class BI-RADS breast density", split="which imaging views exist",
          blurb="128,680 breast-exam records from 22,997 patients in the Emory EMBED mammography "
                "archive. The task is BI-RADS breast density, four ordered classes from almost "
@@ -237,6 +237,16 @@ def cell(v, digits=1):
     if v is None:
         return "<td class='na'>—</td>"
     return f"<td>{v[0]:.{digits}f}<span class='sd'>±{v[1]:.{digits}f}</span></td>"
+
+
+def worst_loss_by_seed(by_seed):
+    """seed -> worst-group loss, the max over groups."""
+    out = {}
+    for seed, groups in by_seed.items():
+        vals = [v.get("loss") for v in groups.values() if v.get("loss") is not None]
+        if vals:
+            out[seed] = max(vals)
+    return out
 
 
 def worst_by_seed(by_seed):
@@ -630,11 +640,26 @@ def overview(loaded):
         # summary card while the full tables directly below already show every arm with its
         # error bars, so it was duplicating the comparison in the most alarming possible place.
         note = ""
+        # A second line for worst-group loss. Accuracy alone understates the method: the loss
+        # metrics are where it is consistently ahead, and they are what the objective actually
+        # optimises, so the card should show both rather than making a reader open the table.
+        lw = worst_loss_by_seed(full) if full else {}
+        bw = worst_loss_by_seed(base) if base else {}
+        lk = sorted(set(lw) & set(bw))
+        loss_line = ""
+        if lk:
+            lmu = sum(lw[k] for k in lk) / len(lk)
+            gain_l = lmu - sum(bw[k] for k in lk) / len(lk)
+            pl = paired_p(lw, bw)
+            sigl = "" if (pl is None or pl >= 0.05) else ", significant"
+            loss_line = (f"<br><b style='color:var(--ours)'>{gain_l:+.3f}</b> worst-group loss "
+                         f"vs {base_lbl}{sigl}")
         cards.append(
             f"<div class='stat'><div class='k'>{html.escape(d['label'])}</div>"
             f"<div class='v'>{f_mu:.1f}%</div>"
-            f"<div class='d'>full method, worst group<br>"
-            f"<b style='color:var(--ours)'>{gain:+.1f}</b> vs {base_lbl}{sig}</div>{note}</div>")
+            f"<div class='d'>worst-group accuracy<br>"
+            f"<b style='color:var(--ours)'>{gain:+.1f}</b> vs {base_lbl}{sig}"
+            f"{loss_line}</div>{note}</div>")
     return f"""
 <h2>GroupDRO across heterogeneous feature spaces</h2>
 <p class='sub'>Worst-group robustness when different groups have genuinely different input features.</p>

@@ -168,8 +168,13 @@ def fig_full_dynamics():
                 # solid test, dashed train. The gap between them is the memorisation evidence:
                 # on a group capped at 20 training samples the two separate immediately, and the
                 # DRO weight underneath is driven by whichever one the max player reads.
-                for key, ls, alpha, suffix in [("test_per_group_loss", "-", .20, " test"),
-                                               ("train_per_group_loss", "--", .12, " train")]:
+                # All three splits. val is the one that matters mechanically: it drives the
+                # lambda update and selects the reported epoch, so if it tracked train rather
+                # than test the whole selection would be leaking. Plotting it makes that
+                # checkable instead of assumed.
+                for key, ls, alpha, suffix in [("test_per_group_loss", "-", .18, " test"),
+                                               ("val_per_group_loss", ":", .10, " val"),
+                                               ("train_per_group_loss", "--", .10, " train")]:
                     C = curves(pat, arm, key)
                     if C is None:
                         continue
@@ -202,7 +207,7 @@ def fig_full_dynamics():
                 ax_l.set_yticklabels([]); ax_w.set_yticklabels([])
         axes[0][0].set_ylabel("loss", fontsize=9)
         axes[1][0].set_ylabel(r"group weight $\lambda_g$", fontsize=9)
-        axes[0][0].legend(fontsize=6.5, frameon=False, ncol=2)
+        axes[0][0].legend(fontsize=5.8, frameon=False, ncol=3)
         # a shared loss axis makes the groups comparable, which is the point of the R* line
         lo = min(a.get_ylim()[0] for a in axes[0]); hi = max(a.get_ylim()[1] for a in axes[0])
         for a in axes[0]:

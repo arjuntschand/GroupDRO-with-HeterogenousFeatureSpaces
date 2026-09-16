@@ -959,6 +959,16 @@ def build(outdir=SITE):
              "three times what its features permit. By the training signal those are the two "
              "best groups in the dataset. NHANES is the opposite regime: both groups sit above "
              "their floor throughout and never memorise.</div>",
+             "<div class='note'><b>Why Fed-Heart's small groups diverge.</b> Switzerland and "
+             "the VA are capped at 20 and 25 training patients by "
+             "<code>group_max_train_samples</code>, out of 98 and 160 available. That cap is ours, "
+             "a deliberate scarcity manipulation to create a hard worst-group problem, not a "
+             "property of the dataset. A 38,946-parameter model memorises 20 samples trivially, "
+             "which is why train loss reaches 0.03 while test climbs past 0.73.<br><br>"
+             "<b>The validation curve is the one to check.</b> It drives the lambda update and "
+             "selects the reported epoch, so it has to track test rather than train or the whole "
+             "selection leaks. On Fed-Heart it correlates with test at r=0.94 and with train at "
+             "r=-0.62. Switzerland sits at train 0.03, val 0.67, test 0.73.</div>",
              "<p class='blurb'>Every panel below averages 10 seeds and shades one standard "
              "error. The single-fold versions these replace could not separate signal from seed "
              "noise on NHANES, where test loss oscillated by about 0.1 between epochs.</p>"]

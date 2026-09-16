@@ -34,7 +34,11 @@ DATASETS = [
      "runs/baselines_nhanes/metrics_long.csv",
      {"erm": "ERM", "pergroup": "PerGroupOnly", "dro": "GroupDRO",
       "regret": "RegretDRO", "anchors_dro": "Ours_GDRO", "full": "Ours_Regret"}),
-    ("EMBED", "runs/embed_valsignal_final/metrics_long.csv",
+    # embed_fix_final, not embed_valsignal_final: the two differ (ours 58.94 vs 58.22,
+    # align_only 57.64 vs 57.14) because only fix_final uses the corrected R*, and
+    # final_report.py and build_site.py both read fix_final. Pointing the figures at the
+    # other run made Table 1 disagree with the site on the same quantity.
+    ("EMBED", "runs/embed_fix_final/metrics_long.csv",
      "runs/baselines_embed/metrics_long.csv",
      {"erm": "erm", "pergroup": None, "dro": "groupdro",
       "regret": "regret_only", "anchors_dro": "align_only", "full": "ours"}),

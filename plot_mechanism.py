@@ -143,11 +143,6 @@ def fig_loss_curves():
     print(f"  wrote {OUT}/fig4_loss_curves.pdf")
 
 
-if __name__ == "__main__":
-    fig_lambda_vs_rstar()
-    fig_loss_curves()
-
-
 def fig_full_dynamics():
     """Complete replacement for the single-seed per-run panels.
 
@@ -216,3 +211,11 @@ def fig_full_dynamics():
         fig.savefig(stem + ".png", dpi=170, bbox_inches="tight")
         plt.close(fig)
         print(f"  wrote {stem}.pdf")
+
+
+if __name__ == "__main__":
+    # This block used to sit above fig_full_dynamics, so fig5 was defined but never
+    # called and the script silently produced only figs 3 and 4.
+    fig_lambda_vs_rstar()
+    fig_loss_curves()
+    fig_full_dynamics()

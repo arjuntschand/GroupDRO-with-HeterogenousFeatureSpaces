@@ -167,6 +167,7 @@ def main():
             # after the loaders and before the model, so the seed actually reaches the weights.
             torch.manual_seed(seed); np.random.seed(seed)
 
+            _val_loader = info.pop("val_loader", None)
             ng = len(cfg["groups"]); nc = cfg["num_classes"]
             counts = info.get("group_counts") or info.get("train_group_counts") or [1] * ng
             # Inverse-frequency class weights, identical to train_nhanes.py:473. Without this
@@ -233,8 +234,16 @@ def main():
                     nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                     opt.step()
                 acc, lg, f1, tg = evaluate(model, te, blocks, device, ng, nc)
-                if min(acc) > best[0]:
-                    best = (min(acc), (acc, lg, f1, tg))
+                # Select on VALIDATION, report TEST, matching what our own arms do. Selecting on
+                # test gave the baselines a best-of-60 advantage on the very set the comparison
+                # is scored on.
+                if _val_loader is not None:
+                    vacc, _, _, _ = evaluate(model, _val_loader, blocks, device, ng, nc)
+                    sel = min(vacc)
+                else:
+                    sel = min(acc)
+                if sel > best[0]:
+                    best = (sel, (acc, lg, f1, tg))
             acc, lg, f1, tg = best[1]
             n_par = sum(p.numel() for p in model.parameters())
             fold_acc.append(acc); fold_loss.append(lg); fold_f1.append(f1); fold_n.append(tg)

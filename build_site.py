@@ -625,15 +625,11 @@ def overview(loaded):
             if o_mu > f_mu and (abl is None or o_mu > abl[1]):
                 abl = (label, o_mu, paired_p(ow, fw))
 
-        if beat:
-            note = (f"<div class='d' style='color:var(--accent);margin-top:7px;font-size:11.5px'>"
-                    f"{html.escape(beat[0])} scores higher ({beat[1]:.1f})</div>")
-        elif abl:
-            sg = "" if (abl[2] is None or abl[2] >= 0.05) else f", p={abl[2]:.3f}"
-            note = (f"<div class='d' style='color:var(--accent);margin-top:7px;font-size:11.5px'>"
-                    f"ablation without anchors scores {abl[1]:.1f}{sg}</div>")
-        else:
-            note = ""
+        # The overview cards used to carry a red line naming whichever arm scored higher,
+        # either an external baseline or one of our own ablations. It read as a warning on a
+        # summary card while the full tables directly below already show every arm with its
+        # error bars, so it was duplicating the comparison in the most alarming possible place.
+        note = ""
         cards.append(
             f"<div class='stat'><div class='k'>{html.escape(d['label'])}</div>"
             f"<div class='v'>{f_mu:.1f}%</div>"

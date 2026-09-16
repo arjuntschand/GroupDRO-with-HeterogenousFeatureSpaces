@@ -165,17 +165,30 @@ def fig_full_dynamics():
         for gi in range(ng):
             ax_l, ax_w = axes[0][gi], axes[1][gi]
             for arm, lab, colour, _mk in ARMS:
-                C = curves(pat, arm, "test_per_group_loss")
-                if C is not None:
+                # solid test, dashed train. The gap between them is the memorisation evidence:
+                # on a group capped at 20 training samples the two separate immediately, and the
+                # DRO weight underneath is driven by whichever one the max player reads.
+                for key, ls, alpha, suffix in [("test_per_group_loss", "-", .20, " test"),
+                                               ("train_per_group_loss", "--", .12, " train")]:
+                    C = curves(pat, arm, key)
+                    if C is None:
+                        continue
                     y = C[:, :, gi]; mu = y.mean(0); se = y.std(0) / np.sqrt(len(y))
                     x = np.arange(len(mu))
-                    ax_l.plot(x, mu, color=colour, lw=1.4, label=lab, zorder=3)
-                    ax_l.fill_between(x, mu - se, mu + se, color=colour, alpha=.20, lw=0)
+                    wide = 2.6 if arm == "GroupDRO" else 1.2
+                    ax_l.plot(x, mu, color=colour, lw=wide, ls=ls,
+                              zorder=3 if arm == "GroupDRO" else 4,
+                              alpha=.75 if arm == "GroupDRO" else 1.0,
+                              label=lab + suffix)
+                    ax_l.fill_between(x, mu - se, mu + se, color=colour, alpha=alpha, lw=0)
                 W = curves(pat, arm, "groupdro_weights")
                 if W is not None:
                     y = W[:, :, gi]; mu = y.mean(0); se = y.std(0) / np.sqrt(len(y))
                     x = np.arange(len(mu))
-                    ax_w.plot(x, mu, color=colour, lw=1.4, label=lab, zorder=3)
+                    ax_w.plot(x, mu, color=colour,
+                              lw=2.6 if arm == "GroupDRO" else 1.2,
+                              zorder=3 if arm == "GroupDRO" else 4,
+                              alpha=.75 if arm == "GroupDRO" else 1.0, label=lab)
                     ax_w.fill_between(x, mu - se, mu + se, color=colour, alpha=.20, lw=0)
             ax_l.axhline(R[gi], ls="--", lw=1.0, color="#6c7480", zorder=1)
             ax_l.set_title(f"{gnames[gi]}   $R^*$={R[gi]:.2f}", fontsize=8.5)
@@ -187,9 +200,9 @@ def fig_full_dynamics():
                     ax.spines[sp].set_visible(False)
             if gi:
                 ax_l.set_yticklabels([]); ax_w.set_yticklabels([])
-        axes[0][0].set_ylabel("test loss", fontsize=9)
+        axes[0][0].set_ylabel("loss", fontsize=9)
         axes[1][0].set_ylabel(r"group weight $\lambda_g$", fontsize=9)
-        axes[0][0].legend(fontsize=7.5, frameon=False)
+        axes[0][0].legend(fontsize=6.5, frameon=False, ncol=2)
         # a shared loss axis makes the groups comparable, which is the point of the R* line
         lo = min(a.get_ylim()[0] for a in axes[0]); hi = max(a.get_ylim()[1] for a in axes[0])
         for a in axes[0]:

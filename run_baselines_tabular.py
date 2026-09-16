@@ -108,6 +108,11 @@ def main():
     # Our arms carve val_frac out of train to drive the DRO lambda signal. Baselines do not use
     # that signal, but they must lose the same rows, otherwise they train on 522 patients against
     # our 449 on Fed-Heart and the comparison measures sample size as much as method.
+    # lets the baselines follow a variant config, e.g. the uncapped Fed-Heart robustness check.
+    # Without this they read the capped config while our arms read the uncapped one, which would
+    # give our side 83 and 136 training patients on the two groups that decide worst-group
+    # accuracy against the baselines' 20 and 25.
+    ap.add_argument("--base", default=None)
     ap.add_argument("--val-frac", type=float, default=None,
                     help="default: read val_frac from the same config our arms use")
     ap.add_argument("--out", default=None)
@@ -115,11 +120,11 @@ def main():
 
     if args.dataset == "nhanes":
         from dro_hetero_anchors.src.datasets_nhanes import build_nhanes_loaders as build
-        base = yaml.safe_load(open("experiments/nhanes_pergroup_gdro.yaml"))
+        base = yaml.safe_load(open(args.base or "experiments/nhanes_pergroup_gdro.yaml"))
         rstar_path = "runs/rstar_nhanes_nested.json"
     else:
         from dro_hetero_anchors.src.datasets_fedheart import build_fedheart_loaders as build
-        base = yaml.safe_load(open("experiments/fedheart_exp_paper_hetagg_gdro.yaml"))
+        base = yaml.safe_load(open(args.base or "experiments/fedheart_exp_paper_hetagg_gdro.yaml"))
         rstar_path = "runs/rstar_fedheart.json"
 
     _VF = args.val_frac if args.val_frac is not None else float(base.get("val_frac", 0.0))

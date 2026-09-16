@@ -164,28 +164,23 @@ def fig_full_dynamics():
         fig, axes = plt.subplots(2, ng, figsize=(2.75 * ng, 5.2), squeeze=False)
         for gi in range(ng):
             ax_l, ax_w = axes[0][gi], axes[1][gi]
+            # Loss row: ONE method, all three splits. The two methods' loss curves sit on top of
+            # each other, so drawing both doubled the line count for no information. The weight
+            # row below is where they actually differ, so each row now answers one question.
+            # train is memorised, test is what we report, val is what drives the lambda update
+            # and selects the epoch, so all three carry distinct information.
+            for key, ls, alpha, lab in [("train_per_group_loss", "--", .12, "train"),
+                                        ("val_per_group_loss", ":", .12, "val"),
+                                        ("test_per_group_loss", "-", .18, "test")]:
+                C = curves(pat, "RegretDRO", key)
+                if C is None:
+                    continue
+                y = C[:, :, gi]; mu = y.mean(0); se = y.std(0) / np.sqrt(len(y))
+                x = np.arange(len(mu))
+                ax_l.plot(x, mu, color="#c0625f", lw=1.5, ls=ls, zorder=3, label=lab)
+                ax_l.fill_between(x, mu - se, mu + se, color="#c0625f", alpha=alpha, lw=0)
+
             for arm, lab, colour, _mk in ARMS:
-                # solid test, dashed train. The gap between them is the memorisation evidence:
-                # on a group capped at 20 training samples the two separate immediately, and the
-                # DRO weight underneath is driven by whichever one the max player reads.
-                # All three splits. val is the one that matters mechanically: it drives the
-                # lambda update and selects the reported epoch, so if it tracked train rather
-                # than test the whole selection would be leaking. Plotting it makes that
-                # checkable instead of assumed.
-                for key, ls, alpha, suffix in [("test_per_group_loss", "-", .18, " test"),
-                                               ("val_per_group_loss", ":", .10, " val"),
-                                               ("train_per_group_loss", "--", .10, " train")]:
-                    C = curves(pat, arm, key)
-                    if C is None:
-                        continue
-                    y = C[:, :, gi]; mu = y.mean(0); se = y.std(0) / np.sqrt(len(y))
-                    x = np.arange(len(mu))
-                    wide = 2.6 if arm == "GroupDRO" else 1.2
-                    ax_l.plot(x, mu, color=colour, lw=wide, ls=ls,
-                              zorder=3 if arm == "GroupDRO" else 4,
-                              alpha=.75 if arm == "GroupDRO" else 1.0,
-                              label=lab + suffix)
-                    ax_l.fill_between(x, mu - se, mu + se, color=colour, alpha=alpha, lw=0)
                 W = curves(pat, arm, "groupdro_weights")
                 if W is not None:
                     y = W[:, :, gi]; mu = y.mean(0); se = y.std(0) / np.sqrt(len(y))
@@ -213,7 +208,8 @@ def fig_full_dynamics():
         for a in axes[0]:
             a.set_ylim(lo, hi)
         fig.suptitle(f"{name}: per-group loss and DRO weight, mean of 10 seeds "
-                     r"with $\pm$1 SE", fontsize=10, y=.98)
+                     r"with $\pm$1 SE. Loss is Regret-DRO; both methods overlap there.",
+                     fontsize=9, y=.98)
         fig.tight_layout(rect=(0, 0, 1, .96))
         stem = f"{OUT}/fig5_dynamics_{name.lower().replace('-','')}"
         fig.savefig(stem + ".pdf", bbox_inches="tight")

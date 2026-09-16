@@ -86,13 +86,16 @@ def main():
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 1337, 7])
     ap.add_argument("--out", default="runs/fedheart_cv")
+    # lets a variant config be run without editing the default, e.g. the uncapped
+    # robustness check where group_max_train_samples is removed
+    ap.add_argument("--base", default=None)
     ap.add_argument("--no-impute", action="store_true")
     ap.add_argument("--anchor-weight", type=float, default=0.1,
                     help="lambda_fit/lambda_sep for the anchors-on arms")
     args = ap.parse_args()
 
     from dro_hetero_anchors.src.train_fedheart import train
-    base = yaml.safe_load(open(BASE))
+    base = yaml.safe_load(open(args.base or BASE))
     # per-group reference losses R*_g for the regret arms (estimated once, see
     # tools/estimate_rstar_tabular.py). Falls back to plain GroupDRO if unavailable.
     rstar_list = None

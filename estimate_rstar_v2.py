@@ -72,7 +72,8 @@ def fit_eval(X, y, tr, ev, kind, nc, seed, wd, weighted=True):
     m.eval()
     with torch.no_grad():
         # unweighted CE at evaluation, matching how per-group loss is reported everywhere else
-        return float(nn.functional.cross_entropy(m(X[ev]), y[ev]))
+        per = nn.functional.cross_entropy(m(X[ev]), y[ev], reduction="none")
+        return float(per.mean()), per.detach().cpu().numpy()
 
 
 class Joint(nn.Module):
@@ -131,11 +132,11 @@ def joint_oof(X, y, g, masks, nc, folds, seed=0, epochs=150, latent=64):
     return {gi: float(np.mean(v)) for gi, v in out.items() if v}
 
 
-def load(dataset):
+def load(dataset, base=None):
     """Return (X, y, group, masks, num_classes) with NO training caps applied."""
     if dataset == "fedheart":
         from dro_hetero_anchors.src.datasets_fedheart import build_fedheart_loaders
-        cfg = yaml.safe_load(open("experiments/fedheart_exp_paper_hetagg_gdro.yaml"))
+        cfg = yaml.safe_load(open(base or "experiments/fedheart_exp_paper_hetagg_gdro.yaml"))
         # group_max_train_samples deliberately NOT passed: R* is a property of the distribution,
         # not of the training budget we imposed on ourselves.
         tr, te, info = build_fedheart_loaders(batch_size=64, seed=0, train_frac=0.8,
@@ -144,7 +145,7 @@ def load(dataset):
         nc = 2
     else:
         from dro_hetero_anchors.src.datasets_nhanes import build_nhanes_loaders
-        cfg = yaml.safe_load(open("experiments/nhanes_pergroup_gdro.yaml"))
+        cfg = yaml.safe_load(open(base or "experiments/nhanes_pergroup_gdro.yaml"))
         tr, te, info = build_nhanes_loaders(batch_size=256, seed=0, data_split_seed=100,
                                             feature_mode=cfg.get("feature_mode", "nested"))
         masks = [list(v) for _, v in sorted(info["feature_indices"].items(),
@@ -178,10 +179,26 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", required=True, choices=["fedheart", "nhanes"])
     ap.add_argument("--out", default=None)
+    ap.add_argument("--base", default=None,
+                    help="config yaml to read feature_mode etc. from (default: the paper config)")
+    ap.add_argument("--group-cap", nargs="+", type=int, default=None,
+                    help="per-group cap on rows used to fit R* (item 5: show how the estimate depends on n). Default: no cap, which is the correct estimator.")
     args = ap.parse_args()
 
-    X, y, g, masks, nc = load(args.dataset)
-    print(f"{args.dataset}: {len(y)} samples, {len(masks)} groups, uncapped\n")
+    X, y, g, masks, nc = load(args.dataset, args.base)
+    if args.group_cap:
+        keep = []
+        rng = np.random.default_rng(0)
+        for gi_, cap in enumerate(args.group_cap):
+            idx = (g == gi_).nonzero(as_tuple=True)[0].numpy()
+            if cap and cap > 0 and len(idx) > cap:
+                idx = rng.choice(idx, size=cap, replace=False)
+            keep.append(idx)
+        keep = np.sort(np.concatenate(keep)); keep_t = torch.tensor(keep)
+        X, y, g = X[keep_t], y[keep_t], g[keep_t]
+        print(f"  --group-cap applied: {args.group_cap} -> {len(y)} rows")
+    print(f"{args.dataset}: {len(y)} samples, {len(masks)} groups, "
+          f"{'capped ' + str(args.group_cap) if args.group_cap else 'uncapped'}\n")
     old_p = f"runs/rstar_{args.dataset}.json" if args.dataset == "fedheart" \
         else "runs/rstar_nhanes_nested.json"
     old = json.load(open(old_p))["rstar"]
@@ -196,16 +213,36 @@ def main():
     print("  fitting the joint model (shared head across groups)...", flush=True)
     jo = joint_oof(X, y, g, masks, nc, allfolds)
 
-    out, detail = {}, {}
+    out, detail, const_floor, margin, out_uncorrected, const_fold_losses, fit_only = {}, {}, {}, {}, {}, {}, {}
     for gi, mask in enumerate(masks):
         Xg = X[:, mask]
         own = (g == gi).nonzero(as_tuple=True)[0]
         folds = allfolds[gi]
         best_name, best_val = "joint", jo.get(gi, float("inf"))
+        fit_best_val = best_val
+        best_fold_losses = []
+        best_per_sample = None
+        # Constant predictor (Xenia): predict the group's training class rate for every sample.
+        # Uses no features, so it is the loosest VALID upper bound; a fitted R* above it is
+        # provably invalid. On Fed-Heart the previous estimate violated it for Switzerland and VA.
+        const_losses, const_per_sample = [], []
+        for f, (tr_rel, ev_rel) in enumerate(folds):
+            tr, ev = own[tr_rel], own[ev_rel]
+            pr = torch.bincount(y[tr], minlength=nc).float().clamp_min(1)
+            pr = pr / pr.sum()
+            _per = (-torch.log(pr[y[ev]])).detach().cpu().numpy()
+            const_losses.append(float(_per.mean())); const_per_sample.append(_per)
+        const_v = float(np.mean(const_losses))
+        fit_best_pre = None  # filled after the candidate loop
+        const_floor[str(gi)] = round(const_v, 6)
+        const_fold_losses[str(gi)] = [round(v, 6) for v in const_losses]
+        if const_v < best_val:
+            best_val, best_name = const_v, "constant/no-features"
+            best_per_sample = np.concatenate(const_per_sample)
         for scope in ("group", "pooled"):
             for kind in ("linear", "mlp32", "mlp64"):
                 for wt in (True, False):
-                    losses = []
+                    losses, per_sample = [], []
                     for f, (tr_rel, ev_rel) in enumerate(folds):
                         ev = own[ev_rel]
                         if scope == "group":
@@ -213,12 +250,44 @@ def main():
                         else:
                             ex = set(ev.tolist())
                             tr = torch.tensor([i for i in range(len(y)) if i not in ex])
-                        losses.append(fit_eval(Xg, y, tr, ev, kind, nc, f, 1e-4, wt))
+                        mean_f, per_f = fit_eval(Xg, y, tr, ev, kind, nc, f, 1e-4, wt)
+                        losses.append(mean_f); per_sample.append(per_f)
                     v = float(np.mean(losses))
+                    fit_best_val = min(fit_best_val, v)
                     if v < best_val:
                         best_val = v
                         best_name = f"{scope}/{kind}/{'w' if wt else 'unw'}"
-        out[str(gi)] = round(best_val, 6)
+                        best_fold_losses = list(losses)
+                        best_per_sample = np.concatenate(per_sample)
+        # fit-only R^_g: the best over joint + fitted candidates, ignoring the constant. This is
+        # the quantity certificate (i) tests against R^const_g (Appendix F, Table 1).
+        fit_only[str(gi)] = round(fit_best_val, 6)
+        # eq (13): R~_g = min{R^_g, R^const_g} - c_g. Appendix F: c_g is the half-width of a bootstrap
+        # percentile interval for the mean of group g's out-of-fold losses, at a level union-bounded
+        # over the G groups (delta=0.05 -> each group at delta/G). It makes the reference a deliberate
+        # underestimate, which errs on the safe side: a reference below the true floor cannot exclude
+        # a group. It grows as groups shrink, tracking sampling variability only.
+        # Appendix F: c_g = half-width of a bootstrap percentile interval for the MEAN of group
+        # g's pooled out-of-fold per-sample losses, level union-bounded over the G groups. Fold
+        # means are the wrong resolution: for a constant predictor every fold gives the same
+        # loss, so a fold-level bootstrap returned c_g = 0 for the one group (VA) that most
+        # needed a margin. Per-sample bootstrap scales like sigma/sqrt(n_g), which is what
+        # "grows as groups shrink" means. If the joint fit wins we have no per-sample losses
+        # for it, so its margin is 0 and flagged.
+        G_ = len(masks); alpha_ = 0.05 / G_
+        rng_b = np.random.default_rng(1000 + gi)
+        if best_per_sample is not None and len(best_per_sample) >= 2:
+            ps_ = np.asarray(best_per_sample, dtype=float); n_ = len(ps_)
+            bs = np.array([ps_[rng_b.integers(0, n_, n_)].mean() for _ in range(4000)])
+            lo_, hi_ = np.percentile(bs, [100 * alpha_ / 2, 100 * (1 - alpha_ / 2)])
+            c_g = float((hi_ - lo_) / 2)
+            fl_ = ps_
+        else:
+            c_g = 0.0; fl_ = np.array([best_val])
+        print(f"  margin-debug g{gi}: chosen={best_name} n_oof={len(fl_)} c_g={c_g:.5f}", flush=True)
+        margin[str(gi)] = round(c_g, 6)
+        out_uncorrected[str(gi)] = round(best_val, 6)          # min{R^, R^const}, before the margin
+        out[str(gi)] = round(max(best_val - c_g, 0.0), 6)      # R~_g, what training consumes
         detail[str(gi)] = best_name
         fl = floor.get(gi, float("inf"))
         flag = "  <-- still above an achieved loss" if best_val > fl + 1e-6 else ""
@@ -227,7 +296,8 @@ def main():
 
     path = args.out or (f"runs/rstar_{args.dataset}_v2.json" if args.dataset == "fedheart"
                         else "runs/rstar_nhanes_nested_v2.json")
-    json.dump({"rstar": out, "chosen_estimator": detail,
+    json.dump({"rstar": out, "rstar_before_margin": out_uncorrected, "margin_c_g": margin,
+               "chosen_estimator": detail, "constant_predictor_bound": const_floor, "rstar_fit_only": fit_only, "constant_fold_losses": const_fold_losses,
                "method": "uncapped; min over {group,pooled} x {linear,mlp32,mlp64}; "
                          "out-of-fold on the group's own rows"},
               open(path, "w"), indent=2)

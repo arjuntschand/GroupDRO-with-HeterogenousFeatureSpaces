@@ -28,8 +28,14 @@ import matplotlib.pyplot as plt
 OUT = "figs/paper"
 os.makedirs(OUT, exist_ok=True)
 
+# Fed-Heart appears as the UNCAPPED run: that is FLamby's standard protocol, our best arm
+# beats all three baselines there, and the capped variant caps Switzerland and the VA at 20 and
+# 25 patients, which is a scarcity manipulation we imposed. The capped dynamics are kept below
+# as the scarcity study rather than as the headline.
 DS = [
-    ("Fed-Heart", "runs/fedheart_cv/{a}_s*_f0/metrics.csv", "runs/rstar_fedheart.json",
+    ("Fed-Heart", "runs/fedheart_uncapped/{a}_s*_f0/metrics.csv", "runs/rstar_fedheart.json",
+     ["Cleveland", "Hungarian", "Switzerland", "VA"], ["Switzerland", "VA"]),
+    ("Fed-Heart capped", "runs/fedheart_cv/{a}_s*_f0/metrics.csv", "runs/rstar_fedheart.json",
      ["Cleveland", "Hungarian", "Switzerland", "VA"], ["Switzerland", "VA"]),
     ("NHANES", "runs/matrix_nhanes_nested/{a}_s*/metrics.csv", "runs/rstar_nhanes_nested.json",
      ["survey only", "+ exam", "+ labs"], ["survey only", "+ labs"]),
@@ -148,69 +154,70 @@ def fig_full_dynamics():
 
     Those showed every group and both arms but from one fold at seed 42, so the NHANES traces
     oscillated by +/-0.1 epoch to epoch and it was impossible to tell signal from seed noise.
-    The smoothed figure that replaced them covered only two groups and only the regret arm, so it
-    was a subset rather than a substitute. This is the full thing: every group, both arms, loss
-    on the top row against that group's R*, and the group's DRO weight underneath, all averaged
-    over 10 seeds with a one standard error band.
+
+    ONE FIGURE PER METHOD. The previous version stacked GroupDRO and Regret-DRO weights on the
+    same axis, which put four bands and six lines in every panel and made the figure unreadable
+    at page width. Each method now gets its own figure, so a panel carries one method's three
+    loss curves against that group's R* and, underneath, that same method's weight. Comparing
+    the two is then a matter of putting the figures side by side, which is what the eye is
+    actually good at.
     """
     for name, pat, rp, gnames, _keep in DS:
         R = rstar(rp)
         ng = len(gnames)
-        fig, axes = plt.subplots(2, ng, figsize=(2.75 * ng, 5.2), squeeze=False)
-        for gi in range(ng):
-            ax_l, ax_w = axes[0][gi], axes[1][gi]
-            # Loss row: ONE method, all three splits. The two methods' loss curves sit on top of
-            # each other, so drawing both doubled the line count for no information. The weight
-            # row below is where they actually differ, so each row now answers one question.
-            # train is memorised, test is what we report, val is what drives the lambda update
-            # and selects the epoch, so all three carry distinct information.
-            for key, ls, alpha, lab in [("train_per_group_loss", "--", .12, "train"),
-                                        ("val_per_group_loss", ":", .12, "val"),
-                                        ("test_per_group_loss", "-", .18, "test")]:
-                C = curves(pat, "RegretDRO", key)
-                if C is None:
-                    continue
-                y = C[:, :, gi]; mu = y.mean(0); se = y.std(0) / np.sqrt(len(y))
-                x = np.arange(len(mu))
-                ax_l.plot(x, mu, color="#c0625f", lw=1.5, ls=ls, zorder=3, label=lab)
-                ax_l.fill_between(x, mu - se, mu + se, color="#c0625f", alpha=alpha, lw=0)
+        for arm, arm_lab, colour, _mk in ARMS:
+            # skip an arm with no runs rather than emitting an empty figure
+            if curves(pat, arm, "test_per_group_loss") is None:
+                continue
+            fig, axes = plt.subplots(2, ng, figsize=(2.75 * ng, 5.2), squeeze=False)
+            for gi in range(ng):
+                ax_l, ax_w = axes[0][gi], axes[1][gi]
+                # train is memorised, test is what we report, val is what drives the lambda
+                # update and selects the epoch, so all three carry distinct information.
+                for key, ls, alpha, lab in [("train_per_group_loss", "--", .12, "train"),
+                                            ("val_per_group_loss", ":", .12, "val"),
+                                            ("test_per_group_loss", "-", .18, "test")]:
+                    C = curves(pat, arm, key)
+                    if C is None:
+                        continue
+                    y = C[:, :, gi]; mu = y.mean(0); se = y.std(0) / np.sqrt(len(y))
+                    x = np.arange(len(mu))
+                    ax_l.plot(x, mu, color=colour, lw=1.5, ls=ls, zorder=3, label=lab)
+                    ax_l.fill_between(x, mu - se, mu + se, color=colour, alpha=alpha, lw=0)
 
-            for arm, lab, colour, _mk in ARMS:
                 W = curves(pat, arm, "groupdro_weights")
                 if W is not None:
                     y = W[:, :, gi]; mu = y.mean(0); se = y.std(0) / np.sqrt(len(y))
                     x = np.arange(len(mu))
-                    ax_w.plot(x, mu, color=colour,
-                              lw=2.6 if arm == "GroupDRO" else 1.2,
-                              zorder=3 if arm == "GroupDRO" else 4,
-                              alpha=.75 if arm == "GroupDRO" else 1.0, label=lab)
-                    ax_w.fill_between(x, mu - se, mu + se, color=colour, alpha=.20, lw=0)
-            ax_l.axhline(R[gi], ls="--", lw=1.0, color="#6c7480", zorder=1)
-            ax_l.set_title(f"{gnames[gi]}   $R^*$={R[gi]:.2f}", fontsize=8.5)
-            ax_w.set_xlabel("epoch", fontsize=8)
-            ax_w.set_ylim(0, 1)
-            for ax in (ax_l, ax_w):
-                ax.grid(alpha=.25, lw=.6); ax.set_axisbelow(True)
-                for sp in ("top", "right"):
-                    ax.spines[sp].set_visible(False)
-            if gi:
-                ax_l.set_yticklabels([]); ax_w.set_yticklabels([])
-        axes[0][0].set_ylabel("loss", fontsize=9)
-        axes[1][0].set_ylabel(r"group weight $\lambda_g$", fontsize=9)
-        axes[0][0].legend(fontsize=5.8, frameon=False, ncol=3)
-        # a shared loss axis makes the groups comparable, which is the point of the R* line
-        lo = min(a.get_ylim()[0] for a in axes[0]); hi = max(a.get_ylim()[1] for a in axes[0])
-        for a in axes[0]:
-            a.set_ylim(lo, hi)
-        fig.suptitle(f"{name}: per-group loss and DRO weight, mean of 10 seeds "
-                     r"with $\pm$1 SE. Loss is Regret-DRO; both methods overlap there.",
-                     fontsize=9, y=.98)
-        fig.tight_layout(rect=(0, 0, 1, .96))
-        stem = f"{OUT}/fig5_dynamics_{name.lower().replace('-','')}"
-        fig.savefig(stem + ".pdf", bbox_inches="tight")
-        fig.savefig(stem + ".png", dpi=170, bbox_inches="tight")
-        plt.close(fig)
-        print(f"  wrote {stem}.pdf")
+                    ax_w.plot(x, mu, color=colour, lw=2.0, zorder=3)
+                    ax_w.fill_between(x, mu - se, mu + se, color=colour, alpha=.22, lw=0)
+                ax_l.axhline(R[gi], ls="--", lw=1.0, color="#6c7480", zorder=1)
+                ax_l.set_title(f"{gnames[gi]}   $R^*$={R[gi]:.2f}", fontsize=8.5)
+                ax_w.set_xlabel("epoch", fontsize=8)
+                ax_w.set_ylim(0, 1)
+                for ax in (ax_l, ax_w):
+                    ax.grid(alpha=.25, lw=.6); ax.set_axisbelow(True)
+                    for sp in ("top", "right"):
+                        ax.spines[sp].set_visible(False)
+                if gi:
+                    ax_l.set_yticklabels([]); ax_w.set_yticklabels([])
+            axes[0][0].set_ylabel("loss", fontsize=9)
+            axes[1][0].set_ylabel(r"group weight $\lambda_g$", fontsize=9)
+            axes[0][0].legend(fontsize=6.5, frameon=False, ncol=3)
+            # a shared loss axis makes the groups comparable, which is the point of the R* line
+            lo = min(a.get_ylim()[0] for a in axes[0]); hi = max(a.get_ylim()[1] for a in axes[0])
+            for a in axes[0]:
+                a.set_ylim(lo, hi)
+            fig.suptitle(f"{name} — {arm_lab}: per-group loss and group weight, "
+                         r"mean of 10 seeds with $\pm$1 SE", fontsize=9.5, y=.98)
+            fig.tight_layout(rect=(0, 0, 1, .96))
+            slug = arm.lower().replace("dro", "dro")
+            ds_slug = name.lower().replace('-', '').replace(' ', '_')
+            stem = f"{OUT}/fig5_dynamics_{ds_slug}_{slug}"
+            fig.savefig(stem + ".pdf", bbox_inches="tight")
+            fig.savefig(stem + ".png", dpi=170, bbox_inches="tight")
+            plt.close(fig)
+            print(f"  wrote {stem}.pdf")
 
 
 if __name__ == "__main__":

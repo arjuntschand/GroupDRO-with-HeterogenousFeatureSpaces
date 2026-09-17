@@ -646,14 +646,38 @@ def overview(loaded):
         lw = worst_loss_by_seed(full) if full else {}
         bw = worst_loss_by_seed(base) if base else {}
         lk = sorted(set(lw) & set(bw))
+        # Count how many of the three PUBLISHED baselines the full method beats on worst-group
+        # loss, rather than quoting a delta against common-features ERM. ERM is the weakest thing
+        # in the table, so a number against it flatters us and is not the comparison a reader
+        # cares about; Reweigh, Flex-MoE and REMIND are what the field would actually reach for.
+        # A win needs a lower mean AND p<0.05 on the shared seeds, matching final_report.py.
         loss_line = ""
         if lk:
             lmu = sum(lw[k] for k in lk) / len(lk)
-            gain_l = lmu - sum(bw[k] for k in lk) / len(lk)
-            pl = paired_p(lw, bw)
-            sigl = "" if (pl is None or pl >= 0.05) else ", significant"
-            loss_line = (f"<br><b style='color:var(--ours)'>{gain_l:+.3f}</b> worst-group loss "
-                         f"vs {base_lbl}{sigl}")
+            won = n_cmp = 0
+            for bl_name in ("Reweigh", "FlexMoE", "REMIND"):
+                other = data.get(bl_name)
+                if not other:
+                    continue
+                ow = worst_loss_by_seed(other)
+                k2 = sorted(set(lw) & set(ow))
+                if not k2:
+                    continue
+                n_cmp += 1
+                mine = sum(lw[i] for i in k2) / len(k2)
+                theirs = sum(ow[i] for i in k2) / len(k2)
+                p2 = paired_p(lw, ow)
+                if mine < theirs and p2 is not None and p2 < 0.05:
+                    won += 1
+            if n_cmp:
+                loss_line = (f"<br><b style='color:var(--ours)'>beats {won}/{n_cmp}</b> "
+                             f"published baselines on worst-group loss")
+            else:
+                gain_l = lmu - sum(bw[k] for k in lk) / len(lk)
+                pl = paired_p(lw, bw)
+                sigl = "" if (pl is None or pl >= 0.05) else ", significant"
+                loss_line = (f"<br><b style='color:var(--ours)'>{gain_l:+.3f}</b> worst-group "
+                             f"loss vs {base_lbl}{sigl}")
         cards.append(
             f"<div class='stat'><div class='k'>{html.escape(d['label'])}</div>"
             f"<div class='v'>{f_mu:.1f}%</div>"
@@ -686,15 +710,22 @@ are already doing as well as they can stop being pushed.</li>
 </ul>
 <h3>What the runs show</h3>
 <ul>
-<li><b>The full pipeline beats the common-features baseline on both tabular datasets.</b>
-Fed-Heart +7.6 worst-group accuracy (p&lt;0.001) and NHANES +4.1 (p=0.013), with max excess loss
-falling from 0.439 to 0.078 on Fed-Heart.</li>
-<li><b>The anchors specifically are inconsistent.</b> Holding the architecture fixed and
-switching only the anchors on: NHANES +3.7 (p=0.007), Fed-Heart <b>-2.3</b> (p=0.011), EMBED
--1.0 (not significant). One win, one loss, one tie.</li>
-<li><b>On EMBED they win on the loss metrics.</b> Anchors plus regret gives the best worst-group
-loss (1.099 against GroupDRO's 1.200) and the best max excess loss (0.239 against 0.251), while
-tying on accuracy. Those two are the headline numbers in the experiment specification.</li>
+<li><b>Per-group encoders plus GroupDRO beat the common-features baseline on Fed-Heart.</b>
++5.22 worst-group accuracy on the standard FLamby split (p&lt;0.0001), and +11.30 when the two
+small hospitals are capped at 20 and 25 training patients (p&lt;0.0001). The gain scales with how
+imbalanced the groups are. On NHANES the same comparison gives +0.82, which is not significant
+(p=0.36).</li>
+<li><b>Regret-DRO is indistinguishable from GroupDRO on every dataset.</b> +0.10, +0.05, +0.03
+and +0.00 worst-group accuracy across the four configurations, no p-value below 0.55. Subtracting
+R* changes which group gets weight, but not the outcome.</li>
+<li><b>The anchors help on one dataset of three.</b> Holding the architecture fixed and switching
+only the anchors on: NHANES <b>+2.34</b> (p=0.0496), Fed-Heart <b>-2.20</b> uncapped and
+<b>-3.28</b> capped (both significant), EMBED <b>-4.52</b> (p=0.0003). One win, three losses.</li>
+<li><b>EMBED cannot resolve any of this.</b> ERM, GroupDRO and Regret-DRO return
+<i>identical</i> worst-group accuracy on all ten seeds. The worst group holds 37 exams, so
+accuracy moves only in 2.70-point steps and a loss change of 0.03 never flips a decision. The
+arms do differ on loss -- GroupDRO -0.035 against ERM on 10/10 seeds, the full method -0.115 --
+but at that group size the effect is not resolvable (p=0.095 for the full method).</li>
 <li><b>The anchors do align groups, and we measured it.</b> Cross-group latent misalignment
 falls by a factor of 25 to 65 once the anchor loss is on, read directly off the latent space
 rather than inferred from accuracy.</li>
@@ -735,7 +766,10 @@ answering the questionnaire; the feature sets nest<br>
 <b>Groups</b> 6, by which of four views a breast has: C-View CC, C-View MLO, FFDM CC, FFDM MLO<br>
 <b>Why they differ</b> which views exist depends on the machine and protocol at scan time; two
 combinations cover about 95% of exams, the smallest group is 0.3%<br>
-<b>Protocol</b> 10 seeds, frozen ViT-Base features</div></div>
+<b>Protocol</b> 10 seeds, frozen ViT-Base features<br>
+<b>Caveat</b> the tail groups hold 37 and 14 exams at test time, so worst-group accuracy moves
+only in 2.7-point steps and its seed-to-seed standard deviation is +/-3.4 points; differences
+below about 7 points are not resolvable here</div></div>
 </div>
 <div class='note'><b>Reading these tables.</b> Every number is mean plus or minus standard
 deviation over 10 seeds; Fed-Heart additionally pools 5 cross-validation folds so every one of its 925
@@ -767,6 +801,14 @@ def baseline_table(data, tail=None):
             ("align_only", "Per-group + anchors + GroupDRO", "abl"),
             ("GroupDRO", "Per-group encoders + GroupDRO", "base"),
             ("groupdro", "Per-group encoders + GroupDRO", "base"),
+            # Per-group + Regret-DRO, anchors off. This was missing from every dataset's
+            # baseline table while being present in METHODS and in every CSV, so the tab
+            # silently dropped it. It is the arm that isolates regret from the anchors, which
+            # is the comparison the regret claim rests on -- and on EMBED it is one of the
+            # three arms that return identical worst-group accuracy, so leaving it out hid
+            # that result rather than merely shortening the table.
+            ("RegretDRO", "Per-group encoders + Regret-DRO", "base"),
+            ("regret_only", "Per-group encoders + Regret-DRO", "base"),
             ("ERM", "ERM, common features", "base"),
             ("erm", "Per-group encoders + ERM", "base"),
             ("PerGroupOnly", "Per-group encoders + ERM", "base")]
@@ -1007,18 +1049,27 @@ def build(outdir=SITE):
         "memorisation no longer hides the two failing groups from it. Whether the extra weight "
         "translates into better worst-group accuracy is a separate question, and on Fed-Heart it "
         "largely does not, which is reported in the tables rather than argued away here.</div>")
+    # One figure per method. Overlaying GroupDRO and Regret-DRO put six lines and four shaded
+    # bands in every panel; at page width it was unreadable. Paired per dataset so the two
+    # methods sit next to each other and can be compared by eye.
     DYN = [("fig3_lambda_vs_rstar",
             "Final group weight, groups ordered by how hard they intrinsically are"),
-           ("fig5_dynamics_nhanes",
-            "NHANES: every group, both methods, loss against R* and the weight underneath"),
-           ("fig5_dynamics_fedheart",
-            "Fed-Heart: every group, both methods, loss against R* and the weight underneath"),
-           ("fig4_loss_curves",
-            "The four groups where memorisation is clearest, train and test together")]
+           ("fig5_dynamics_fedheart_groupdro",
+            "Fed-Heart, GroupDRO: per-group loss against R*, with that group's weight below"),
+           ("fig5_dynamics_fedheart_regretdro",
+            "Fed-Heart, Regret-DRO: per-group loss against R*, with that group's weight below"),
+           ("fig5_dynamics_nhanes_groupdro",
+            "NHANES, GroupDRO: per-group loss against R*, with that group's weight below"),
+           ("fig5_dynamics_nhanes_regretdro",
+            "NHANES, Regret-DRO: per-group loss against R*, with that group's weight below")]
     shown = 0
     for stem, cap in DYN:
-        rel = f"figs/dynamics/{stem}.png"
-        if not os.path.exists(os.path.join(SITE, rel)):
+        # Look in both places. plot_mechanism.py writes figs/paper/, plot_training_dynamics.py
+        # writes figs/dynamics/, and hardcoding one meant a regenerated figure silently never
+        # reached the page -- this has now caused the same stale-image bug twice.
+        rel = next((r for r in (f"figs/paper/{stem}.png", f"figs/dynamics/{stem}.png")
+                    if os.path.exists(os.path.join(SITE, r))), None)
+        if rel is None:
             continue
         shown += 1
         plots.append(f"<h3>{html.escape(cap)}</h3>"

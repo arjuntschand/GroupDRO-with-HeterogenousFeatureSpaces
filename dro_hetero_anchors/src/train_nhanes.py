@@ -710,7 +710,27 @@ def train(cfg):
                 for _gid, _gl in (groupdro._last_group_losses or {}).items():
                     _trg_sum[_gid] = _trg_sum.get(_gid, 0.0) + float(_gl)
                     _trg_n[_gid] = _trg_n.get(_gid, 0) + 1
-                groupdro.update_weights(groupdro._last_group_losses, groupdro._last_group_counts)
+                # dro_signal="val": the lambda update reads HELD-OUT per-group loss, not the batch
+                # loss. The train loss is memorised on the small groups (Fed-Heart's Switzerland has
+                # the LOWEST train loss of the four while being the group at risk), so the train
+                # signal hands the vulnerable group less weight. train_fedheart.py already does
+                # this; this trainer accepted the config key and silently ignored it, so NHANES ran
+                # on the train signal every step while Fed-Heart ran on the val signal per epoch.
+                if cfg.get("dro_signal", "train") != "val":
+                    groupdro.update_weights(groupdro._last_group_losses, groupdro._last_group_counts)
+                _vs = int(cfg.get("dro_val_stride", 0) or 0)
+                if (_vs and cfg.get("dro_signal", "train") == "val" and _VAL_LOADER is not None
+                        and (global_step % _vs) == 0):
+                    _vm_s = evaluate(encoders, head, _VAL_LOADER, device, num_groups, num_classes,
+                                     feature_indices=feature_indices)
+                    _vls = _vm_s.get("per_group_loss") or []
+                    if _vls:
+                        groupdro.update_weights({gi: torch.tensor(float(_vls[gi]), device=device)
+                                                 for gi in range(len(_vls))},
+                                                {gi: 1 for gi in range(len(_vls))})
+                    head.train()
+                    for _e in encoders.values():
+                        _e.train()
                 # Accumulate q across the epoch. In softmax mode update_weights OVERWRITES q
                 # from the current batch alone, so q at the end of an epoch reflects only the
                 # final batch. That batch is usually a partial remainder and often holds a
@@ -748,6 +768,15 @@ def train(cfg):
         val_metrics = (evaluate(encoders, head, _val_loader, device, num_groups, num_classes,
                                 feature_indices=feature_indices)
                        if _val_loader is not None else None)
+        # once-per-epoch held-out lambda update (dro_signal="val", dro_val_stride 0). Feeds lambda
+        # only; the reported epoch is still selected exactly as before.
+        if (groupdro is not None and cfg.get("dro_signal", "train") == "val" and val_metrics is not None
+                and not int(cfg.get("dro_val_stride", 0) or 0)):
+            groupdro.update_every = 1
+            _vl = val_metrics.get("per_group_loss") or []
+            if _vl:
+                groupdro.update_weights({gi: torch.tensor(float(_vl[gi]), device=device) for gi in range(len(_vl))},
+                                        {gi: 1 for gi in range(len(_vl))})
 
         print_epoch_results(epoch, loss_meter.avg, acc_meter.avg, test_metrics, groupdro, num_groups, num_classes, g_names)
 

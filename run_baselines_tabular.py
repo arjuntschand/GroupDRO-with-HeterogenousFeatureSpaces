@@ -156,7 +156,14 @@ def main():
                                      val_frac=_VF,
                                      use_post_pandemic=cfg.get("use_post_pandemic", True),
                                      data_split_seed=cfg.get("data_split_seed"),
-                                     feature_mode=cfg.get("feature_mode", "nested"))
+                                     feature_mode=cfg.get("feature_mode", "nested"),
+                                     # The Fed-Heart branch below passes the per-group training
+                                     # cap; this branch did not, so a capped NHANES config gave
+                                     # the baselines the full training set while our own arms
+                                     # trained capped. Byte-identical CSVs across regimes were
+                                     # the symptom. subsample_seed matches train_nhanes.py.
+                                     group_max_train_samples=cfg.get("group_max_train_samples"),
+                                     subsample_seed=seed if cfg.get("data_split_seed") is not None else None)
             else:
                 tr, te, info = build(batch_size=cfg.get("batch_size", 64),
                                      seed=split_seed,

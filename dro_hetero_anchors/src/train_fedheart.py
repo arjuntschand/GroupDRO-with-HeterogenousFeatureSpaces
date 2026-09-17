@@ -656,6 +656,32 @@ def train(cfg):
                 if cfg.get("dro_signal", "train") != "val":
                     groupdro.update_weights(groupdro._last_group_losses,
                                             groupdro._last_group_counts)
+                # dro_val_stride: fire the held-out update every N STEPS instead of once per
+                # epoch. Switching the signal from train to val fixed a real bug (Switzerland's
+                # train loss is the LOWEST of the four because 83 patients are memorised, so the
+                # train signal hands the vulnerable group less weight) but it silently moved the
+                # update from the step loop to the epoch loop. Fed-Heart runs ~8 steps/epoch and
+                # reports epoch 7, so lambda received 7 updates and moved 0.005 in L1 -- the max
+                # player was effectively switched off. Xenia's spec sets the cadence in steps,
+                # not epochs, so this restores the intended schedule.
+                _vs = int(cfg.get("dro_val_stride", 0) or 0)
+                if (_vs and _DRO_VAL_LOADER is not None
+                        and (global_step % _vs) == 0):
+                    _vm_s = evaluate(encoders, head, _DRO_VAL_LOADER, device,
+                                     num_groups, num_classes, feature_indices=feature_indices)
+                    _vls = _vm_s.get("per_group_loss") or []
+                    if _vls:
+                        groupdro.update_weights(
+                            {gi: torch.tensor(float(_vls[gi]), device=device)
+                             for gi in range(len(_vls))},
+                            {gi: 1 for gi in range(len(_vls))})
+                    # evaluate() calls .eval() on the head and every encoder and does NOT put
+                    # them back. Harmless once per epoch because the epoch loop re-enters
+                    # train mode, but called from inside the step loop it would leave the rest
+                    # of training running in eval mode with dropout off.
+                    head.train()
+                    for _e in encoders.values():
+                        _e.train()
                 # Accumulate q across the epoch. In softmax mode update_weights OVERWRITES q
                 # from the current batch alone, so q at the end of an epoch reflects only the
                 # final batch. That batch is usually a partial remainder and often holds a
@@ -700,7 +726,10 @@ def train(cfg):
         # train_embed_xenia solves this with dro_signal="val" and says why at its line 324: the
         # validation signal is the one that is not memorised. Same fix here. This feeds lambda
         # only; the reported epoch is still chosen exactly as before.
-        if groupdro is not None and _DRO_VAL_LOADER is not None:
+        # Skip when dro_val_stride is set: the step loop has already been doing this on the
+        # intended cadence, and running both would add one extra update per epoch on top.
+        if (groupdro is not None and _DRO_VAL_LOADER is not None
+                and not int(cfg.get("dro_val_stride", 0) or 0)):
             groupdro.update_every = 1      # this path fires once per epoch already
             _vm = evaluate(encoders, head, _DRO_VAL_LOADER, device, num_groups, num_classes,
                            feature_indices=feature_indices)

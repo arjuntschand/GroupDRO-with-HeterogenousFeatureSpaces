@@ -89,6 +89,8 @@ def main():
     # lets a variant config be run without editing the default, e.g. the uncapped
     # robustness check where group_max_train_samples is removed
     ap.add_argument("--base", default=None)
+    ap.add_argument("--rstar", default=None,
+                    help="path to the R* json; default runs/rstar_fedheart.json")
     ap.add_argument("--no-impute", action="store_true")
     ap.add_argument("--anchor-weight", type=float, default=0.1,
                     help="lambda_fit/lambda_sep for the anchors-on arms")
@@ -99,8 +101,9 @@ def main():
     # per-group reference losses R*_g for the regret arms (estimated once, see
     # tools/estimate_rstar_tabular.py). Falls back to plain GroupDRO if unavailable.
     rstar_list = None
-    if os.path.exists("runs/rstar_fedheart.json"):
-        rs = json.load(open("runs/rstar_fedheart.json"))["rstar"]
+    _rspath = getattr(args, "rstar", None) or "runs/rstar_fedheart.json"
+    if os.path.exists(_rspath):
+        rs = json.load(open(_rspath))["rstar"]
         rstar_list = [rs[str(i)] if str(i) in rs else rs.get(i, 0.0) for i in range(len(rs))]
     base["impute_missing"] = not args.no_impute
     os.makedirs(args.out, exist_ok=True)

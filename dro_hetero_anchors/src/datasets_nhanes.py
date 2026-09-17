@@ -105,6 +105,11 @@ def _get_feature_config(mode: str = "nested"):
             2: list(range(10)) + list(range(20, 25)),
         }
         return gfc, 25, indices
+    elif mode == "partition":
+        # zero-overlap: each group sees only its own block of the disjoint layout
+        gfc = {0: 10, 1: 5, 2: 5}
+        indices = {0: list(range(0, 10)), 1: list(range(15, 20)), 2: list(range(20, 25))}
+        return gfc, 25, indices
     elif mode == "4group":
         # 4 groups with NATURAL non-nesting:
         # G0 (survey_only): expanded questionnaire only = 15 features
@@ -381,8 +386,8 @@ def _preprocess_features(df: pd.DataFrame, feature_mode: str = "nested") -> np.n
         _extract_bp(df, features, offset=18)
         _extract_labs(df, features, offset=20)
 
-    elif feature_mode == "disjoint":
-        # [0-9]: shared survey
+    elif feature_mode in ("disjoint", "partition"):
+        # [0-9]: shared survey (partition: G0 only)
         # [10-14]: G0 unique (extra questionnaire)
         # [15-19]: G1 unique (body + 2 labs: BMI, weight, height, HbA1c, HDL)
         # [20-24]: G2 unique (BP + 3 labs: systolic, diastolic, total_chol, trig, LDL)

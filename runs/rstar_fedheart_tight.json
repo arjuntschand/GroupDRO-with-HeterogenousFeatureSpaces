@@ -1,0 +1,9 @@
+{
+  "rstar": {
+    "0": 0.312,
+    "1": 0.409,
+    "2": 0.228,
+    "3": 0.444
+  },
+  "note": "tightened: out-of-fold risks actually achieved by a fitted predictor, which is still a valid upper bound on the Bayes risk and does not clamp every group's excess to zero the way the looser estimate did"
+}

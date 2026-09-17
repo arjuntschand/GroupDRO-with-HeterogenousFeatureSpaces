@@ -108,7 +108,16 @@ Paired over the ten shared seeds, Regret-DRO at γ 2.0/per-step is +1.02 over th
 
 **It is, however, not what validation selects.** Validation worst-group accuracy at the selected epoch is 74.1 for γ 2.0/per-step against 75.4–75.5 for the other three cells; a validation-based choice of γ would pick 0.02 or 0.5, whose test numbers are indistinguishable from the paper's. So the defensible statement is: once the max player is engaged, regret and raw-loss DRO choose different groups, and the regret arm's test worst-group accuracy moves by about one point, but the validation split (15–37 patients per group per fold) cannot resolve that difference, so no protocol we can defend would select the setting that shows it. The mechanism result stands; the accuracy gain does not become a headline number.
 
-NHANES γ sweep: see the `xenia_checks.py` output (train-signal and held-out-signal versions).
+**NHANES, train-batch signal every step** (the path the NHANES trainer had until tonight), 1/G init, eq. 13 floors, 3 seeds. Worst-group accuracy / worst-group loss:
+
+| γ | GroupDRO | RegretDRO | Ours_Regret |
+|---|---|---|---|
+| 0.02 | 70.04 / 0.518 | 68.73 / 0.512 | 71.23 / 0.487 |
+| 0.1 | 68.30 / 0.509 | 68.36 / 0.507 | 71.67 / 0.483 |
+| 0.5 | 68.59 / 0.596 | 67.22 / 0.524 | 70.01 / 0.503 |
+| 2.0 | 71.41 / 0.540 | 67.50 / 0.548 | 72.55 / 0.511 |
+
+`fig9_gamma_lambda_nhanes.png` shows the trajectories. Under raw loss, λ drifts to G0 (survey only, the highest-loss group) and, at γ = 2.0, to a near-one-hot 0.97 on G0. Under regret it barely moves except at γ = 2.0, where it moves toward G0 and away from G2. The response to γ is not monotone on this signal: at γ = 0.1 both objectives sit almost flat while at 0.02 and 2.0 they move, which is what a noisy per-step batch signal does when the highest-loss group changes from batch to batch and the pushes cancel. No γ separates the three arms beyond the 3-seed noise on accuracy; regret is consistently best on loss at the lower γ. The held-out-signal version of this sweep (the apples-to-apples with Fed-Heart) is in `runs/gamma_sweep_nh_val` and `xenia_checks.py` prints it.
 
 ## 5. NHANES: which group is scarce
 

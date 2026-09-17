@@ -95,7 +95,6 @@ runs/embed_*
 runs/embed_*/*
 !runs/embed_*/metrics_long.csv
 !runs/embed_*/rstar.json
-!runs/embed_*/REPORT.md
 !runs/embed_xenia_production/curve_*.json
 !runs/embed_*_results.json
 !runs/embed_ablation_subset_log.txt
@@ -106,7 +105,5 @@ runs/embed_*/*
 site/
 exports/
 figures/
-documentation/*.pdf
-!documentation/Arjun Tschand Research Poster Spring 2026.pdf
-!documentation/GroupDRO_with_HeterogeneousFeatureSpaces (1).pdf
-!documentation/ADDEDDRO_GroupDRO_with_HeterogeneousFeatureSpaces (1) (1).pdf
+# Local-only archive of removed documents (kept on disk, never committed)
+.local_archive/

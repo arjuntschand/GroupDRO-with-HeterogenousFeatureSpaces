@@ -1,6 +1,6 @@
 """Regenerate the per-dataset figures from the current metrics CSVs.
 
-The committed figures under documentation/figures/ are stale: they show Fed-Heart's
+The figures once committed under a documentation folder were stale: they showed Fed-Heart's
 Switzerland group near 98%, which came from the 10-test-patient split we replaced with
 5-fold cross validation, and they include NHANES-disjoint, which has been cut. Rather than
 put wrong numbers back on the site, these are drawn fresh from the same files the tables

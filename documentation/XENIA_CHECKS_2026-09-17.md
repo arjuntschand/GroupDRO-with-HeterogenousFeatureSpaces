@@ -340,6 +340,42 @@ At 3 seeds that looked like a 2-point drop under the draft's settings. **At 10 s
 
 Paired over the ten shared seeds: Algorithm 1 vs paper, no arm differs (p ≥ 0.29). Per-(group, class) vs pooled: Ours_Regret +1.04 (p = 0.15), Ours_GDRO +0.88 (p = 0.17), AnchorsOnly +2.55; Ours_Regret vs the paper run +1.38 (p = 0.067). The direction is consistent across all anchor arms and the losses improve too, so eq. 6's per-(group, class) form is the better default for the paper even though it is not yet significant at 10 seeds. The switch to the held-out λ signal, by contrast, changes nothing on NHANES, so the paper's NHANES numbers survive the fix.
 
+## Architecture check: the tabular code as built vs the ICLR draft's design
+
+The tabular trainers were written from the November 2025 draft: full-covariance anchors, class moments pooled over groups, λ started at group proportions. They also use a small MLP head (32 hidden units) where both drafts say linear. The ICLR draft specifies a linear head, diagonal anchors, alignment per (group, class) and the alignment loss inside the λ signal; the EMBED code already follows it. All four were added to the tabular trainers as options (`head_hidden: 0`, `anchor_diagonal`, `per_group_fit`, `dro_align_in_signal`) and run at γ 0.5 per-step, 10 seeds, every arm, paired against the as-built cell.
+
+**NHANES** (worst-group acc | worst-group loss | AUROC | class-balanced worst-group acc)
+
+| arm | as built | draft architecture | p (acc) |
+|---|---|---|---|
+| ERM | 69.41 \| 0.499 \| 0.796 \| 71.6 | 70.11 \| 0.493 \| 0.797 \| 72.1 | 0.24 |
+| GroupDRO | 71.43 \| 0.515 \| 0.783 \| 64.2 | 73.28 \| 0.494 \| 0.792 \| 63.5 | 0.064 |
+| Regret-DRO | 70.07 \| 0.500 \| 0.792 \| 68.2 | 73.67 \| 0.477 \| 0.797 \| 67.5 | 0.001 |
+| AnchorsOnly | 68.62 \| 0.551 \| 0.785 \| 66.4 | 69.79 \| 0.524 \| 0.798 \| 68.6 | 0.11 |
+| Ours (GroupDRO) | 74.91 \| 0.528 \| 0.781 \| 66.5 | 72.11 \| 0.542 \| 0.777 \| 65.3 | 0.023 |
+| full method | 74.57 \| 0.517 \| 0.783 \| 65.5 | 72.35 \| 0.543 \| 0.788 \| 65.9 | 0.074 |
+
+Ablation on the anchored arms (full method shown; same seeds):
+
+| variant | worst-group acc | loss | AUROC | class-balanced |
+|---|---|---|---|---|
+| as built | 74.57 | 0.517 | 0.783 | 65.5 |
+| linear head only | 72.57 (p = 0.045) | 0.520 | 0.798 | 68.4 |
+| linear head + diagonal anchors | 70.71 (p = 0.001) | 0.521 | 0.799 | 68.8 |
+| linear head + per-(group, class) alignment | 73.37 (p = 0.34) | 0.510 | 0.796 | 63.2 |
+| all four (draft architecture) | 72.35 (p = 0.074) | 0.543 | 0.788 | 65.9 |
+
+**Fed-Heart** (10 seeds × 5 folds): draft architecture moves the full method 72.60 → 69.85 (p = 0.011); AnchorsOnly 71.20 → 72.73 (p = 0.003); every other arm within noise.
+
+What this says:
+
+- The head is the change that matters. A linear head helps the arms without anchors (Regret-DRO +3.6 on NHANES) and lowers the anchored DRO arms' accuracy by about two points while raising their AUROC (0.783 → 0.798) and class-balanced accuracy (65.5 → 68.4). Part of the as-built accuracy edge of the anchored arms is therefore an operating-point effect of the MLP head, not better ranking.
+- With a linear head on nested NHANES, the full method (72.57 | 0.520 | 0.798) and plain Regret-DRO (73.67 | 0.477 | 0.797) are level on AUROC and accuracy, and Regret-DRO has the lower loss. The statement "anchors add accuracy on nested NHANES" holds for the as-built head and does not hold for a linear head. It should be written with that qualifier.
+- Diagonal anchors cost the full method a further two points on NHANES and the draft architecture costs it 2.75 on Fed-Heart. There is no evidence for switching the tabular code to the ICLR draft's anchor design.
+- Putting the alignment loss into the λ signal on its own is neutral on both datasets (Fed-Heart 10 seeds: within ±0.3; NHANES 3 seeds: within ±1, nothing significant).
+
+Recommendation: keep the tabular design as built for every arm, describe it in the paper as it is (MLP head with 32 hidden units, full-covariance anchors, pooled class moments), and put this table in the appendix as an architecture-sensitivity study.
+
 ## Bugs found and fixed on the way
 
 - `run_baselines_tabular.py` never passed the per-group training cap on NHANES, so capped-regime baselines had been trained on the full set.

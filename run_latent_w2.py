@@ -70,6 +70,9 @@ def main():
     ap.add_argument("--base", default="experiments/nhanes_pergroup_gdro.yaml")
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 1337, 7])
     ap.add_argument("--out", default="runs/latent_w2_nhanes.json")
+    ap.add_argument("--save-latents", default=None,
+                    help="directory to write the test latents (z, y, g, anchor means) per arm and seed, "
+                         "for plot_latent_scatter.py")
     args = ap.parse_args()
     mod = importlib.import_module("dro_hetero_anchors.src.train_nhanes")
     base = yaml.safe_load(open(args.base))
@@ -90,6 +93,11 @@ def main():
             lat = (r or {}).get("final_latents")
             if not lat:
                 print(f"  {name} s{seed}: no latents"); continue
+            if args.save_latents:
+                os.makedirs(args.save_latents, exist_ok=True)
+                np.savez_compressed(os.path.join(args.save_latents, f"{name.replace(' ', '_')}_s{seed}.npz"),
+                                    z=np.asarray(lat["z"]), y=np.asarray(lat["y"]), g=np.asarray(lat["g"]),
+                                    anchor_m=np.asarray(lat["anchor_m"]))
             st = stats(lat["z"], lat["y"], lat["g"], lat["anchor_m"])
             st["worst"] = float(r.get("test_worst_group_acc", r.get("worst", float("nan"))))
             per.append(st)

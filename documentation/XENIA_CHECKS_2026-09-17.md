@@ -181,7 +181,7 @@ Without anchors the latent space is organised by group, not by class. Real ancho
 
 ## Alignment moments per (group, class), as eq. 6 specifies
 
-The paper runs pooled the class moments over groups. Re-running Fed-Heart with per-(group, class) moments (1/G init, eq. 13 floors, γ = 0.02, 3 seeds × 5 folds) changes the anchor arms by at most 1.2 points: AnchorsOnly 72.00 → 73.17, Ours 73.17 → 72.83, Ours_Regret 73.17 → 73.83, Shared_Anchors 70.16 → 68.90. Within noise; the eq. 6 form does not change the Fed-Heart conclusion about the anchors.
+The paper runs pooled the class moments over groups. Re-running Fed-Heart with per-(group, class) moments (1/G init, eq. 13 floors, γ = 0.02, **10 seeds × 5 folds**) changes nothing: every arm moves by 0.3 points or less with p > 0.4 (AnchorsOnly 71.20 → 71.45, Ours 72.15 → 71.90, Ours_Regret 72.10 → 72.40; Shared_Anchors 68.99 → 67.98, p = 0.10). The eq. 6 form is neutral on Fed-Heart.
 
 NHANES nested, 3 seeds, worst-group accuracy | worst-group loss:
 

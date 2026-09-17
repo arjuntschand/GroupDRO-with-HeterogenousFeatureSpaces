@@ -67,15 +67,17 @@ def stats(z, y, g, anchor_m, anchor_var=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base", default="experiments/nhanes_pergroup_gdro.yaml")
+    ap.add_argument("--dataset", choices=["nhanes", "fedheart"], default="nhanes")
+    ap.add_argument("--base", default=None)
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 1337, 7])
     ap.add_argument("--out", default="runs/latent_w2_nhanes.json")
     ap.add_argument("--save-latents", default=None,
                     help="directory to write the test latents (z, y, g, anchor means) per arm and seed, "
                          "for plot_latent_scatter.py")
     args = ap.parse_args()
-    mod = importlib.import_module("dro_hetero_anchors.src.train_nhanes")
-    base = yaml.safe_load(open(args.base))
+    mod = importlib.import_module(f"dro_hetero_anchors.src.train_{args.dataset}")
+    base = yaml.safe_load(open(args.base or {"nhanes": "experiments/nhanes_pergroup_gdro.yaml",
+                                             "fedheart": "experiments/fedheart_uncapped.yaml"}[args.dataset]))
     # ANCHOR_ON / ANCHOR_OFF exactly as run_method_matrix.py uses for the paper arms, so
     # "real anchors" here IS the Ours_GDRO cell and "no anchors" IS the GroupDRO cell.
     ARMS = [("no anchors", dict(lambda_fit=0.001, lambda_sep=0.001)),
@@ -87,7 +89,7 @@ def main():
         for seed in args.seeds:
             cfg = copy.deepcopy(base); cfg.update(over)
             cfg["seed"] = seed; cfg["return_latents"] = True
-            cfg["run_dir"] = f"runs/latent_w2/{name.replace(' ', '_')}_s{seed}"
+            cfg["run_dir"] = f"runs/latent_w2_{args.dataset}/{name.replace(' ', '_')}_s{seed}"
             cfg["run_name"] = f"latent_w2_{name.replace(' ', '_')}_s{seed}"
             r = mod.train(cfg)
             lat = (r or {}).get("final_latents")

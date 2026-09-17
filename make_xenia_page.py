@@ -12,6 +12,7 @@ import markdown
 SRC = "documentation/XENIA_CHECKS_2026-09-17.md"
 OUT = "site/xenia_checks_2026-09-17.html"
 FIGS = {
+    "fig11_latent_scatter_fedheart.png": ("Fed-Heart: the 150 test patients of one split in each model's latent space. The hospitals already overlap without anchors, which is why the anchors have little to add there.", "figs/paper/fig11_latent_scatter_fedheart.png"),
     "fig11_latent_scatter.png": ("NHANES: every test patient in each model's latent space (first two principal components). Top: coloured by group, ringed markers are group centroids. Bottom: the same points coloured by outcome, stars are the learnt anchors. Axes are scaled per panel.", "figs/paper/fig11_latent_scatter.png"),
     "fig10_recommended_dynamics_ours_regret.png": ("Full method: held-out loss per group (dashed = that group's floor) and group weight against epoch, the paper's λ setting beside γ 0.5 per-step. Dotted line = the epoch that gets reported.", "figs/paper/fig10_recommended_dynamics_ours_regret.png"),
     "fig8_gamma_lambda.png": ("Fed-Heart: group-weight trajectories by step size γ, per-step refresh (mean of 3 seeds, fold 0). A flat line at 0.25 means the max player never engaged.", "figs/paper/fig8_gamma_lambda.png"),

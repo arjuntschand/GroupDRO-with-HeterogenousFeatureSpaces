@@ -459,6 +459,8 @@ def main():
                     help="initialise lambda uniformly instead of at group proportions. With "
                          "proportional init the four tail groups share only 1.5%% of the "
                          "gradient weight on EMBED.")
+    ap.add_argument("--save-latents", default=None,
+                    help="directory to write the TEST latents (z, y, group) and anchor means per method and seed")
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -500,6 +502,22 @@ def main():
                                     dro_signal=args.dro_signal,
                                     uniform_lambda_init=args.uniform_lambda_init)
             ov, pg = evaluate(model, data, masks, "test", device, rstar)
+            if args.save_latents:
+                os.makedirs(args.save_latents, exist_ok=True)
+                model.eval(); _zs, _ys, _gs = [], [], []
+                _names = [g_ for g_ in GROUPS if g_ in data]
+                with torch.no_grad():
+                    for _gi, _g in enumerate(_names):
+                        _m = masks[_g]["test"]
+                        if _m.sum() == 0:
+                            continue
+                        _sub = _subset(data[_g], _m, device)
+                        _, _z = model(_g, _sub["feats"])
+                        _zs.append(_z.cpu().numpy()); _ys.append(_sub["y"].cpu().numpy())
+                        _gs.append(np.full(len(_sub["y"]), _gi))
+                np.savez_compressed(os.path.join(args.save_latents, f"{method}_s{seed}.npz"),
+                                    z=np.concatenate(_zs), y=np.concatenate(_ys), g=np.concatenate(_gs),
+                                    anchor_m=model.anchors.m.detach().cpu().numpy(), groups=np.array(_names))
             print(f"[seed {seed}] {method}: test overall={ov['overall_acc']:.3f} "
                   f"worst={ov['worst_group_acc']:.3f}({ov['worst_group']}) tail={ov['tail_acc']:.3f}")
             for g, row in pg.items():

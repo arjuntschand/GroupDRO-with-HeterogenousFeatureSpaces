@@ -845,11 +845,35 @@ def train(cfg):
     
     writer.close()
     
-    return {
+    out = {
         "best_worst_group_acc": best_worst_group_acc,
         "best_balanced_acc": best_balanced_acc,
         "final_test_metrics": test_metrics,
     }
+    # Optional: hand back the final test latents and anchor means so the latent space can be
+    # looked at directly (plot_latent_scatter.py, run_latent_w2.py). Mirrors train_nhanes.py.
+    if cfg.get("return_latents", False):
+        head.eval()
+        for e in encoders.values():
+            e.eval()
+        zs, ys, gs = [], [], []
+        with torch.no_grad():
+            for x, y, g in test_loader:
+                x, y, g = x.to(device), y.to(device), g.to(device)
+                z = torch.zeros((x.size(0), cfg["latent_dim"]), device=device)
+                for gid, enc in encoders.items():
+                    m = (g == gid)
+                    if m.sum() == 0:
+                        continue
+                    xg = x[m]
+                    if feature_indices is not None and gid in feature_indices:
+                        xg = xg[:, feature_indices[gid]]
+                    z[m] = enc(xg)
+                zs.append(z.cpu()); ys.append(y.cpu()); gs.append(g.cpu())
+        m_anc, _, _ = anchors.forward()
+        out["final_latents"] = {"z": torch.cat(zs), "y": torch.cat(ys), "g": torch.cat(gs),
+                                "anchor_m": m_anc.detach().cpu()}
+    return out
 
 
 def parse_args():

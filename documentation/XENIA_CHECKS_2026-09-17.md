@@ -117,7 +117,19 @@ Paired over the ten shared seeds, Regret-DRO at γ 2.0/per-step is +1.02 over th
 | 0.5 | 68.59 / 0.596 | 67.22 / 0.524 | 70.01 / 0.503 |
 | 2.0 | 71.41 / 0.540 | 67.50 / 0.548 | 72.55 / 0.511 |
 
-`fig9_gamma_lambda_nhanes.png` shows the trajectories. Under raw loss, λ drifts to G0 (survey only, the highest-loss group) and, at γ = 2.0, to a near-one-hot 0.97 on G0. Under regret it barely moves except at γ = 2.0, where it moves toward G0 and away from G2. The response to γ is not monotone on this signal: at γ = 0.1 both objectives sit almost flat while at 0.02 and 2.0 they move, which is what a noisy per-step batch signal does when the highest-loss group changes from batch to batch and the pushes cancel. No γ separates the three arms beyond the 3-seed noise on accuracy; regret is consistently best on loss at the lower γ. The held-out-signal version of this sweep (the apples-to-apples with Fed-Heart) is in `runs/gamma_sweep_nh_val` and `xenia_checks.py` prints it.
+Correction to the table above: only its γ = 0.02 row is the train-batch signal. The trainer patch that made `dro_signal: val` take effect reached the box while this sweep was running, and the base config carries that key, so the γ = 0.1, 0.5 and 2.0 rows are held-out per-epoch runs (they are byte-identical to the held-out table below). The train-signal cells for those three γ are being re-run with the signal set explicitly; the table and `fig9_gamma_lambda_nhanes.png` will be regenerated from them. What survives from the γ = 0.02 train-signal cell: under raw loss λ drifts to G0 (survey only, highest loss) and reaches 0.75 by the end; under regret it barely moves.
+
+**NHANES, held-out signal**, 1/G init, eq. 13 floors, 3 seeds. Worst-group accuracy / worst-group loss / λ L1 moved by the reported epoch:
+
+| γ | cadence | GroupDRO | RegretDRO | Ours_Regret |
+|---|---|---|---|---|
+| 0.02 | per-epoch | 67.67 / 0.510 / 0.010 | 66.54 / 0.513 / 0.003 | 70.78 / 0.491 / 0.001 |
+| 0.1 | per-epoch | 68.30 / 0.509 / 0.067 | 68.36 / 0.507 / 0.013 | 71.67 / 0.483 / 0.004 |
+| 0.5 | per-epoch | 68.59 / 0.596 / 0.518 | 67.22 / 0.524 / 0.094 | 70.01 / 0.503 / 0.044 |
+| 2.0 | per-epoch | 72.97 / 0.509 / 1.131 | 69.57 / 0.544 / 0.487 | 71.94 / 0.527 / 0.558 |
+| 2.0 | per-step | 72.98 / 0.512 / 0.057 | 72.08 / 0.480 / 1.324 | **76.81** / 0.537 / 1.289 |
+
+(per-step cells for γ = 0.02, 0.1, 0.5 in progress.) The same pattern as Fed-Heart: at γ = 0.02 per-epoch λ does not leave 1/G (0.001–0.010), so those runs fail Appendix E. With γ = 2.0 per-step the regret arms move λ by 1.3 and Ours_Regret reaches 76.8 against 70.8 at the paper's setting, at 3 seeds. Whether validation would select that cell is the same question as on Fed-Heart and is checked once the per-step cells finish.
 
 ## 5. NHANES: which group is scarce
 

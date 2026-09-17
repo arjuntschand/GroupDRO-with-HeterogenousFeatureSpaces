@@ -34,7 +34,7 @@ from .datasets_nhanes import (
 from .encoders import ENCODER_REGISTRY
 from .model.head import LinearHead, MLPHead
 from .model.anchors import AnchorModule
-from .model.losses import per_class_batch_moments, anchor_fit_loss, anchor_sep_loss, FocalLoss, LabelSmoothingLoss
+from .model.losses import group_alignment_losses, per_class_batch_moments, anchor_fit_loss, anchor_sep_loss, FocalLoss, LabelSmoothingLoss
 from .model.groupdro import GroupDRO
 
 
@@ -109,6 +109,19 @@ def build_models(cfg, group_counts: List[int], device: torch.device,
         )
 
     return encoders, head, anchors, groupdro
+
+
+def _dro_signal(vls, cfg, encoders, anchors, loader, device, num_groups, num_classes, eps,
+                feature_indices, lambda_fit):
+    """Held-out per-group signal for the lambda update. With dro_align_in_signal the alignment
+    term is added at the same weight it has in the objective (Algorithm 1, running-loss line)."""
+    vals = [float(v) for v in vls]
+    if cfg.get("dro_align_in_signal", False) and lambda_fit > 0:
+        al = group_alignment_losses(encoders, anchors, loader, device, num_groups, num_classes,
+                                    eps, feature_indices=feature_indices)
+        vals = [v + lambda_fit * a for v, a in zip(vals, al)]
+    return ({gi: torch.tensor(v, device=device) for gi, v in enumerate(vals)},
+            {gi: 1 for gi in range(len(vals))})
 
 
 def evaluate(encoders: Dict[int, nn.Module], head: nn.Module, loader,
@@ -725,9 +738,8 @@ def train(cfg):
                                      feature_indices=feature_indices)
                     _vls = _vm_s.get("per_group_loss") or []
                     if _vls:
-                        groupdro.update_weights({gi: torch.tensor(float(_vls[gi]), device=device)
-                                                 for gi in range(len(_vls))},
-                                                {gi: 1 for gi in range(len(_vls))})
+                        groupdro.update_weights(*_dro_signal(_vls, cfg, encoders, anchors, _VAL_LOADER, device,
+                            num_groups, num_classes, eps, feature_indices, lambda_fit))
                     head.train()
                     for _e in encoders.values():
                         _e.train()
@@ -775,8 +787,8 @@ def train(cfg):
             groupdro.update_every = 1
             _vl = val_metrics.get("per_group_loss") or []
             if _vl:
-                groupdro.update_weights({gi: torch.tensor(float(_vl[gi]), device=device) for gi in range(len(_vl))},
-                                        {gi: 1 for gi in range(len(_vl))})
+                groupdro.update_weights(*_dro_signal(_vl, cfg, encoders, anchors, _VAL_LOADER, device,
+                            num_groups, num_classes, eps, feature_indices, lambda_fit))
 
         print_epoch_results(epoch, loss_meter.avg, acc_meter.avg, test_metrics, groupdro, num_groups, num_classes, g_names)
 

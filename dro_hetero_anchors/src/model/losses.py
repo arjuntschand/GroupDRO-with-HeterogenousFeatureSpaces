@@ -177,3 +177,34 @@ def anchor_sep_loss(anchors_m: torch.Tensor, anchors_S: torch.Tensor, anchors_L:
         return torch.mean(torch.stack(pairs))
     else:
         raise ValueError(f"Unknown sep_method: {sep_method}")
+
+
+@torch.no_grad()
+def group_alignment_losses(encoders, anchors, loader, device, num_groups: int, num_classes: int,
+                           eps: float, feature_indices=None):
+    """Per-group alignment loss L^align_g on a held-out loader: W2 between each group's
+    per-class latent moments and the class anchors. Algorithm 1 tracks L_g + alpha * L^align_g
+    in the running loss that drives lambda; this supplies the second term. Leaves the encoders
+    in eval mode, like evaluate()."""
+    for e in encoders.values():
+        e.eval()
+    zs = {g: [] for g in range(num_groups)}
+    ys = {g: [] for g in range(num_groups)}
+    for x, y, g in loader:
+        x, y, g = x.to(device), y.to(device), g.to(device)
+        for gid, enc in encoders.items():
+            m = (g == gid)
+            if m.sum() == 0:
+                continue
+            xg = x[m]
+            if feature_indices is not None and gid in feature_indices:
+                xg = xg[:, feature_indices[gid]]
+            zs[gid].append(enc(xg)); ys[gid].append(y[m])
+    m_anc, S_anc, _ = anchors.forward()
+    out = []
+    for gid in range(num_groups):
+        if not zs[gid]:
+            out.append(0.0); continue
+        mom = per_class_batch_moments(torch.cat(zs[gid]), torch.cat(ys[gid]), num_classes, eps)
+        out.append(float(anchor_fit_loss(m_anc, S_anc, mom, eps)) if mom else 0.0)
+    return out

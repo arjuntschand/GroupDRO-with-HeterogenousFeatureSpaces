@@ -130,7 +130,7 @@ h1 += [Line2D([], [], marker="o", ls="", ms=10, markerfacecolor="#ffffff", marke
 axes[0][0].legend(handles=h1, fontsize=7.5 if len(GROUPS) > 4 else 8, frameon=False, loc="lower left")
 h2 = [Line2D([], [], marker="o", ls="", ms=6, color=CCOL[c_], label=D["classes"][c_]) for c_ in range(len(D["classes"]))]
 axes[1][0].legend(handles=h2, fontsize=8, frameon=False, loc="lower left")
-fig.suptitle(D["title"] + "\nW₂ values are scale-normalised. Axes are scaled per panel, because the anchors shrink the latent space by an order of magnitude or more.",
+fig.suptitle(D["title"] + "\nW₂ values are scale-normalised. Axes are scaled per panel." + ("" if ARGS.dataset == "embed" else " The anchors shrink the latent space by an order of magnitude or more.") + "",
              fontsize=10.5, color=INK, x=.01, ha="left")
 fig.tight_layout(rect=(0, 0, 1, .93), w_pad=2.0, h_pad=1.6)
 os.makedirs("figs/paper", exist_ok=True)

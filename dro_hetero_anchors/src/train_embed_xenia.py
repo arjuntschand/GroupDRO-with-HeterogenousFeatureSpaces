@@ -391,7 +391,8 @@ def train_one(method, data, masks, device, rstar, seed,
         sched.step()
         ov, _ = evaluate(model, data, masks, "val", device, rstar)
         sel = ov[flags["select"]]
-        curve.append({"epoch": ep, **{k: ov[k] for k in
+        curve.append({"epoch": ep, "lambda": lam.detach().cpu().numpy().tolist(),
+                      **{k: ov[k] for k in
                     ["overall_acc", "worst_group_acc", "tail_acc", "avg_loss", "max_excess"]}})
         if sel < best_sel:
             best_sel, best_state = sel, copy.deepcopy(model.state_dict())

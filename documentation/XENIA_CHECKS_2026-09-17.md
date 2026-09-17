@@ -112,19 +112,22 @@ NHANES γ sweep: see the `xenia_checks.py` output (train-signal and held-out-sig
 
 ## 5. NHANES: which group is scarce
 
-A = G2 (20 features, most informative) capped to 500 training rows; B = G0 (10 features) capped to 500. Worst-group accuracy and worst-group loss, 3 seeds (10-seed values replace these when the overnight runs finish):
+A = G2 (20 features, most informative) capped to 500 training rows; B = G0 (10 features) capped to 500. Full data and regime A are 10 seeds; regime B is 3 seeds until its 10-seed run finishes.
 
-| arm | full | A | B | loss full / A / B |
-|---|---|---|---|---|
-| PerGroupOnly | 66.71 | 65.35 | 71.78 | 0.560 / 0.553 / 0.670 |
-| GroupDRO | 68.93 | 67.79 | 73.94 | 0.552 / 0.525 / 0.536 |
-| Ours_GDRO | 73.59 | 74.05 | 75.59 | 0.545 / 0.533 / 0.500 |
-| Ours_Regret | 72.95 | 74.11 | 76.36 | 0.511 / 0.546 / 0.514 |
-| Reweigh | 70.88 | 72.86 | 76.48 | 0.644 / **1.078** / 0.452 |
-| FlexMoE | 76.92 | 76.27 | 82.08 | 0.638 / 0.651 / 0.734 |
-| REMIND | 71.92 | 71.73 | 74.91 | 0.635 / **1.397** / 0.635 |
+| arm | worst-group acc full / A / B | worst-group loss full / A / B |
+|---|---|---|
+| PerGroupOnly | 66.76 / 67.24 / 71.78 | 0.553 / 0.621 / 0.670 |
+| GroupDRO | 70.23 / 68.37 / 73.94 | 0.531 / 0.561 / 0.536 |
+| RegretDRO | 70.26 / 68.56 / 75.31 | 0.513 / 0.563 / 0.509 |
+| Ours_GDRO | 72.57 / 77.44 / 75.59 | 0.536 / 0.578 / 0.500 |
+| Ours_Regret | 72.28 / 77.61 / 76.36 | 0.524 / 0.577 / 0.514 |
+| Reweigh | 72.83 / 70.49 / 76.48 | 0.680 / **1.231** / 0.452 |
+| FlexMoE | 72.74 / 70.95 / 82.08 | 0.607 / **1.167** / 0.734 |
+| REMIND | 72.35 / 71.48 / 74.91 | 0.662 / **1.286** / 0.635 |
 
-Starving the richest group does not hurt the anchored arms (Lemma 1's borrowing mechanism) and wrecks the modality-sharing baselines' worst-group loss. Starving G0 raises everything and moves the worst group from G0 to G2. The 3-seed subset flatters FlexMoE (76.9 here vs 72.7 at 10 seeds on the full data).
+Read this on loss, not accuracy. Starving G2 makes G2's *accuracy* go up for every arm (our arms 72.9 → 82.5, REMIND 75.4 → 84.4) while its *loss* goes up too (REMIND 0.499 → 1.278): with 10.5% positives, a data-starved group drifts toward majority prediction, which raises accuracy and ruins calibration, and the worst group flips from G2 to G0. So the +5 on "worst-group accuracy" for our arms is the metric changing which group it measures, not a gain. AUROC on the starved group falls for every arm, and falls *most* for the anchored arms (G2 AUROC full → A: PerGroupOnly 0.809 → 0.739, GroupDRO 0.808 → 0.743, Ours_GDRO 0.803 → 0.670, Ours_Regret 0.805 → 0.669). So there is no evidence here that the anchors let a starved rich group borrow strength; if anything the anchored arms give up more discrimination on it. What is robust is the loss column: the anchored arms' worst-group loss rises modestly (0.536 → 0.578) while the three modality-sharing baselines' roughly doubles (1.17–1.29). Lemma 1's borrowing mechanism is not visible in this experiment.
+
+Starving G0 (regime B, 3 seeds) raises every accuracy and moves the worst group to G2; the 10-seed run will say whether that survives.
 
 ## 6. NHANES with no common information
 
@@ -132,26 +135,33 @@ New `feature_mode: partition`: G0 basic survey (10), G1 body measures + HbA1c + 
 
 Reference floors rise to 0.310 / 0.321 / 0.302 (nested: 0.307 / 0.268 / 0.265); G1's block alone carries almost no information (its floor equals its constant bound, 0.321 vs 0.324).
 
-| arm | nested | partition | AUROC (partition) |
+Worst-group accuracy, worst-group loss and AUROC, 10 seeds:
+
+| arm | nested acc / loss | partition acc / loss | AUROC (partition) |
 |---|---|---|---|
-| ERM, shared encoder | 68.36 | 87.99 | **0.500** |
-| PerGroupOnly | 66.71 | 66.85 | 0.708 |
-| GroupDRO | 68.93 | 74.83 | 0.705 |
-| Ours_Regret | 72.95 | 72.67 | 0.705 |
-| Reweigh | 70.88 | 71.73 | n/a |
-| FlexMoE | 76.92 | 81.80 | n/a |
-| REMIND | 71.92 | 72.17 | n/a |
+| ERM, shared encoder | 69.41 / 0.499 | 87.99 / 0.681 | **0.500** |
+| PerGroupOnly | 66.76 / 0.553 | 67.69 / 0.602 | 0.711 |
+| GroupDRO | 70.23 / 0.531 | 73.09 / 0.564 | 0.702 |
+| RegretDRO | 70.26 / 0.513 | 73.18 / 0.570 | 0.702 |
+| Ours_GDRO | 72.57 / 0.536 | 73.03 / 0.581 | 0.692 |
+| Ours_Regret | 72.28 / 0.524 | 73.04 / 0.576 | 0.691 |
+| Reweigh | 72.83 / 0.680 | 72.68 / 0.621 | n/a |
+| FlexMoE | 72.74 / 0.607 | 77.20 / 0.698 | n/a |
+| REMIND | 72.35 / 0.662 | 71.56 / 0.637 | n/a |
 
 The prediction that REMIND falls to ERM is borne out in a more specific form than "the worst-group number drops". Per-group accuracy on the partition:
 
 | arm | G0 (survey) | G1 (body + 2 labs) | G2 (BP + 3 labs) |
 |---|---|---|---|
 | ERM, shared encoder | 88.0 | 90.0 | 89.7 |
-| Reweigh | 71.7 | 90.0 | 89.7 |
-| FlexMoE | 81.8 | 90.0 | 89.7 |
-| REMIND | 72.2 | 90.0 | 89.7 |
-| Ours_Regret | 72.7 | 85.0 | 73.6 |
-| GroupDRO (per-group) | 79.9 | 83.6 | 75.1 |
+| Reweigh | 72.7 | 90.0 | 89.7 |
+| FlexMoE | 77.2 | 90.0 | 89.7 |
+| REMIND | 71.6 | 90.0 | 89.7 |
+| Ours_Regret | 74.0 | 83.7 | 75.7 |
+| GroupDRO, per-group | 75.0 | 82.9 | 74.1 |
+| PerGroupOnly | 69.3 | 73.2 | 72.8 |
+
+(10 seeds. Per-group AUROC on the partition, our arms: G0 0.77, G1 0.56–0.63, G2 0.70–0.71.)
 
 NHANES is 89.5% negative. **All three baselines, and the shared-encoder ERM, predict the majority class on G1 and G2** (90.0 / 89.7 is the base rate), and they do so despite receiving the same inverse-frequency class weights as our arms. Their worst-group accuracy (71.7–81.8) comes entirely from G0, the only block with enough signal for them; two groups are abandoned. Our per-group arms keep AUROC 0.55–0.71 on G1 and G2 and predict positives there. So REMIND does fall to majority-class ERM, on the two feature-poor groups, while its headline worst-group number hides it because that number is set by G0. The shared-encoder ERM collapses everywhere (AUROC 0.500 in every group); its 87.99 is the base rate, not a result. This is the empirical form of the draft's first contribution bullet: with no common measurement, a common-feature model has nothing to fit, and modality-level sharing has nothing to route on.
 

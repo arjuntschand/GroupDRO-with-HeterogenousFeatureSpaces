@@ -94,7 +94,21 @@ Three things follow.
 - With γ ≥ 0.5, or any per-step refresh, λ leaves its initialisation and the two objectives choose different groups, as Section 3.3 says they should: raw loss concentrates on Hungarian (highest floor, 0.420); regret concentrates on Switzerland (largest excess, floor 0.105) and sends VA to zero. `fig8_gamma_lambda.png` shows the trajectories.
 - Worst-group accuracy stays within 73.3–75.0 across the whole grid. The reason is structural rather than a tuning failure: on Fed-Heart the worst-accuracy group is VA, which also has the highest floor (0.511). Regret is designed to de-prioritise a group near its floor, so worst-group accuracy cannot improve under regret here. Worst-group loss is the quantity the objective moves (best 0.563 at γ = 0.5 per-step, regret).
 
-NHANES γ sweep: see the table in `xenia_checks.py` output (train-signal and held-out-signal versions).
+**At 10 seeds × 5 folds** for the three cells the 3-seed sweep singled out (worst-group acc ± sd over seeds; λ L1 moved by the reported epoch, GroupDRO / RegretDRO):
+
+| cell | PerGroupOnly | GroupDRO | RegretDRO | Ours_Regret | λ L1@sel |
+|---|---|---|---|---|---|
+| paper run (p_g init, old R\*, γ 0.02, per-epoch) | 72.85 ± 2.01 | 73.50 ± 0.95 | 73.55 ± 0.88 | 71.54 ± 1.86 | 0.005 / 0.000 |
+| Algorithm 1, γ 0.02, per-epoch | 72.85 ± 2.01 | 73.60 ± 0.83 | 73.60 ± 0.77 | 72.10 ± 2.11 | 0.008 / 0.005 |
+| γ 0.5, per-epoch | 72.85 ± 2.01 | 73.35 ± 1.38 | 73.80 ± 0.98 | 72.15 ± 1.76 | 0.240 / 0.186 |
+| γ 0.1, per-step | 72.85 ± 2.01 | 72.99 ± 1.22 | 73.18 ± 1.32 | 72.25 ± 1.52 | 0.365 / 0.395 |
+| γ 2.0, per-step | 72.85 ± 2.01 | 73.80 ± 0.90 | **74.57 ± 0.62** | 72.87 ± 2.37 | 1.059 / 0.502 |
+
+Paired over the ten shared seeds, Regret-DRO at γ 2.0/per-step is +1.02 over the paper's Regret-DRO (p = 0.005), +0.77 over GroupDRO at the same settings (p = 0.043; the first significant regret-vs-GroupDRO separation we have), and +1.72 over no DRO (p = 0.017). On the seven seeds that were not used to choose the cell it is still +1.10 (p = 0.028), so this is not a selection artefact.
+
+**It is, however, not what validation selects.** Validation worst-group accuracy at the selected epoch is 74.1 for γ 2.0/per-step against 75.4–75.5 for the other three cells; a validation-based choice of γ would pick 0.02 or 0.5, whose test numbers are indistinguishable from the paper's. So the defensible statement is: once the max player is engaged, regret and raw-loss DRO choose different groups, and the regret arm's test worst-group accuracy moves by about one point, but the validation split (15–37 patients per group per fold) cannot resolve that difference, so no protocol we can defend would select the setting that shows it. The mechanism result stands; the accuracy gain does not become a headline number.
+
+NHANES γ sweep: see the `xenia_checks.py` output (train-signal and held-out-signal versions).
 
 ## 5. NHANES: which group is scarce
 
@@ -128,7 +142,18 @@ Reference floors rise to 0.310 / 0.321 / 0.302 (nested: 0.307 / 0.268 / 0.265); 
 | FlexMoE | 76.92 | 81.80 | n/a |
 | REMIND | 71.92 | 72.17 | n/a |
 
-The prediction that REMIND falls to ERM is not borne out: REMIND is unchanged (72.17 vs 71.92, loss 0.625 vs 0.635), because it keeps per-modality encoders and loses nothing from zero overlap. What collapses is the shared-encoder ERM: AUROC exactly 0.500 in every group, class-balanced accuracy 50.0. Its 87.99 is the 89.5% negative base rate, not a result. This is the empirical form of the draft's first contribution bullet: with no common measurement, a common-feature model has nothing to fit.
+The prediction that REMIND falls to ERM is borne out in a more specific form than "the worst-group number drops". Per-group accuracy on the partition:
+
+| arm | G0 (survey) | G1 (body + 2 labs) | G2 (BP + 3 labs) |
+|---|---|---|---|
+| ERM, shared encoder | 88.0 | 90.0 | 89.7 |
+| Reweigh | 71.7 | 90.0 | 89.7 |
+| FlexMoE | 81.8 | 90.0 | 89.7 |
+| REMIND | 72.2 | 90.0 | 89.7 |
+| Ours_Regret | 72.7 | 85.0 | 73.6 |
+| GroupDRO (per-group) | 79.9 | 83.6 | 75.1 |
+
+NHANES is 89.5% negative. **All three baselines, and the shared-encoder ERM, predict the majority class on G1 and G2** (90.0 / 89.7 is the base rate), and they do so despite receiving the same inverse-frequency class weights as our arms. Their worst-group accuracy (71.7–81.8) comes entirely from G0, the only block with enough signal for them; two groups are abandoned. Our per-group arms keep AUROC 0.55–0.71 on G1 and G2 and predict positives there. So REMIND does fall to majority-class ERM, on the two feature-poor groups, while its headline worst-group number hides it because that number is set by G0. The shared-encoder ERM collapses everywhere (AUROC 0.500 in every group); its 87.99 is the base rate, not a result. This is the empirical form of the draft's first contribution bullet: with no common measurement, a common-feature model has nothing to fit, and modality-level sharing has nothing to route on.
 
 Caution on the metric: NHANES is 89.5/10.5, so worst-group accuracy is imbalance-dominated. On the nested split, ERM's worst-group class-balanced accuracy (72.3) is higher than Ours_Regret's (63.8) while its plain worst-group accuracy is lower (68.4 vs 72.9). AUROC or class-balanced accuracy is the honest NHANES metric.
 

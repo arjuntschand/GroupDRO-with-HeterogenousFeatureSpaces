@@ -143,6 +143,20 @@ def main():
             wa = np.mean([r.get("worst_group_acc", np.nan) for r in rows]) * 100
             flag = "   <-- AUROC 0.5: majority-class collapse, accuracy is the base rate" if au < 0.55 else ""
             print(f"  {'':10} {a:13} {au:6.3f} {str(pga):>22} {wb:14.1f} {wa:10.1f}{flag}")
+    # Baseline CSVs carry no AUROC, so use the base rate itself as the collapse test: NHANES is
+    # 89.5% negative, so any group whose accuracy sits within a point of 89.5 is being served the
+    # majority label. Flag baselines with such groups on the partition.
+    BASE_RATE = 89.5
+    def per_group(d, m):
+        arr = [[v[0] * 100 for _, v in sorted(g.items())] for s_, g in d.get(m, {}).items() if g and s_ in SEEDS3]
+        return np.mean(arr, 0) if arr else None
+    for b in ["Reweigh", "FlexMoE", "REMIND"]:
+        pg = per_group(PB, b)
+        if pg is None:
+            continue
+        near = [i for i, v in enumerate(pg) if abs(v - BASE_RATE) < 1.5]
+        flag = f"   <-- groups {near} at the 89.5% base rate: majority-class on those groups" if near else ""
+        print(f"  partition {b:9} per-group acc {np.round(pg, 1)}{flag}")
     if PB and "REMIND" in PB and "ERM" in P:
         print(f"  REMIND - ERM on partition (worst-group acc): {worst(PB, 'REMIND', SEEDS3) - worst(P, 'ERM', SEEDS3):+.2f}"
               f"   -- read against the collapse flag above; compare loss and AUROC, not accuracy")

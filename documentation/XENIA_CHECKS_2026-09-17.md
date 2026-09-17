@@ -123,13 +123,16 @@ Correction to the table above: only its γ = 0.02 row is the train-batch signal.
 
 | γ | cadence | GroupDRO | RegretDRO | Ours_Regret |
 |---|---|---|---|---|
-| 0.02 | per-epoch | 67.67 / 0.510 / 0.010 | 66.54 / 0.513 / 0.003 | 70.78 / 0.491 / 0.001 |
-| 0.1 | per-epoch | 68.30 / 0.509 / 0.067 | 68.36 / 0.507 / 0.013 | 71.67 / 0.483 / 0.004 |
-| 0.5 | per-epoch | 68.59 / 0.596 / 0.518 | 67.22 / 0.524 / 0.094 | 70.01 / 0.503 / 0.044 |
-| 2.0 | per-epoch | 72.97 / 0.509 / 1.131 | 69.57 / 0.544 / 0.487 | 71.94 / 0.527 / 0.558 |
-| 2.0 | per-step | 72.98 / 0.512 / 0.057 | 72.08 / 0.480 / 1.324 | **76.81** / 0.537 / 1.289 |
+| 0.02 | per-epoch | 67.67 / 0.510 / 0.01 | 66.54 / 0.513 / 0.00 | 70.78 / 0.491 / 0.00 |
+| 0.02 | per-step | 72.18 / 0.566 / 1.24 | 70.47 / 0.529 / 0.67 | 71.97 / 0.500 / 0.62 |
+| 0.1 | per-epoch | 68.30 / 0.509 / 0.07 | 68.36 / 0.507 / 0.01 | 71.67 / 0.483 / 0.00 |
+| 0.1 | per-step | 70.15 / 0.512 / 1.12 | 70.94 / 0.536 / 1.13 | 73.15 / 0.484 / 1.22 |
+| 0.5 | per-epoch | 68.59 / 0.596 / 0.52 | 67.22 / 0.524 / 0.09 | 70.01 / 0.503 / 0.04 |
+| 0.5 | per-step | 71.64 / 0.509 / 0.51 | 71.57 / 0.473 / 1.00 | 74.04 / 0.484 / 1.70 |
+| 2.0 | per-epoch | 72.97 / 0.509 / 1.13 | 69.57 / 0.544 / 0.49 | 71.94 / 0.527 / 0.56 |
+| 2.0 | per-step | 72.98 / 0.512 / 0.06 | 72.08 / 0.480 / 1.32 | **76.81** / 0.537 / 1.29 |
 
-(per-step cells for γ = 0.02, 0.1, 0.5 in progress.) The same pattern as Fed-Heart: at γ = 0.02 per-epoch λ does not leave 1/G (0.001–0.010), so those runs fail Appendix E. With γ = 2.0 per-step the regret arms move λ by 1.3 and Ours_Regret reaches 76.8 against 70.8 at the paper's setting, at 3 seeds.
+Per-epoch cells at γ ≤ 0.1 never move λ (0.00–0.07) and fail Appendix E, exactly as on Fed-Heart. Per-step refresh moves λ at every γ, and for the full method the effect is monotone in γ on test (72.0 → 73.2 → 74.0 → 76.8) and on validation (73.5 → 74.6 → 75.7 → 78.0). The paper's NHANES setting sits at the top-left cell.
 
 **Unlike Fed-Heart, validation selects this cell.** Validation worst-group accuracy at the selected epoch, 3 seeds:
 

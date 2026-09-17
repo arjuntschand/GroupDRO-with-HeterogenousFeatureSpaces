@@ -129,7 +129,19 @@ Correction to the table above: only its γ = 0.02 row is the train-batch signal.
 | 2.0 | per-epoch | 72.97 / 0.509 / 1.131 | 69.57 / 0.544 / 0.487 | 71.94 / 0.527 / 0.558 |
 | 2.0 | per-step | 72.98 / 0.512 / 0.057 | 72.08 / 0.480 / 1.324 | **76.81** / 0.537 / 1.289 |
 
-(per-step cells for γ = 0.02, 0.1, 0.5 in progress.) The same pattern as Fed-Heart: at γ = 0.02 per-epoch λ does not leave 1/G (0.001–0.010), so those runs fail Appendix E. With γ = 2.0 per-step the regret arms move λ by 1.3 and Ours_Regret reaches 76.8 against 70.8 at the paper's setting, at 3 seeds. Whether validation would select that cell is the same question as on Fed-Heart and is checked once the per-step cells finish.
+(per-step cells for γ = 0.02, 0.1, 0.5 in progress.) The same pattern as Fed-Heart: at γ = 0.02 per-epoch λ does not leave 1/G (0.001–0.010), so those runs fail Appendix E. With γ = 2.0 per-step the regret arms move λ by 1.3 and Ours_Regret reaches 76.8 against 70.8 at the paper's setting, at 3 seeds.
+
+**Unlike Fed-Heart, validation selects this cell.** Validation worst-group accuracy at the selected epoch, 3 seeds:
+
+| cell | GroupDRO | RegretDRO | Ours_Regret |
+|---|---|---|---|
+| γ 0.02 per-epoch | 69.58 | 69.27 | 72.56 |
+| γ 0.1 per-epoch | 69.08 | 69.69 | 73.37 |
+| γ 0.5 per-epoch | 70.52 | 69.35 | 72.73 |
+| γ 2.0 per-epoch | 72.20 | 70.87 | 73.15 |
+| γ 2.0 per-step | 72.50 | **73.10** | **77.98** |
+
+NHANES validation groups hold hundreds of rows where Fed-Heart's hold 15–37, so validation can resolve the difference here. That makes γ = 2.0 with per-step refresh a protocol-consistent choice on NHANES, and the corresponding test gain a reportable one, pending the 10-seed run of that cell.
 
 ## 5. NHANES: which group is scarce
 

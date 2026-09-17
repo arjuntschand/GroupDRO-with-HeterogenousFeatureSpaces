@@ -99,9 +99,16 @@ for j, (key, title, show_anchor) in enumerate(ARMS):
                 hi = (not D["ordinal"]) and c_ == 1
                 ax.scatter(xy[mc, 0], xy[mc, 1], s=(ms * 1.6 if hi else ms), color=CCOL[c_], alpha=(.75 if hi else (.55 if D["ordinal"] else .30)), linewidths=0, zorder=(3 if hi else 2))
             if show_anchor:
+                spread_a = max(np.ptp(axy[:len(D["classes"]), 0]), np.ptp(axy[:len(D["classes"]), 1]))
+                coincident = spread_a < 0.08 * 2 * lx
                 for c_, lab in enumerate(D["classes"]):
                     ax.scatter(*axy[c_], marker="*", s=330, color=CCOL[c_], edgecolor=INK, linewidth=1.1, zorder=6)
-                    ax.annotate("anchor: " + lab, axy[c_], xytext=(9, 9), textcoords="offset points", fontsize=8.5, color=INK, zorder=7,
+                    if not coincident:
+                        ax.annotate("anchor: " + lab, axy[c_], xytext=(9, 9), textcoords="offset points", fontsize=8.5, color=INK, zorder=7,
+                                    path_effects=[pe.withStroke(linewidth=3, foreground=SURF)])
+                if coincident:
+                    ax.annotate(f"all {len(D['classes'])} class anchors (nearly coincident at this scale)", axy[:len(D["classes"])].mean(0),
+                                xytext=(14, 16), textcoords="offset points", fontsize=8.5, color=INK, zorder=7,
                                 path_effects=[pe.withStroke(linewidth=3, foreground=SURF)])
         ax.set_xlim(-lx, lx); ax.set_ylim(-ly, ly)
         ax.grid(color=GRID, lw=.7, zorder=0); ax.set_axisbelow(True)

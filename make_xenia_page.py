@@ -12,6 +12,7 @@ import markdown
 SRC = "documentation/XENIA_CHECKS_2026-09-17.md"
 OUT = "site/xenia_checks_2026-09-17.html"
 FIGS = {
+    "fig11_latent_scatter_embed_main.png": ("EMBED: test exams in the latent space, no anchors beside class anchors. The group centroids come together, but the four class anchors sit closer together than the classes do.", "figs/paper/fig11_latent_scatter_embed_main.png"),
     "fig11_latent_scatter_fedheart.png": ("Fed-Heart: the 150 test patients of one split in each model's latent space. The hospitals already overlap without anchors, which is why the anchors have little to add there.", "figs/paper/fig11_latent_scatter_fedheart.png"),
     "fig11_latent_scatter.png": ("NHANES: every test patient in each model's latent space (first two principal components). Top: coloured by group, ringed markers are group centroids. Bottom: the same points coloured by outcome, stars are the learnt anchors. Axes are scaled per panel.", "figs/paper/fig11_latent_scatter.png"),
     "fig10_recommended_dynamics_ours_regret.png": ("Full method: held-out loss per group (dashed = that group's floor) and group weight against epoch, the paper's λ setting beside γ 0.5 per-step. Dotted line = the epoch that gets reported.", "figs/paper/fig10_recommended_dynamics_ours_regret.png"),
@@ -19,6 +20,38 @@ FIGS = {
     "fig9_gamma_lambda_nhanes.png": ("NHANES, train-batch signal every step: group-weight trajectories by step size γ (mean of 3 seeds). At γ ≥ 0.5 the raw-loss weights swing one-hot between groups from epoch to epoch.", "figs/paper/fig9_gamma_lambda_nhanes.png"),
     "fig7_latent_w2.png": ("NHANES: 2-Wasserstein geometry of the latent space, 10 seeds, normalised by latent scale.", "figs/paper/fig7_latent_w2.png"),
 }
+
+GALLERY = [
+    ("Latent space: every test patient as a point", [
+        ("fig11_latent_scatter_main.png", "NHANES, main-text version: no anchors beside class anchors. Top coloured by group (ringed = group centroids), bottom the same points coloured by outcome (stars = learnt anchors)."),
+        ("fig11_latent_scatter.png", "NHANES, three-column version with the randomly-assigned-anchor control."),
+        ("fig11_latent_scatter_fedheart.png", "Fed-Heart, 150 test patients of one split. The hospitals already overlap without anchors."),
+        ("fig11_latent_scatter_embed_main.png", "EMBED, 25,632 test exams (500 plotted per group). Anchors pull the six group centroids together, but the four class anchors sit closer together than the classes do."),
+        ("fig11_latent_scatter_embed.png", "EMBED, three-column version with the random-anchor control."),
+        ("fig7_latent_w2.png", "NHANES: the same geometry as numbers. Scale-normalised 2-Wasserstein distances, 10 seeds."),
+    ]),
+    ("The λ step size and refresh cadence", [
+        ("fig10_recommended_dynamics_ours_regret.png", "Full method: held-out loss per group (dashed = floor) and group weight against epoch. The paper's setting beside γ 0.5 per-step, both datasets. Dotted = reported epoch."),
+        ("fig10_recommended_dynamics_regretdro.png", "The same for Regret-DRO without anchors."),
+        ("fig8_gamma_lambda.png", "Fed-Heart: group-weight trajectories for γ 0.02, 0.1, 0.5, 2.0 at per-step refresh. Raw-loss GroupDRO above, Regret-DRO below."),
+        ("fig9_gamma_lambda_nhanes.png", "NHANES, train-batch signal every step: the same sweep. At γ ≥ 0.5 the weights swing one-hot between groups."),
+        ("fig6_cadence.png", "Fed-Heart, first cadence study (paper's initialisation and floors): per-epoch, every step, every step with a longer moving average."),
+    ]),
+    ("Training dynamics at the paper's λ setting (one figure per method)", [
+        ("fig5_dynamics_fedheart_groupdro.png", "Fed-Heart uncapped, GroupDRO: per-group train / validation / test loss against the floor, and the group weight underneath. 10 seeds."),
+        ("fig5_dynamics_fedheart_regretdro.png", "Fed-Heart uncapped, Regret-DRO."),
+        ("fig5_dynamics_fedheart_capped_groupdro.png", "Fed-Heart capped (Switzerland 20, VA 25 training patients), GroupDRO."),
+        ("fig5_dynamics_fedheart_capped_regretdro.png", "Fed-Heart capped, Regret-DRO."),
+        ("fig5_dynamics_nhanes_groupdro.png", "NHANES, GroupDRO."),
+        ("fig5_dynamics_nhanes_regretdro.png", "NHANES, Regret-DRO."),
+        ("fig4_loss_curves.png", "Train and test loss for the groups that overfit most, Regret-DRO, mean of 10 seeds."),
+        ("fig3_lambda_vs_rstar.png", "Final group weight against each group's floor, groups ordered by how hard they intrinsically are."),
+    ]),
+    ("Summary figures from the earlier results pass", [
+        ("fig1_ladder.png", "What each component adds to worst-group accuracy, per dataset. Built before tonight's changes; the EMBED panel predates the anchor diagnosis above."),
+        ("fig2_efficiency.png", "Worst-group loss against parameter count, our arms and the three baselines."),
+    ]),
+]
 
 
 def data_uri(p):
@@ -42,6 +75,16 @@ def main():
     toc = "".join(f'<li><a href="#s{i}">{h}</a></li>' for i, h in enumerate(heads))
     it = iter(range(len(heads)))
     body = re.sub(r"<h2>", lambda m: f'<h2 id="s{next(it)}">', body)
+    import os
+    gal = ['<h2 id="gallery">All figures</h2>', '<p>Every figure produced for this work, grouped by topic. Files are in <code>figs/paper/</code> as PNG and PDF.</p>']
+    for head_, items in GALLERY:
+        gal.append(f"<h3>{html.escape(head_)}</h3>")
+        for fn, cap in items:
+            path = os.path.join("figs/paper", fn)
+            if os.path.exists(path):
+                gal.append(f'<figure><img loading="lazy" src="{data_uri(path)}" alt="{html.escape(cap)}"><figcaption><code>{fn}</code> · {html.escape(cap)}</figcaption></figure>')
+    body += "\n" + "\n".join(gal)
+    toc += '<li><a href="#gallery">All figures</a></li>'
     css = open(__file__).read().split("CSS = '''")[1].split("'''")[0]
     page = (f"<title>Xenia Checks, 17 September</title>\n"
             '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">\n'

@@ -95,6 +95,8 @@ runs/embed_*
 runs/embed_*/*
 !runs/embed_*/metrics_long.csv
 !runs/embed_*/rstar.json
+!runs/embed_final10/rstar_eq13*.json
+!runs/embed_final10/*/s*/curve_*.json
 !runs/embed_xenia_production/curve_*.json
 !runs/embed_*_results.json
 !runs/embed_ablation_subset_log.txt

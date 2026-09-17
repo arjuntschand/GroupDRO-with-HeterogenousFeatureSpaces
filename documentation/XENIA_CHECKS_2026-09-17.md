@@ -376,6 +376,36 @@ What this says:
 
 Recommendation: keep the tabular design as built for every arm, describe it in the paper as it is (MLP head with 32 hidden units, full-covariance anchors, pooled class moments), and put this table in the appendix as an architecture-sensitivity study.
 
+## EMBED at 10 seeds under the corrected protocol
+
+Ten seeds (0, 1, 42, 1337, 7, 2024, 31337, 11, 22, 33), one patient split, every arm on the same seeds. DRO arms start λ at 1/G and use the draft's schedule (running training loss, λ refreshed every 50 steps); the held-out signal was tried and fails on EMBED (λ piles onto the 40-row groups, whose validation loss then rises from epoch 0, so validation selection always returns the epoch-0 model). "eq. 13" rows use R̃_g = min{group fit, joint fit, constant} − c_g (g5's margin is 0.65 because it has 51 rows). Worst group is g2 (37 test exams; one exam = 2.7 points) in almost every run. p-values are paired against ERM.
+
+| arm | γ | worst-group acc | worst-group loss | overall acc | tail acc (g1,g2,g3,g5) | λ moved (L1 from 1/G) |
+|---|---|---|---|---|---|---|
+| ERM | – | 62.16 ± 3.60 | 1.350 ± 0.16 | 75.72 | 72.09 | – |
+| anchors only | – | 57.14 (p = 0.001) | 1.303 | 76.52 | 70.31 | – |
+| align only | – | 57.64 (p < 0.001) | 1.294 | 76.53 | 70.26 | – |
+| GroupDRO | 0.5 | 62.43 | 1.200 (p = 0.002) | 77.31 | 70.57 | 1.67 (all on g4) |
+| Regret-DRO | 0.5 | 57.57 (p = 0.012) | 2.172 (p < 0.001, worse) | 75.41 | 68.97 | 0.32 |
+| ours | 0.5 | 61.62 | 1.144 (p = 0.002) | 75.55 | 69.54 | 1.32 (g4, g6) |
+| GroupDRO | 2.0 | 62.70 | **1.051 (p < 0.001)** | **77.44** | 70.80 | 1.66 (all on g4) |
+| Regret-DRO | 2.0 | 61.02 | 1.344 | 75.66 | 70.41 | 0.94 |
+| ours | 2.0 | **62.74** | **1.066 (p < 0.001)** | 76.47 | 69.43 | 1.62 (g4) |
+| Regret-DRO, eq. 13 | 0.5 | 57.57 (p = 0.008) | 2.332 (worse) | 75.27 | 68.89 | 0.18 |
+| ours, eq. 13 | 0.5 | 55.64 (p = 0.006) | 1.245 (p = 0.041) | 74.41 | 68.09 | 1.32 |
+| Regret-DRO, eq. 13 | 2.0 | 59.73 | 2.014 (worse) | 75.54 | 69.74 | 0.60 |
+| ours, eq. 13 | 2.0 | 60.98 | 1.217 (p = 0.039) | 75.73 | 69.02 | 1.66 |
+
+What this says:
+
+- **Worst-group accuracy: nothing beats ERM on EMBED.** The best DRO cells tie it (62.7 vs 62.2, a difference of one exam in g2). Anchors on their own cost five points (p = 0.001).
+- **Worst-group loss: DRO with an engaged λ beats ERM clearly** (1.35 → 1.05–1.14, p ≤ 0.002), and the anchored arm (ours, 1.066) is level with plain GroupDRO (1.051). The anchors add nothing on top of GroupDRO here.
+- **Regret-DRO without anchors is worse than ERM** on loss (2.0–2.3). Its λ barely moves (the excess over R* is small, so the exponent is small) and a λ that stays uniform over-weights the 40-row groups, which are memorised. Plain GroupDRO's raw-loss signal is ten times larger, so it escapes the uniform start within an epoch.
+- **The eq. 13 floors make the regret arms worse on EMBED** (ours 61.6 → 55.6 at γ 0.5). The g5 floor of 0.244 gives g5 a permanent excess, so λ and the worst group move to g5's 14 test exams.
+- **Where λ goes:** to g4 and g6, the two largest groups. With the training-loss signal the small groups are memorised and shed weight. This is the opposite of what DRO is meant to do, and the held-out signal (which fixes it on the tabular datasets) fails here for the reason above.
+
+For the paper: EMBED supports "DRO with a working λ schedule lowers worst-group loss on a 1:1000-imbalanced cohort; ERM cannot be beaten on worst-group accuracy with 37 test exams", not "anchors help on EMBED". The 3-seed numbers reported earlier tonight (ours 63.58 at γ 2.0) sit inside the 10-seed spread.
+
 ## Bugs found and fixed on the way
 
 - `run_baselines_tabular.py` never passed the per-group training cap on NHANES, so capped-regime baselines had been trained on the full set.

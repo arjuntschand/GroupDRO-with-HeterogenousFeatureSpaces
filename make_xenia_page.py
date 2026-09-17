@@ -12,6 +12,7 @@ import markdown
 SRC = "documentation/XENIA_CHECKS_2026-09-17.md"
 OUT = "site/xenia_checks_2026-09-17.html"
 FIGS = {
+    "fig10_recommended_dynamics_ours_regret.png": ("Full method: held-out loss per group (dashed = that group's floor) and group weight against epoch, the paper's λ setting beside γ 0.5 per-step. Dotted line = the epoch that gets reported.", "figs/paper/fig10_recommended_dynamics_ours_regret.png"),
     "fig8_gamma_lambda.png": ("Fed-Heart: group-weight trajectories by step size γ, per-step refresh (mean of 3 seeds, fold 0). A flat line at 0.25 means the max player never engaged.", "figs/paper/fig8_gamma_lambda.png"),
     "fig9_gamma_lambda_nhanes.png": ("NHANES, train-batch signal every step: group-weight trajectories by step size γ (mean of 3 seeds). At γ ≥ 0.5 the raw-loss weights swing one-hot between groups from epoch to epoch.", "figs/paper/fig9_gamma_lambda_nhanes.png"),
     "fig7_latent_w2.png": ("NHANES: 2-Wasserstein geometry of the latent space, 10 seeds, normalised by latent scale.", "figs/paper/fig7_latent_w2.png"),

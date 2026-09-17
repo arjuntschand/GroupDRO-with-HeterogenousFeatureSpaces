@@ -1,0 +1,30 @@
+# Core (tabular experiments: Fed-Heart, NHANES; reporting scripts)
+torch>=2.2
+numpy>=1.24
+pandas>=1.5
+scipy>=1.10
+scikit-learn>=1.2
+pyyaml>=6.0
+rich>=13.4
+tqdm>=4.66
+tensorboard>=2.16
+matplotlib>=3.7
+requests>=2.31        # NHANES / UCI auto-download
+pytest>=7.0
+
+# Fed-Heart Disease: FLamby is optional. Without it the loader uses the UCI
+# files committed under datasets/fed_heart_disease/.
+#   pip install git+https://github.com/owkin/FLamby.git
+
+# EMBED mammography (frozen-ViT pipeline). Needs EMBED access via the AWS
+# Open Data programme (s3://embed-dataset-open, us-west-2); see README.
+timm>=0.9             # ViT-Base backbone for feature extraction
+torchvision>=0.17
+pillow>=10.0
+pyarrow>=14.0         # exam index parquet files
+boto3>=1.34
+awscli>=1.32
+pydicom>=2.4          # DICOM decoding + JPEG plugins
+pylibjpeg>=2.0
+pylibjpeg-libjpeg>=2.0
+python-gdcm>=3.0

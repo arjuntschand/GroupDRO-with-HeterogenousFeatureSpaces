@@ -1,15 +1,16 @@
 #!/bin/bash
 # Wait for extraction to finish, then build the full index and run the production
 # 10-seed experiment. Everything ready by morning.
-cd /home/ubuntu/GroupDRO
-LOG=/home/ubuntu/production_chain.log
+REPO="${REPO:-$HOME/GroupDRO}"; PYTHON="${PYTHON:-python}"
+cd "$REPO"
+LOG="${LOG:-$HOME/production_chain.log}"
 echo "[chain] waiting for extraction to complete..." > $LOG
 
 while pgrep -f "[s]tream_embed_features" >/dev/null; do sleep 120; done
 echo "[chain] extraction finished at $(date)" >> $LOG
 
 # build the full usable index from whatever the cache actually contains
-/opt/pytorch/bin/python - >> $LOG 2>&1 <<'PY'
+"$PYTHON" - >> $LOG 2>&1 <<'PY'
 import pandas as pd, json
 idx = pd.read_parquet("datasets/embed/index_xenia_6group.parquet")
 cached = set(json.load(open("datasets/embed/vit_cache_full/paths.json")).keys())
@@ -23,7 +24,7 @@ print("[chain] per group:", ok.group.value_counts().sort_index().to_dict())
 PY
 
 echo "[chain] launching 10-seed production experiment at $(date)" >> $LOG
-/opt/pytorch/bin/python -m dro_hetero_anchors.src.train_embed_xenia \
+"$PYTHON" -m dro_hetero_anchors.src.train_embed_xenia \
   --index datasets/embed/index_production.parquet \
   --cache datasets/embed/vit_cache_full \
   --out runs/embed_xenia_production \

@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /Users/arjun/Documents/GitHub/GroupDRO-with-HeterogenousFeatureSpaces
+cd "$(cd "$(dirname "$0")" && pwd)"
 PY=.venv/bin/python
 SEEDS="42 1337 7 2024 31337 11 22 33 44 55"
 LOG=runs/overnight.log

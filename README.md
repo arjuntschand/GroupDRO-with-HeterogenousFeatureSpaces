@@ -1,223 +1,173 @@
-GroupDRO with Heterogeneous Feature Spaces & Latent Anchors
-===========================================================
+# GroupDRO with Heterogeneous Feature Spaces
 
-Authoritative README for purpose, architecture, directory map, configuration, and usage.
+Worst-group robust training when different groups of patients have genuinely
+different input features.
 
-## 1. Purpose
+Standard training assumes every example has the same input columns. In
+practice four hospitals each run a different subset of the same clinical
+workup, some survey participants give blood and others only answer questions,
+and some mammograms have four views while others have one. The usual fix is to
+drop everything the groups do not share and train one model on the common
+columns. Averaging the loss then lets the large, well-measured groups dominate.
 
-Train a robust classifier across heterogeneous feature spaces using:
-- Per‑group encoders φ_g mapping raw inputs to a shared latent space ℝ^k.
-- Class Gaussian anchors μ_c = N(m_c, S_c) (learned means m_c and low-rank factors L_c → S_c = L_c L_c^T + εI).
-- Three losses: (1) classification (optionally GroupDRO reweighted), (2) anchor fit (Gaussian W₂ / Bures distance), (3) anchor separation (classifier synthetic samples or W₂ margin).
-- Objective emphasizes worst‑group performance (robustness) while aligning latent distributions across domains.
+This repository trains one encoder per group into a shared latent space, with
+a single classification head, per-class Gaussian anchors aligned by the
+2-Wasserstein distance, and a worst-group (GroupDRO) or excess-risk
+(regret-DRO) objective over groups. It contains the code, configurations, and
+per-seed results behind the paper's three datasets:
 
-**Supported Datasets:**
-- **MNIST/USPS**: Image classification with heterogeneous resolutions (28×28 vs 16×16)
-- **Fed-Heart Disease**: Tabular binary classification across 4 hospitals (from FLamby)
+| Dataset | Task | Groups | Protocol |
+|---|---|---|---|
+| Fed-Heart (UCI heart disease, 4 sites) | binary heart disease | Cleveland, Hungarian, Switzerland, VA; each site records a different subset of tests | 10 seeds x 5-fold CV, median imputation; also an uncapped variant |
+| NHANES 2017-2023 (CDC) | binary cardiovascular disease, 10.5% positive | survey-only, +exam, +blood pressure and labs (10 / 13 / 20 features, nested) | 10 seeds, fixed split |
+| EMBED (Emory mammography) | BI-RADS density, 4 classes | 6 groups by which of four views a breast has | 10 seeds, frozen ViT-Base features |
 
-## 2. High-Level Flow
-
-```
-Input batch (mixed groups)
-  → Split by group g
-    → Per-group encoder φ_g
-      → Concatenate latent vectors z (B × latent_dim)
-        → Classification head ψ → logits
-          → CE (standard or GroupDRO-weighted)
-          → Batch per-class latent moments (m̂_c, Ŝ_c)
-          → Anchor fit loss: W₂( (m̂_c,Ŝ_c), (m_c,S_c) )
-          → Anchor separation loss (synthetic CE or W₂ margin)
-            → Total loss = CE + λ_fit * L_fit + λ_sep * L_sep
-              → Backprop + optimizer step (+ GroupDRO weight update)
-```
-
-## 3. Directory Tree (Essential Parts)
+## Layout
 
 ```
-.
-├── README.md                # This file
-├── documentation/           # Remaining detailed docs & archives
-│   ├── PAPER_IMPLEMENTATION_GUIDE.md  # Deep code ↔ formula walkthrough
-│   ├── archive/             # Archived legacy docs & cleanup notes
-│   │   ├── CLEANUP_NOTES.md
-│   │   ├── COMPLETE_GUIDE.md
-│   │   ├── MAPPING.md
-│   │   └── REPO_OVERVIEW.md
-├── dro_hetero_anchors/      # Core package
-│   ├── experiments/         # (moved to repo root)
-│   ├── src/
-│   │   ├── train.py         # Training loop + evaluation + logging
-│   │   ├── eval.py          # Standalone checkpoint evaluation
-│   │   ├── datasets.py      # Loader builders + split & skew helper
-│   │   ├── encoders/        # cnn28, cnn32 registry
-│   │   ├── model/           # anchors, losses, head, groupdro, wasserstein
-│   │   ├── results_logger.py# JSONL + CSV writer
-│   │   ├── utils.py         # Seed, meters, console
-│   │   └── tools/           # aggregate_runs, index_experiments
-│   ├── requirements.txt     # Python dependencies
-│   ├── testFiles/           # Relocated debug & test utility scripts
-│   └── tests/               # Formal unit tests (to expand)
-├── runs/                    # Aggregated run outputs (metrics, ckpts, index.csv, metrics.sqlite)
-├── datasets/                # Downloaded datasets (MNIST, USPS, etc.)
-└── .venv/                   # Primary virtual environment (keep only one)
+dro_hetero_anchors/src/      the package
+  model/                     anchors, losses, Wasserstein distance, GroupDRO, heads,
+                             REMIND-paper baselines (Reweigh, FlexMoE, REMIND), EMBED model
+  encoders/                  tabular encoders (registry in __init__.py)
+  datasets_fedheart.py       loaders; datasets_nhanes.py; datasets_embed.py
+  train_fedheart.py          trainers; train_nhanes.py; train_embed_xenia.py
+  tools/build_embed_xenia_index.py, extract_vit_embeddings.py, stream_embed_features.py,
+                             download_embed.py, report_embed_xenia.py   (EMBED data pipeline)
+experiments/                 the five YAML configs the runners start from
+run_*.py, estimate_rstar_v2.py, preflight_check.py, run_overnight.sh
+                             experiment runners (see below)
+build_site.py, final_report.py, make_paper_figures.py, plot_mechanism.py,
+plot_training_dynamics.py, make_figures.py, make_shareable.py
+                             reporting: tables, figures, results site
+runs/                        results: metrics_long.csv / results.json per run family,
+                             per-epoch metrics.csv per run, R* estimates, FINAL_TABLES.txt
+figs/                        current paper figures
+datasets/                    Fed-Heart (UCI) and NHANES (CDC) raw files are committed;
+                             EMBED must be obtained separately (see below)
+documentation/               method notes, protocol audits, meeting briefs, archive/
+legacy/                      archived exploration (MNIST/USPS, TextCaps, the first
+                             EMBED track, superseded tabular runners); not maintained
 ```
 
-## 4. Virtual Environments
+Every table and figure is derived from the `metrics_long.csv` files under
+`runs/`, one row per method x seed x group, so a number in a figure cannot
+disagree with the same number in a table. Checkpoints, TensorBoard logs and
+console logs are not tracked; the tabular checkpoints are attached to the
+GitHub release `results-v1` as per-family tarballs.
 
-Keep a single `.venv/` at the repository root. A nested `dro_hetero_anchors/.venv` existed before and was removed to avoid PATH confusion.
-
-## 5. Installation & Quickstart
-
-**All commands below are run from the repository root** (`GroupDRO-with-HeterogenousFeatureSpaces/`).
+## Setup
 
 ```bash
-# Create and activate venv (repo root)
-python3 -m venv .venv
-source .venv/bin/activate   # Linux/macOS
-# .venv\Scripts\activate    # Windows
-
-# Install dependencies (requirements live in dro_hetero_anchors/)
-pip install -r dro_hetero_anchors/requirements.txt
-
-# Fed-Heart Disease: FLamby is optional. If you don't install it, the loader
-# will auto-download UCI Heart Disease data to datasets/fed_heart_disease/
-# (no extra deps). To use FLamby instead (e.g. for exact FLamby splits):
-#   pip install git+https://github.com/owkin/FLamby.git
-
-# Optional: use venv Python explicitly without activating (from repo root)
-# .venv/bin/python -m dro_hetero_anchors.src.train --config experiments/...
-
-# List experiments
-python -m dro_hetero_anchors.src.tools.index_experiments
-cat experiments/INDEX.csv | head
-
-# Run a config (MNIST/USPS)
-python -m dro_hetero_anchors.src.train --config experiments/mnist_usps_25k_2k.yaml
-
-# Run Fed-Heart Disease baseline
-python -m dro_hetero_anchors.src.train_fedheart --config experiments/fedheart_baseline.yaml
-
-# Run Fed-Heart Disease with GroupDRO
-python -m dro_hetero_anchors.src.train_fedheart --config experiments/fedheart_groupdro.yaml
-
-# Evaluate latest checkpoint
-python -m dro_hetero_anchors.src.eval --config experiments/mnist_usps_25k_2k.yaml --ckpt runs/last.ckpt
-
-# Aggregate runs catalog (CSV + SQLite)
-python -m dro_hetero_anchors.src.tools.aggregate_runs
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## 5.1 Fed-Heart Disease Dataset
+Everything runs from the repository root. The Fed-Heart and NHANES raw files
+are in the repo, so the tabular experiments need no download. (Both loaders
+can also fetch the files themselves from UCI and the CDC.)
 
-Fed-Heart Disease is a federated binary classification dataset from [FLamby](https://github.com/owkin/FLamby):
-- **4 groups**: Each hospital is a different group with potentially different data distributions
-- **13 features**: Tabular patient data after preprocessing
-- **Binary classification**: Heart disease (positive) vs no heart disease (negative)
+## Reproducing the reported numbers from the committed results
 
-**Key features of our implementation:**
-1. **Stratified batch sampling**: Each batch maintains the group proportions π from the training set
-2. **GroupDRO with KL penalty**: Weights q are initialized to π and regularized via KL(q||π) to prevent over-focusing on minority groups
-3. **No warmup, no weight clamping**: Weights can freely adapt from the start
-4. **Comprehensive logging**: Per-group, per-class, and per-group-per-class metrics
-
-**Configuration options:**
-```yaml
-# GroupDRO settings
-groupdro_enabled: true
-groupdro_eta: 0.1            # Step size for weight updates
-groupdro_gamma: 0.9          # Smoothing factor
-groupdro_update_mode: exp_smooth
-groupdro_objective: weighted
-groupdro_kl_lambda: 0.1      # KL(q||π) penalty - tune this!
+```bash
+python preflight_check.py          # every arm on a dataset measured under the same protocol
+python final_report.py             # prints runs/FINAL_TABLES.txt
+python build_site.py --build       # site/index.html, one tab per dataset (omit --build to serve it locally)
+python make_shareable.py           # site/shareable.html, single self-contained page
+python make_paper_figures.py       # figs/paper/fig1_ladder, fig2_efficiency, table1.tex
+python plot_mechanism.py           # figs/paper/fig3 (lambda vs R*), fig4 (loss curves), fig5
 ```
 
-**Hyperparameter tuning:**
-- `groupdro_kl_lambda`: Start with 0.1; lower (0.01-0.05) allows more focus on worst group, higher (0.5) keeps closer to original distribution
-- `groupdro_eta`: Controls how fast weights shift; 0.1 is reasonable default
+`final_report.py` reads only `metrics_long.csv` files; `plot_mechanism.py` and
+`plot_training_dynamics.py` additionally read the per-epoch `metrics.csv` of
+the `fedheart_cv`, `matrix_nhanes_nested`, and `dynamics_*` runs.
 
-## 6. Configuration Schema (Representative Keys)
+## Retraining
 
-Data / Groups:
-- Flags: `use_skewed_mnist_usps`, `use_skewed_mnist_usps_mnist32`, `use_usps_only_balanced`
-- Sizes: `mnist_size`, `usps_size`, `mnist28_size`, `mnist32_size`
-- Majority classes: `mnist_majority`, `usps_majority`, `mnist28_majority`, `mnist32_majority`
-- `majority_frac`: fraction of TRAIN samples drawn from specified majority classes after creating a balanced per-class TEST split (omit to use default 0.8)
+Tabular (Fed-Heart, NHANES). Seeds default to the ten used in the paper.
 
-Model:
-- `latent_dim`, `num_classes`, `head_hidden` (0 → linear head, >0 → MLP)
+```bash
+# R*_g reference losses (per-group Bayes-risk estimate), used by regret-DRO
+python estimate_rstar_v2.py --dataset fedheart
+python estimate_rstar_v2.py --dataset nhanes
 
-Anchors & Separation:
-- `anchor_eps`, `sep_samples_per_class`, `sep_method` in {`classifier`, `w2_margin`}, `sep_margin`
-- Loss weights: `lambda_fit`, `lambda_sep`
+# Fed-Heart: 5-fold CV with median imputation, every arm of the method matrix
+python run_fedheart_cv.py --out runs/fedheart_cv
 
-Optimization & Logging:
-- `lr`, `weight_decay`, `epochs`, `grad_clip`, `log_interval`, `save_every`, `seed`
+# NHANES: the method matrix (ERM, GroupDRO, regret-DRO, anchors, ours, group-only)
+python run_method_matrix.py --dataset nhanes \
+    --base experiments/nhanes_pergroup_gdro.yaml \
+    --rstar runs/rstar_nhanes_nested.json --tag nhanes_nested
 
-GroupDRO:
-- `groupdro_enabled`: Enable/disable GroupDRO (default: false)
-- `groupdro_eta`: Step size for weight updates (default: 0.1)
-- `groupdro_gamma`: Smoothing factor for exp_smooth mode (default: 1.0)
-- `groupdro_update_mode`: Weight update strategy (`exp`, `softmax`, `exp_smooth`)
-- `groupdro_objective`: Loss aggregation (`weighted`, `max`, `logsumexp`)
-- `groupdro_kl_lambda`: KL(q||π) penalty coefficient (default: 0.0, recommended: 0.1)
-- Note: Weights are initialized proportional to group sample sizes (π)
+# REMIND-paper baselines (Reweigh, FlexMoE, REMIND) at released and capacity-matched sizes
+python run_baselines_tabular.py --dataset fedheart --folds 5
+python run_baselines_tabular.py --dataset nhanes
+python run_baselines_tabular.py --dataset nhanes --capacity-matched
 
-## 7. Metrics & Logging
+# equal-budget hyperparameter sweep, validation-selected
+python run_sweep.py --dataset nhanes
 
-Per‑epoch JSONL record includes (typical fields):
-```json
-{
-  "epoch": 5,
-  "train_loss": 0.913,
-  "train_acc": 0.842,
-  "test_acc": 0.857,
-  "worst_group_acc": 0.733,
-  "per_group_acc": [0.733, 0.958],
-  "per_class_acc": {...},
-  "per_group_by_class_acc": {...},
-  "metrics_version": "1.0"
-}
+# training-dynamics runs behind fig5 (per-epoch group weights logged)
+python run_dynamics_fedheart.py
+python run_dynamics_nhanes.py
+
+# a single config, one seed
+python -m dro_hetero_anchors.src.train_fedheart --config experiments/fedheart_exp_paper_hetagg_gdro.yaml
+python -m dro_hetero_anchors.src.train_nhanes  --config experiments/nhanes_pergroup_gdro.yaml
 ```
-Flattened CSV mirrors JSONL for spreadsheet ingestion. Run catalog: `runs/index.csv` & `runs/metrics.sqlite` (generated by `aggregate_runs.py`).
 
-## 8. Core Modules & Paper Mapping
+`run_overnight.sh` chains the baseline and capacity-matched runs for both
+tabular datasets. The mechanism studies referenced in the documentation are
+`run_anchor_sweep.py`, `run_anchor_control_v2.py`, `run_latent_diagnostic.py`,
+`run_pergroup_fit_test.py`, `run_mechanism_controls.py`,
+`run_capacity_sweep.py`, `run_fedheart_lamfit.py`, and
+`run_synthetic_scaling.py`; each has a docstring explaining the question it
+answers.
 
-| Paper Concept | Code Location |
-|---------------|---------------|
-| Group encoder φ_g | `src/encoders/` (cnn28, cnn32, mlp_tabular) |
-| Shared latent | Output of encoders (concatenated per batch) |
-| Classification head ψ | `src/model/head.py` |
-| Gaussian anchors μ_c | `src/model/anchors.py` |
-| Anchor fit (W₂) | `src/model/losses.py`, `src/model/wasserstein.py` |
-| Anchor separation | `src/model/losses.py` (`anchor_sep_loss`) |
-| GroupDRO weighting | `src/model/groupdro.py` |
-| KL penalty | `src/model/groupdro.py` (`compute_kl_divergence`) |
-| Per-class moments | `src/model/losses.py` (`per_class_batch_moments`) |
-| Fed-Heart Disease | `src/datasets_fedheart.py`, `src/train_fedheart.py` |
+### EMBED
 
-## 9. Canonical Directories
+EMBED is distributed by Emory through the AWS Open Data programme
+(`s3://embed-dataset-open`, us-west-2) under a research use agreement that
+must be signed first. The agreement forbids redistributing the images, any
+index derived from the tables, cached embeddings, or trained weights, so none
+of those are in this repository. Only metric summaries are committed
+(`runs/embed_*/metrics_long.csv`, `rstar.json`, and the per-epoch
+`curve_*.json` files).
 
-Virtual environment: root `.venv/`.
-Runs output: root `runs/` (metrics, checkpoints, indices).
-Datasets: root `datasets/`.
+To rebuild the EMBED results once you have access:
 
-## 10. Glossary
+```bash
+# 1. tables + images (or stream them, see stream_embed_features.py)
+aws s3 cp s3://embed-dataset-open/tables/ datasets/embed/tables/ --recursive
 
-- Worst‑group accuracy: Minimum accuracy across groups per epoch (robust objective).
-- Anchor fit loss: W₂ distance aligning batch latent moments to anchor Gaussians.
-- Anchor separation loss: Encourages distinct anchors (classification of synthetic samples or enforced W₂ margin).
-- GroupDRO: Adaptive group reweighting focusing optimization on underperforming groups.
+# 2. the 6-group breast-level index from the metadata and clinical tables
+python -m dro_hetero_anchors.src.tools.build_embed_xenia_index --mode full
 
-## 11. FAQ
+# 3. frozen ViT-Base CLS embeddings for every referenced image (GPU)
+python -m dro_hetero_anchors.src.extract_vit_embeddings --images-root datasets/embed
 
-Q: Why anchors instead of prototypes?  
-A: Anchors model covariance, letting W₂ capture shape differences, not just mean shifts.
+# 4. all methods x seeds on the cached features, then the report
+python -m dro_hetero_anchors.src.train_embed_xenia --out runs/embed_xenia_production --seeds 0 1 42 7 11 22 33 1337 2024 31337
+python -m dro_hetero_anchors.src.report_embed_xenia --run runs/embed_xenia_production
+python run_baselines_embed.py --index datasets/embed/index_xenia_6group.parquet --cache datasets/embed/vit_cache
+```
 
-Q: Why pad inputs?  
-A: Mixed resolutions in one batch require uniform tensor shape; we pad smaller images to the max (instead of resizing all up/down uniformly).
+The model is a per-view linear projection of the frozen 768-d features, a
+per-group MLP over the concatenated views a breast has, a shared head, and
+diagonal Gaussian anchors, trained with the same GroupDRO / regret-DRO
+objective as the tabular experiments.
 
-Q: Can I add a new dataset group?  
-A: Implement a loader returning `(train_loader, test_loader)` with `(x,y,g)` tuples, add a config flag, and update `train.py` to branch on it.
+## Tests
 
----
-End of README.
+```bash
+python -m pytest dro_hetero_anchors/tests -q
+```
+
+## Documentation
+
+`documentation/START_HERE.md` is the plain-language overview.
+`CLAIM_AUDIT.md` maps each claim to the run that tests it, `MORNING_BRIEF.md`
+records the protocol corrections and the superseded result snapshots kept for
+comparison (`runs/*_VALSEL`, `*_OLDDRO`, `*_TESTSEL`, ...), `FEDHEART_CV.md`
+and `SWEEP_AUDIT.md` describe the evaluation protocol, and
+`PAPER_RESULTS_DRAFT.md` is the written results section. Older documents are
+in `documentation/archive/`.

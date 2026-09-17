@@ -171,7 +171,19 @@ Without anchors the latent space is organised by group, not by class. Real ancho
 
 ## Alignment moments per (group, class), as eq. 6 specifies
 
-The paper runs pooled the class moments over groups. Re-running Fed-Heart with per-(group, class) moments (1/G init, eq. 13 floors, γ = 0.02, 3 seeds × 5 folds) changes the anchor arms by at most 1.2 points: AnchorsOnly 72.00 → 73.17, Ours 73.17 → 72.83, Ours_Regret 73.17 → 73.83, Shared_Anchors 70.16 → 68.90. Within noise; the eq. 6 form does not change the Fed-Heart conclusion about the anchors. NHANES version in `runs/matrix_nhanes_pgf`.
+The paper runs pooled the class moments over groups. Re-running Fed-Heart with per-(group, class) moments (1/G init, eq. 13 floors, γ = 0.02, 3 seeds × 5 folds) changes the anchor arms by at most 1.2 points: AnchorsOnly 72.00 → 73.17, Ours 73.17 → 72.83, Ours_Regret 73.17 → 73.83, Shared_Anchors 70.16 → 68.90. Within noise; the eq. 6 form does not change the Fed-Heart conclusion about the anchors.
+
+NHANES nested, 3 seeds, worst-group accuracy | worst-group loss:
+
+| arm | paper run (p_g init, train signal, old R\*) | 1/G, held-out signal, eq. 13, pooled moments | same, per-(group, class) moments |
+|---|---|---|---|
+| PerGroupOnly | 66.71 \| 0.560 | 66.98 \| 0.549 | 66.46 \| 0.535 |
+| GroupDRO | 68.93 \| 0.552 | 67.67 \| 0.510 | 68.34 \| 0.502 |
+| AnchorsOnly | 68.67 \| 0.543 | 70.74 \| 0.509 | 71.08 \| 0.502 |
+| Ours_GDRO | 73.59 \| 0.545 | 71.35 \| 0.485 | 72.32 \| 0.524 |
+| Ours_Regret | 72.95 \| 0.511 | 70.78 \| 0.491 | 72.76 \| 0.520 |
+
+Two things to take from this. Per-(group, class) moments add 1–2 points to the anchor arms on NHANES, consistently but within 3-seed noise. And the bigger shift is the settings: under the draft's Algorithm 1 (1/G, held-out signal, eq. 13) NHANES worst-group accuracy is about 2 points lower than the paper run while worst-group loss is markedly better. The paper's NHANES accuracy numbers rest on the train-signal λ path that the code used because `dro_signal: val` was being ignored; now that it is honoured, a re-run of the NHANES table at 10 seeds will not reproduce 73.59 for Ours_GDRO. That re-run is the next thing to do before any table is final.
 
 ## Bugs found and fixed on the way
 

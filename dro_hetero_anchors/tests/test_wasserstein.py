@@ -1,5 +1,5 @@
 import torch
-from src.model.wasserstein import psd_sqrt, gaussian_w2
+from dro_hetero_anchors.src.model.wasserstein import psd_sqrt, gaussian_w2
 
 
 def test_psd_sqrt_reconstruct():

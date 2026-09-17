@@ -214,6 +214,8 @@ def main():
     print(f"\n\n########## METHOD MATRIX: {args.tag} ##########")
     print(f"{'method':>14} | worst-grp | overall | macro-F1 | worst loss | max excess | n")
     for label, *_ in METHODS:
+        if label not in results:
+            continue
         R = results[label]
         def col(k):
             v = [R[s].get(k) for s in args.seeds if isinstance(R.get(s), dict)]

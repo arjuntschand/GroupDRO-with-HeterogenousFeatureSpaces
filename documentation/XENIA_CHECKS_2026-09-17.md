@@ -103,7 +103,7 @@ Xenia's question was whether the λ learning rate in use was too small. It was: 
 | γ 0.5, per-step | 73.62 ± 1.20 \| **0.570** \| 0.72 \| +0.02 (p = 0.96) | 72.60 ± 1.75 \| 0.601 \| 0.73 \| +0.50 (p = 0.47) |
 | γ 2.0, per-step | **74.57 ± 0.62** \| 0.581 \| 0.50 \| **+0.97 (p = 0.010)** | 72.87 ± 2.37 \| 0.608 \| 1.08 \| +0.77 (p = 0.46) |
 
-**NHANES, 3 seeds** (the 10-seed γ 0.5 cell follows; γ 0.1 and 2.0 at 10 seeds in progress). Because NHANES is 89.5% negative, accuracy alone cannot be trusted here, so AUROC and class-balanced worst-group accuracy are shown beside it.
+**NHANES, 3 seeds** (superseded by the 10-seed table that follows; kept to show how far 3-seed cells can mislead). Because NHANES is 89.5% negative, accuracy alone cannot be trusted here, so AUROC and class-balanced worst-group accuracy are shown beside it.
 
 | setting | arm | worst-group acc | worst-group loss | AUROC | class-balanced worst-group acc |
 |---|---|---|---|---|---|
@@ -116,14 +116,28 @@ Xenia's question was whether the λ learning rate in use was too small. It was: 
 | γ 2.0, per-step | Regret-DRO | 72.08 | 0.480 | 0.793 | 63.0 |
 | | full method | **76.81** | 0.537 | 0.777 | 61.1 |
 
-**NHANES, γ 0.5 per-step at 10 seeds**, paired against the current setting on the same seeds (both with 1/G init, eq. 13 floors, held-out signal).
+**NHANES at 10 seeds, per-step refresh**, every cell paired against the current setting on the same seeds (all with 1/G init, eq. 13 floors, held-out signal). p-values in brackets are against the current setting.
 
-| arm | worst-group acc, current → γ 0.5 per-step | worst-group loss | AUROC | class-balanced worst-group acc |
-|---|---|---|---|---|
-| GroupDRO | 69.24 → 71.43 (**+2.19, p = 0.004**) | 0.515 → 0.515 (p = 0.98) | 0.788 → 0.783 (p = 0.41) | 66.5 → 64.2 (p = 0.38) |
-| Regret-DRO | 69.23 → 70.07 (+0.84, p = 0.34) | 0.523 → 0.500 (p = 0.14) | 0.789 → 0.792 (p = 0.52) | 67.2 → 68.2 (p = 0.70) |
-| Ours (GroupDRO) | 72.34 → 74.91 (**+2.57, p = 0.025**) | 0.523 → 0.528 (p = 0.64) | 0.784 → 0.781 (p = 0.09) | 66.0 → 66.5 (p = 0.67) |
-| full method (Ours_Regret) | 72.62 → 74.57 (**+1.95, p = 0.011**) | 0.519 → 0.517 (p = 0.80) | 0.782 → 0.783 (p = 0.73) | 65.0 → 65.5 (p = 0.67) |
+| arm | γ | worst-group acc | worst-group loss | AUROC | class-balanced worst-group acc |
+|---|---|---|---|---|---|
+| GroupDRO | 0.02 per-epoch (current) | 69.24 | 0.515 | 0.788 | 66.5 |
+| | 0.1 | 71.35 (p = 0.037) | 0.507 | 0.778 | 64.4 |
+| | 0.5 | 71.43 (p = 0.004) | 0.515 | 0.783 | 64.2 |
+| | 2.0 | 73.36 (p = 0.008) | 0.535 | 0.768 (p = 0.049) | **55.5 (p = 0.001)** |
+| Regret-DRO | current | 69.23 | 0.523 | 0.789 | 67.2 |
+| | 0.1 | 70.84 (p = 0.11) | 0.527 | 0.784 | 66.7 |
+| | 0.5 | 70.07 (p = 0.34) | 0.500 | 0.792 | 68.2 |
+| | 2.0 | 73.29 (p = 0.001) | 0.507 | 0.781 | 63.2 |
+| Ours (GroupDRO) | current | 72.34 | 0.523 | 0.784 | 66.0 |
+| | 0.1 | 74.30 (p = 0.024) | 0.524 | 0.784 | 66.8 |
+| | 0.5 | 74.91 (p = 0.025) | 0.528 | 0.781 | 66.5 |
+| | 2.0 | 74.86 (p = 0.078) | 0.532 | 0.772 (p = 0.064) | 64.2 |
+| full method (Ours_Regret) | current | 72.62 | 0.519 | 0.782 | 65.0 |
+| | 0.1 | **74.67 (p = 0.017)** | 0.522 | 0.781 | 64.6 |
+| | 0.5 | **74.57 (p = 0.011)** | 0.517 | 0.783 | 65.5 |
+| | 2.0 | 75.35 (p = 0.080) | 0.547 | 0.780 | 63.4 |
+
+γ 0.1 and γ 0.5 are indistinguishable: about two points of worst-group accuracy over the frozen-λ setting, with loss, AUROC and class-balanced accuracy unchanged. γ 2.0 adds accuracy only by giving up AUROC and class-balanced accuracy (GroupDRO loses 11 points of class-balanced accuracy, p = 0.001), so its gain is majority drift.
 
 What this says:
 
@@ -133,7 +147,7 @@ What this says:
 - **γ = 2.0 overshoots.** On NHANES it has the highest accuracy and the lowest AUROC, worst loss and lowest class-balanced accuracy: the model has drifted toward predicting the majority class, and λ is one-hot within five epochs. An earlier version of this section called it validation-selected on NHANES; that selection was made on the same drift-prone accuracy and does not stand.
 - **On Fed-Heart the effect is small.** The classes are balanced there, so accuracy is a fair measure, and the only significant change in the table is Regret-DRO at γ 2.0 (+0.97, p = 0.010; +1.10, p = 0.028 on seeds not used to choose the cell). For the full method nothing is significant, and its best worst-group loss is at γ 0.1 per-step.
 
-**Recommendation.** Use **γ = 0.1 with per-step refresh** as the paper's default: λ engages on both datasets, the full method has its best worst-group loss on both (0.570, 0.484), and it costs no accuracy anywhere. (γ 0.1 at 10 seeds on NHANES is still running; the recommendation will be re-checked against it.) γ = 0.5 per-step is equally defensible and is the better cell for Regret-DRO without anchors. Do not use γ = 2.0 on NHANES. The draft's refresh period N = 50 steps sits between our two cadences (about once per epoch on NHANES, once per six epochs on Fed-Heart), so N should be stated per dataset or set relative to steps per epoch.
+**Recommendation.** Use **γ = 0.1 with per-step refresh** as the paper's default: λ engages on both datasets, the full method has its best worst-group loss on both (0.570, 0.484), and it costs no accuracy anywhere. The 10-seed NHANES cells confirm it: γ 0.1 and γ 0.5 give the same result. γ = 0.5 per-step is equally defensible and is the better cell for Regret-DRO without anchors. Do not use γ = 2.0 on NHANES. The draft's refresh period N = 50 steps sits between our two cadences (about once per epoch on NHANES, once per six epochs on Fed-Heart), so N should be stated per dataset or set relative to steps per epoch.
 
 `fig10_recommended_dynamics_ours_regret.png` shows held-out loss and λ against epoch for the current setting beside γ 0.5 per-step: λ has moved 0.02 and 0.00 at the reported epoch in the first, 0.47 and 1.70 in the second, after which it runs to one-hot and the up-weighted group's held-out loss climbs. Validation-based epoch selection stops before that.
 

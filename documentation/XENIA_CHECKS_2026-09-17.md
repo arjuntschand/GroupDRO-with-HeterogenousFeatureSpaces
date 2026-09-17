@@ -183,7 +183,18 @@ NHANES nested, 3 seeds, worst-group accuracy | worst-group loss:
 | Ours_GDRO | 73.59 \| 0.545 | 71.35 \| 0.485 | 72.32 \| 0.524 |
 | Ours_Regret | 72.95 \| 0.511 | 70.78 \| 0.491 | 72.76 \| 0.520 |
 
-Two things to take from this. Per-(group, class) moments add 1–2 points to the anchor arms on NHANES, consistently but within 3-seed noise. And the bigger shift is the settings: under the draft's Algorithm 1 (1/G, held-out signal, eq. 13) NHANES worst-group accuracy is about 2 points lower than the paper run while worst-group loss is markedly better. The paper's NHANES accuracy numbers rest on the train-signal λ path that the code used because `dro_signal: val` was being ignored; now that it is honoured, a re-run of the NHANES table at 10 seeds will not reproduce 73.59 for Ours_GDRO. That re-run is the next thing to do before any table is final.
+At 3 seeds that looked like a 2-point drop under the draft's settings. **At 10 seeds it is not**: the NHANES table under Algorithm 1 (1/G init, held-out signal, eq. 13, pooled moments) is statistically indistinguishable from the paper run, and per-(group, class) moments lift every anchor arm.
+
+| arm | paper run (p_g, train signal, old R\*) | Algorithm 1, pooled moments | Algorithm 1, per-(group, class) moments |
+|---|---|---|---|
+| PerGroupOnly | 66.76 ± 2.73 \| 0.553 | 66.76 ± 2.73 \| 0.553 | 65.89 ± 1.82 \| 0.557 |
+| GroupDRO | 70.23 ± 2.40 \| 0.531 | 69.24 ± 2.19 \| 0.515 | 68.68 ± 2.26 \| 0.518 |
+| RegretDRO | 70.26 ± 2.34 \| 0.513 | 69.23 ± 2.04 \| 0.523 | 68.65 ± 2.42 \| 0.520 |
+| AnchorsOnly | 68.62 ± 1.94 \| 0.551 | 68.62 ± 1.94 \| 0.551 | 71.17 ± 2.04 \| 0.515 |
+| Ours_GDRO | 72.57 ± 1.90 \| 0.536 | 72.34 ± 3.75 \| 0.523 | 73.23 ± 2.34 \| 0.518 |
+| Ours_Regret | 72.28 ± 1.22 \| 0.524 | 72.62 ± 3.59 \| 0.519 | **73.66 ± 1.98** \| 0.515 |
+
+Paired over the ten shared seeds: Algorithm 1 vs paper, no arm differs (p ≥ 0.29). Per-(group, class) vs pooled: Ours_Regret +1.04 (p = 0.15), Ours_GDRO +0.88 (p = 0.17), AnchorsOnly +2.55; Ours_Regret vs the paper run +1.38 (p = 0.067). The direction is consistent across all anchor arms and the losses improve too, so eq. 6's per-(group, class) form is the better default for the paper even though it is not yet significant at 10 seeds. The switch to the held-out λ signal, by contrast, changes nothing on NHANES, so the paper's NHANES numbers survive the fix.
 
 ## Bugs found and fixed on the way
 

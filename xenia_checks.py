@@ -31,6 +31,10 @@ def load(p):
     return d
 
 
+def nseeds(d, m):
+    return len([1 for g in d.get(m, {}).values() if g])
+
+
 def worst(d, m, seeds=None, i=0):
     v = [(min if i == 0 else max)(x[i] for x in g.values()) for s, g in d.get(m, {}).items()
          if g and (seeds is None or s in seeds)]
@@ -103,12 +107,12 @@ def main():
     F, FB = load("runs/matrix_nhanes_nested/metrics_long.csv"), load("runs/baselines_nhanes/metrics_long.csv")
     A_, AB = load("runs/matrix_nhanes_capA/metrics_long.csv"), load("runs/baselines_nhanes_capA/metrics_long.csv")
     B_, BB = load("runs/matrix_nhanes_capB/metrics_long.csv"), load("runs/baselines_nhanes_capB/metrics_long.csv")
-    print(f"  {'arm':14} {'full':>8} {'A':>8} {'B':>8}     loss: {'full':>6} {'A':>6} {'B':>6}")
+    print(f"  {'arm':14} {'full':>8} {'A':>8} {'B':>8}     loss: {'full':>6} {'A':>6} {'B':>6}   n seeds full/A/B")
     for a, ext in [("ERM", 0), ("PerGroupOnly", 0), ("GroupDRO", 0), ("RegretDRO", 0), ("Ours_GDRO", 0), ("Ours_Regret", 0),
                    ("Reweigh", 1), ("FlexMoE", 1), ("REMIND", 1)]:
         f, x, y = (F, A_, B_) if ext == 0 else (FB, AB, BB)
-        print(f"  {a:14} {worst(f, a, SEEDS3):8.2f} {worst(x, a, SEEDS3):8.2f} {worst(y, a, SEEDS3):8.2f}           "
-              f"{worst(f, a, SEEDS3, 1):6.3f} {worst(x, a, SEEDS3, 1):6.3f} {worst(y, a, SEEDS3, 1):6.3f}")
+        print(f"  {a:14} {worst(f, a, None):8.2f} {worst(x, a, None):8.2f} {worst(y, a, None):8.2f}           "
+              f"{worst(f, a, None, 1):6.3f} {worst(x, a, None, 1):6.3f} {worst(y, a, None, 1):6.3f}   {nseeds(f, a)}/{nseeds(x, a)}/{nseeds(y, a)}")
     for lab, p in [("full", "runs/rstar_nhanes_eq13.json"), ("A", "runs/rstar_nhanes_capA_infoScarce.json"), ("B", "runs/rstar_nhanes_capB_poorScarce.json")]:
         print(f"  R^ before margin {lab:5} {rs(p, 'rstar_before_margin')}   c_g {rs(p, 'margin_c_g')}   R~ {rs(p)}")
 
@@ -119,7 +123,7 @@ def main():
     for a, ext in [("ERM", 0), ("PerGroupOnly", 0), ("GroupDRO", 0), ("RegretDRO", 0), ("Ours_GDRO", 0), ("Ours_Regret", 0),
                    ("Reweigh", 1), ("FlexMoE", 1), ("REMIND", 1)]:
         f, x = (F, P) if ext == 0 else (FB, PB)
-        print(f"  {a:14} {worst(f, a, SEEDS3):8.2f} {worst(x, a, SEEDS3):10.2f}           {worst(f, a, SEEDS3, 1):7.3f} {worst(x, a, SEEDS3, 1):10.3f}")
+        print(f"  {a:14} {worst(f, a, None):8.2f} {worst(x, a, None):10.2f}           {worst(f, a, None, 1):7.3f} {worst(x, a, None, 1):10.3f}")
     # Collapse guard. NHANES is 89.5% negative, so a constant "no CVD" classifier scores ~89
     # worst-group accuracy. Report AUROC and class-balanced worst-group accuracy beside it and
     # flag any arm at AUROC ~0.5: that row is the base rate, not a result.
@@ -148,7 +152,7 @@ def main():
     # majority label. Flag baselines with such groups on the partition.
     BASE_RATE = 89.5
     def per_group(d, m):
-        arr = [[v[0] * 100 for _, v in sorted(g.items())] for s_, g in d.get(m, {}).items() if g and s_ in SEEDS3]
+        arr = [[v[0] * 100 for _, v in sorted(g.items())] for s_, g in d.get(m, {}).items() if g]
         return np.mean(arr, 0) if arr else None
     for b in ["Reweigh", "FlexMoE", "REMIND"]:
         pg = per_group(PB, b)
@@ -158,7 +162,7 @@ def main():
         flag = f"   <-- groups {near} at the 89.5% base rate: majority-class on those groups" if near else ""
         print(f"  partition {b:9} per-group acc {np.round(pg, 1)}{flag}")
     if PB and "REMIND" in PB and "ERM" in P:
-        print(f"  REMIND - ERM on partition (worst-group acc): {worst(PB, 'REMIND', SEEDS3) - worst(P, 'ERM', SEEDS3):+.2f}"
+        print(f"  REMIND - ERM on partition (worst-group acc): {worst(PB, 'REMIND', None) - worst(P, 'ERM', None):+.2f}"
               f"   -- read against the collapse flag above; compare loss and AUROC, not accuracy")
 
     sec("7  Latent 2-Wasserstein geometry (NHANES nested, eq16 W2 / mean squared latent norm, 3 seeds)")

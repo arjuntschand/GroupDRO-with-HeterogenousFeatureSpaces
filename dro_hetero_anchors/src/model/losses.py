@@ -181,7 +181,7 @@ def anchor_sep_loss(anchors_m: torch.Tensor, anchors_S: torch.Tensor, anchors_L:
 
 @torch.no_grad()
 def group_alignment_losses(encoders, anchors, loader, device, num_groups: int, num_classes: int,
-                           eps: float, feature_indices=None):
+                           eps: float, feature_indices=None, diagonal: bool = False):
     """Per-group alignment loss L^align_g on a held-out loader: W2 between each group's
     per-class latent moments and the class anchors. Algorithm 1 tracks L_g + alpha * L^align_g
     in the running loss that drives lambda; this supplies the second term. Leaves the encoders
@@ -206,5 +206,12 @@ def group_alignment_losses(encoders, anchors, loader, device, num_groups: int, n
         if not zs[gid]:
             out.append(0.0); continue
         mom = per_class_batch_moments(torch.cat(zs[gid]), torch.cat(ys[gid]), num_classes, eps)
+        if diagonal and mom:
+            mom = {c: (m, torch.diag(torch.diagonal(S))) for c, (m, S) in mom.items()}
         out.append(float(anchor_fit_loss(m_anc, S_anc, mom, eps)) if mom else 0.0)
     return out
+
+
+def diagonalize_moments(moments):
+    """Keep only the diagonal of each class covariance (diagonal-anchor variant)."""
+    return {c: (m, torch.diag(torch.diagonal(S))) for c, (m, S) in moments.items()}

@@ -137,6 +137,8 @@ def main():
     ap.add_argument("--seeds", nargs="+", type=int, default=SEEDS)
     ap.add_argument("--moving-split", action="store_true")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--methods", nargs="+", default=None,
+                    help="restrict to these arms (for sharding a matrix across processes)")
     args = ap.parse_args()
 
     import importlib
@@ -156,6 +158,8 @@ def main():
     results, long_rows = {}, []
 
     for label, shared, gdro, regret, anch in METHODS:
+        if args.methods and label not in args.methods:
+            continue
         results[label] = {}
         for seed in args.seeds:
             cfg = copy.deepcopy(base)

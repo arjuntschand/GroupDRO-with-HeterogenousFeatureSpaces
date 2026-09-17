@@ -42,8 +42,10 @@ class AnchorModule(nn.Module):
     Avoids in-place operations by computing normalized versions of L at
     forward time and never mutating the underlying Parameter directly.
     """
-    def __init__(self, num_classes: int, latent_dim: int, eps: float = 1e-5):
+    def __init__(self, num_classes: int, latent_dim: int, eps: float = 1e-5, diagonal: bool = False):
         super().__init__()
+        # diagonal=True keeps only the diagonal of L, i.e. a diagonal covariance per class.
+        self.diagonal = diagonal
         self.num_classes = num_classes
         self.latent_dim = latent_dim
         self.eps = eps
@@ -55,7 +57,10 @@ class AnchorModule(nn.Module):
 
     def normalized_L(self, max_norm: float = 10.0, min_norm: float = 1e-3) -> torch.Tensor:
         """Return a normalized copy of self.L (no in-place ops)."""
-        return normalize_L(self.L, max_norm=max_norm, min_norm=min_norm)
+        L = self.L
+        if self.diagonal:
+            L = L * torch.eye(self.latent_dim, device=L.device, dtype=L.dtype).unsqueeze(0)
+        return normalize_L(L, max_norm=max_norm, min_norm=min_norm)
 
     def cov(self) -> torch.Tensor:
         Ln = self.normalized_L()

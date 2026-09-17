@@ -99,7 +99,7 @@ def _subset(d, m, device):
 
 # ------------------------------------------------------------ R*_g (Step 2) --
 
-def _joint_oof(data, masks, device, folds=5, epochs=40, lr=5e-4, seed=0):
+def _joint_oof(data, masks, device, folds=5, epochs=40, lr=5e-4, seed=0, return_samples=False):
     """Out-of-fold CE per group from ONE model trained on every group at once.
 
     The per-group estimator below fits group g in isolation. That is the same flaw the tabular
@@ -147,17 +147,23 @@ def _joint_oof(data, masks, device, folds=5, epochs=40, lr=5e-4, seed=0):
                 lg, _ = model(g, fte)
                 oof[g] += F.cross_entropy(lg, y[te].to(device),
                                           reduction="none").cpu().numpy().tolist()
+    if return_samples:
+        return {g: np.asarray(v) for g, v in oof.items() if v}
     return {g: float(np.mean(v)) for g, v in oof.items() if v}
 
 
-def estimate_optimal_losses(data, masks, device, folds=5, epochs=40, lr=5e-4, seed=0):
+def estimate_optimal_losses(data, masks, device, folds=5, epochs=40, lr=5e-4, seed=0,
+                            eq13=False, detail=None):
     """R*_g = out-of-fold CE, minimised over a per-group fit and a joint fit.
 
     The per-group fit is Xenia's Step 2 model. The joint fit shares the head across groups,
     which is what the deployed method does and what a small group benefits from. Each is a valid
     upper bound on the Bayes risk, so the minimum is the tighter honest estimate. Scored strictly
     out of fold on train+val rows, never on test."""
-    joint = _joint_oof(data, masks, device, folds=folds, epochs=epochs, lr=lr, seed=seed)
+    joint_s = _joint_oof(data, masks, device, folds=folds, epochs=epochs, lr=lr, seed=seed,
+                         return_samples=True)
+    joint = {g: float(v.mean()) for g, v in joint_s.items()}
+    n_groups = len(data)
     rstar = {}
     for g, d in data.items():
         m = masks[g]["train"] | masks[g]["val"]
@@ -196,6 +202,35 @@ def estimate_optimal_losses(data, masks, device, folds=5, epochs=40, lr=5e-4, se
             oof[te] = ce
         per_group = float(oof.mean())
         rstar[g] = min(per_group, joint.get(g, float("inf")))
+        if eq13:
+            # eq. 13: R~_g = min{fitted, constant predictor} - c_g. The constant predictor is the
+            # train-fold class frequency, scored out of fold; c_g is the half-width of a bootstrap
+            # percentile interval for the mean per-sample loss, union-bounded over the G groups.
+            const = np.zeros(n)
+            yn = y.numpy()
+            for f in range(folds):
+                tr, te = fold != f, fold == f
+                if te.sum() == 0 or tr.sum() == 0:
+                    continue
+                freq = np.bincount(yn[tr], minlength=NUM_CLASSES).astype(float)
+                freq = np.clip(freq / freq.sum(), 1e-6, None); freq = freq / freq.sum()
+                const[te] = -np.log(freq[yn[te]])
+            cands = {"group_fit": oof, "constant": const}
+            if g in joint_s:
+                cands["joint_fit"] = joint_s[g]
+            best = min(cands, key=lambda k: cands[k].mean())
+            samp = cands[best]
+            brng = np.random.RandomState(1234)
+            means = samp[brng.randint(0, len(samp), size=(4000, len(samp)))].mean(1)
+            a = 0.05 / n_groups
+            lo, hi = np.quantile(means, [a / 2, 1 - a / 2])
+            c_g = float((hi - lo) / 2)
+            rstar[g] = max(0.0, float(samp.mean()) - c_g)
+            if detail is not None:
+                detail[g] = {"n": int(n), "chosen": best, "margin_c_g": c_g, "rstar_eq13": rstar[g],
+                             **{k: float(v.mean()) for k, v in cands.items()}}
+            print(f"  R~[{g}] = {rstar[g]:.3f}  ({best} {samp.mean():.3f} - c_g {c_g:.3f}; "
+                  + ", ".join(f"{k} {v.mean():.3f}" for k, v in cands.items()) + ")", flush=True)
         if joint.get(g, float("inf")) < per_group:
             print(f"  R*[{g}]: joint fit {joint[g]:.3f} beats group-only {per_group:.3f}",
                   flush=True)
@@ -460,6 +495,8 @@ def main():
                     help="initialise lambda uniformly instead of at group proportions. With "
                          "proportional init the four tail groups share only 1.5%% of the "
                          "gradient weight on EMBED.")
+    ap.add_argument("--rstar-eq13", action="store_true",
+                    help="R~_g = min{fitted, constant predictor} - bootstrap margin c_g (draft eq. 13)")
     ap.add_argument("--save-latents", default=None,
                     help="directory to write the TEST latents (z, y, group) and anchor means per method and seed")
     args = ap.parse_args()
@@ -485,8 +522,12 @@ def main():
         rstar = {k: float(v) for k, v in json.load(open(rstar_path)).items()}
         print("R*_g (cached) = " + ", ".join(f"{g}:{rstar.get(g,0):.3f}" for g in GROUPS if g in data))
     else:
-        rstar = estimate_optimal_losses(data, masks, device, folds=args.rstar_folds, seed=0)
+        _detail = {}
+        rstar = estimate_optimal_losses(data, masks, device, folds=args.rstar_folds, seed=0,
+                                        eq13=args.rstar_eq13, detail=_detail)
         json.dump(rstar, open(rstar_path, "w"), indent=2)
+        if _detail:
+            json.dump(_detail, open(os.path.join(args.out, "rstar_eq13_detail.json"), "w"), indent=2)
         print("R*_g = " + ", ".join(f"{g}:{rstar.get(g,0):.3f}" for g in GROUPS if g in data))
 
     for seed in args.seeds:

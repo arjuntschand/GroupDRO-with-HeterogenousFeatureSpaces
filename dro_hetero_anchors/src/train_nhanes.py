@@ -34,7 +34,7 @@ from .datasets_nhanes import (
 from .encoders import ENCODER_REGISTRY
 from .model.head import LinearHead, MLPHead
 from .model.anchors import AnchorModule
-from .model.losses import group_alignment_losses, per_class_batch_moments, anchor_fit_loss, anchor_sep_loss, FocalLoss, LabelSmoothingLoss
+from .model.losses import diagonalize_moments, group_alignment_losses, per_class_batch_moments, anchor_fit_loss, anchor_sep_loss, FocalLoss, LabelSmoothingLoss
 from .model.groupdro import GroupDRO
 
 
@@ -87,7 +87,8 @@ def build_models(cfg, group_counts: List[int], device: torch.device,
             else LinearHead(latent_dim, cfg["num_classes"]))
 
     # Anchor module
-    anchors = AnchorModule(cfg["num_classes"], latent_dim, eps=cfg["anchor_eps"])
+    anchors = AnchorModule(cfg["num_classes"], latent_dim, eps=cfg["anchor_eps"],
+                           diagonal=cfg.get("anchor_diagonal", False))
 
     # GroupDRO
     groupdro = None
@@ -111,6 +112,32 @@ def build_models(cfg, group_counts: List[int], device: torch.device,
     return encoders, head, anchors, groupdro
 
 
+@torch.no_grad()
+def _val_group_losses(encoders, head, loader, device, num_groups, feature_indices=None):
+    """Per-group mean cross-entropy on a loader. Same numbers as evaluate()["per_group_loss"],
+    without the per-sample bookkeeping, so it is cheap enough to call every step."""
+    head.eval()
+    for e in encoders.values():
+        e.eval()
+    latent_dim = list(head.parameters())[0].shape[1]
+    s = torch.zeros(num_groups, device=device, dtype=torch.float64)
+    n = torch.zeros(num_groups, device=device, dtype=torch.float64)
+    for x, y, g in loader:
+        x, y, g = x.to(device), y.to(device), g.to(device)
+        z = torch.zeros((x.size(0), latent_dim), device=device)
+        for gid, enc in encoders.items():
+            m = (g == gid)
+            if m.sum() == 0:
+                continue
+            xg = x[m]
+            if feature_indices is not None and gid in feature_indices:
+                xg = xg[:, feature_indices[gid]]
+            z[m] = enc(xg)
+        l = nn.functional.cross_entropy(head(z), y, reduction="none").double()
+        s.index_add_(0, g.long(), l); n.index_add_(0, g.long(), torch.ones_like(l))
+    return [float(s[i] / n[i]) if n[i] > 0 else 0.0 for i in range(num_groups)]
+
+
 def _dro_signal(vls, cfg, encoders, anchors, loader, device, num_groups, num_classes, eps,
                 feature_indices, lambda_fit):
     """Held-out per-group signal for the lambda update. With dro_align_in_signal the alignment
@@ -118,7 +145,8 @@ def _dro_signal(vls, cfg, encoders, anchors, loader, device, num_groups, num_cla
     vals = [float(v) for v in vls]
     if cfg.get("dro_align_in_signal", False) and lambda_fit > 0:
         al = group_alignment_losses(encoders, anchors, loader, device, num_groups, num_classes,
-                                    eps, feature_indices=feature_indices)
+                                    eps, feature_indices=feature_indices,
+                                    diagonal=cfg.get("anchor_diagonal", False))
         vals = [v + lambda_fit * a for v, a in zip(vals, al)]
     return ({gi: torch.tensor(v, device=device) for gi, v in enumerate(vals)},
             {gi: 1 for gi in range(len(vals))})
@@ -692,6 +720,8 @@ def train(cfg):
                     if gm.sum() < 2:
                         continue
                     mom_g = per_class_batch_moments(z[gm], y_anchor[gm], num_classes, eps)
+                    if cfg.get("anchor_diagonal", False) and mom_g:
+                        mom_g = diagonalize_moments(mom_g)
                     if not mom_g:
                         continue
                     l_fit = l_fit + anchor_fit_loss(m_anc, S_anc, mom_g, eps)
@@ -700,6 +730,8 @@ def train(cfg):
                     l_fit = l_fit / n_gr
             else:
                 moments = per_class_batch_moments(z, y_anchor, num_classes, eps)
+                if cfg.get("anchor_diagonal", False) and moments:
+                    moments = diagonalize_moments(moments)
                 l_fit = anchor_fit_loss(m_anc, S_anc, moments, eps)
             l_sep = anchor_sep_loss(m_anc, S_anc, L_norm, head, num_classes, J, device,
                                     sep_method=sep_method, margin=sep_margin, eps=eps)
@@ -734,9 +766,8 @@ def train(cfg):
                 _vs = int(cfg.get("dro_val_stride", 0) or 0)
                 if (_vs and cfg.get("dro_signal", "train") == "val" and _VAL_LOADER is not None
                         and (global_step % _vs) == 0):
-                    _vm_s = evaluate(encoders, head, _VAL_LOADER, device, num_groups, num_classes,
-                                     feature_indices=feature_indices)
-                    _vls = _vm_s.get("per_group_loss") or []
+                    _vls = _val_group_losses(encoders, head, _VAL_LOADER, device, num_groups,
+                                             feature_indices=feature_indices)
                     if _vls:
                         groupdro.update_weights(*_dro_signal(_vls, cfg, encoders, anchors, _VAL_LOADER, device,
                             num_groups, num_classes, eps, feature_indices, lambda_fit))

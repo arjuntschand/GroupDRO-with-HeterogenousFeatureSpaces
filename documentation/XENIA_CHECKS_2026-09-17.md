@@ -108,16 +108,16 @@ Paired over the ten shared seeds, Regret-DRO at γ 2.0/per-step is +1.02 over th
 
 **It is, however, not what validation selects.** Validation worst-group accuracy at the selected epoch is 74.1 for γ 2.0/per-step against 75.4–75.5 for the other three cells; a validation-based choice of γ would pick 0.02 or 0.5, whose test numbers are indistinguishable from the paper's. So the defensible statement is: once the max player is engaged, regret and raw-loss DRO choose different groups, and the regret arm's test worst-group accuracy moves by about one point, but the validation split (15–37 patients per group per fold) cannot resolve that difference, so no protocol we can defend would select the setting that shows it. The mechanism result stands; the accuracy gain does not become a headline number.
 
-**NHANES, train-batch signal every step** (the path the NHANES trainer had until tonight), 1/G init, eq. 13 floors, 3 seeds. Worst-group accuracy / worst-group loss:
+**NHANES, train-batch signal every step** (the path the NHANES trainer had until tonight; signal pinned in the config), 1/G init, eq. 13 floors, 3 seeds. Worst-group accuracy / worst-group loss / λ L1 moved by the reported epoch / final λ [G0 G1 G2]:
 
 | γ | GroupDRO | RegretDRO | Ours_Regret |
 |---|---|---|---|
-| 0.02 | 70.04 / 0.518 | 68.73 / 0.512 | 71.23 / 0.487 |
-| 0.1 | 68.30 / 0.509 | 68.36 / 0.507 | 71.67 / 0.483 |
-| 0.5 | 68.59 / 0.596 | 67.22 / 0.524 | 70.01 / 0.503 |
-| 2.0 | 71.41 / 0.540 | 67.50 / 0.548 | 72.55 / 0.511 |
+| 0.02 | 70.04 / 0.518 / 0.77 / [0.84 0.03 0.13] | 68.73 / 0.512 / 0.06 / [0.32 0.27 0.40] | 71.23 / 0.487 / 0.14 / [0.36 0.22 0.41] |
+| 0.1 | 72.61 / 0.538 / 1.15 / [0.67 0.01 0.32] | 68.42 / 0.498 / 0.55 / [0.01 0.30 0.69] | 72.77 / 0.528 / 1.11 / [0.08 0.35 0.58] |
+| 0.5 | 71.12 / 0.473 / 0.96 / [0.00 0.99 0.01] | 69.54 / 0.482 / 1.23 / [0.59 0.00 0.41] | 71.73 / 0.540 / 0.59 / [0.40 0.00 0.60] |
+| 2.0 | 72.25 / 0.515 / 0.80 / [0.02 0.00 0.98] | 69.96 / 0.477 / 1.96 / [0.06 0.67 0.28] | 74.76 / 0.591 / 0.66 / [0.35 0.31 0.33] |
 
-Correction to the table above: only its γ = 0.02 row is the train-batch signal. The trainer patch that made `dro_signal: val` take effect reached the box while this sweep was running, and the base config carries that key, so the γ = 0.1, 0.5 and 2.0 rows are held-out per-epoch runs (they are byte-identical to the held-out table below). The train-signal cells for those three γ are being re-run with the signal set explicitly; the table and `fig9_gamma_lambda_nhanes.png` will be regenerated from them. What survives from the γ = 0.02 train-signal cell: under raw loss λ drifts to G0 (survey only, highest loss) and reaches 0.75 by the end; under regret it barely moves.
+`fig9_gamma_lambda_nhanes.png` shows the trajectories. On the train signal the max player engages at every γ (5,400 refreshes over a run), but where it goes is unstable: raw-loss GroupDRO ends one-hot on G0 at γ ≤ 0.1, on G1 at 0.5, and on G2 at 2.0, and regret's target moves around similarly. Accuracy shows no trend with γ (68–75) and regret is best on loss at every γ. Compare the held-out signal below, where the same γ range produces a monotone response. (An earlier version of this table was mislabeled: a trainer patch reached the box mid-sweep and the base config carried `dro_signal: val`, so its γ ≥ 0.1 rows were held-out runs. These rows are from a re-run with the signal pinned, in fresh directories, since the matrix runner reuses any run directory that already has metrics.)
 
 **NHANES, held-out signal**, 1/G init, eq. 13 floors, 3 seeds. Worst-group accuracy / worst-group loss / λ L1 moved by the reported epoch:
 

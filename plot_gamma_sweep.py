@@ -26,7 +26,7 @@ if _args.dataset == "fedheart":
     INIT = 0.25; OUT = "fig8_gamma_lambda"
 else:
     GROUPS = ["G0 survey", "G1 +exam", "G2 +labs"]
-    PAT = "runs/gamma_sweep_nh/g{g}/{arm}_s*/metrics.csv"
+    PAT = "runs/gamma_sweep_nh_train/g{g}/{arm}_s*/metrics.csv"
     TITLE = ("NHANES: group weight trajectories by step size γ, train-batch signal every step, 1/G init, eq. 13 floors "
              "(mean of 3 seeds). Flat at 0.33 = the max player never engaged.")
     INIT = 1 / 3; OUT = "fig9_gamma_lambda_nhanes"

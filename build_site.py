@@ -864,6 +864,14 @@ def vs_baselines_block(loaded, merged_bl):
     FULL = ["Ours_Regret", "ours"]
     def excess_by_seed(by_seed):
         return {sd: max(g["excess"] for g in gr.values()) for sd, gr in by_seed.items() if gr}
+    def f1_by_seed(by_seed):
+        return {sd: min(g["f1"] for g in gr.values()) for sd, gr in by_seed.items() if gr}
+    def n_params(by_seed):
+        for gr in by_seed.values():
+            for g in gr.values():
+                if g.get("n_params") == g.get("n_params"):
+                    return g["n_params"]
+        return None
     def cellfmt(diff_txt, abs_txt, p, better):
         sig = p is not None and p < 0.05
         col = ("#1a7f4b" if better else "#b03a3a")
@@ -886,33 +894,44 @@ def vs_baselines_block(loaded, merged_bl):
         full = next((data[a] for a in FULL if a in data), None)
         if not full:
             continue
-        fa, fl, fe = worst_by_seed(full), worst_loss_by_seed(full), excess_by_seed(full)
+        fa, fl, fe, ff, fp = worst_by_seed(full), worst_loss_by_seed(full), excess_by_seed(full), f1_by_seed(full), n_params(full)
         mf = lambda m: sum(m.values()) / len(m)
         out.append(f"<h3 style='margin-top:22px'>{html.escape(d['label'])}</h3>"
-                   f"<p class='legend'>Ours: worst-group accuracy {mf(fa):.1f}, worst-group loss {mf(fl):.3f}, regret {mf(fe):.3f}</p>")
-        rows = {"Worst-group loss": [], "Regret (worst-group excess loss)": [], "Worst-group accuracy": []}
+                   f"<p class='legend'>Ours: worst-group accuracy {mf(fa):.1f}, worst-group loss {mf(fl):.3f}, regret {mf(fe):.3f}, "
+                   f"worst-group macro-F1 {mf(ff):.1f}, {int(fp):,} parameters</p>")
+        rows = {"Worst-group loss": [], "Regret (worst-group excess loss)": [], "Worst-group accuracy": [], "Worst-group macro-F1": [], "Parameters": []}
         heads = []
         for b in ["Reweigh", "FlexMoE", "REMIND"]:
             bd = mb.get(f"{b}__released")
             if not bd:
                 continue
             heads.append("Flex-MoE" if b == "FlexMoE" else b)
-            ba, bl_, be = worst_by_seed(bd), worst_loss_by_seed(bd), excess_by_seed(bd)
+            ba, bl_, be, bf, bp_ = worst_by_seed(bd), worst_loss_by_seed(bd), excess_by_seed(bd), f1_by_seed(bd), n_params(bd)
             seeds = sorted(set(fa) & set(ba))
             m = lambda x: sum(x[k] for k in seeds) / len(seeds)
-            dl = (m(bl_) - m(fl)) / m(bl_) * 100; de = (m(be) - m(fe)) / m(be) * 100; da = m(fa) - m(ba)
+            dl = (m(bl_) - m(fl)) / m(bl_) * 100; de = (m(be) - m(fe)) / m(be) * 100; da = m(fa) - m(ba); df = m(ff) - m(bf)
             for key, diff, better, txt, abs_txt, p in [
                 ("Worst-group loss", dl, dl > 0, f"{abs(dl):.1f}% {'lower' if dl > 0 else 'higher'}", f"{m(fl):.3f} vs {m(bl_):.3f}", paired_p(fl, bl_)),
                 ("Regret (worst-group excess loss)", de, de > 0, f"{abs(de):.1f}% {'lower' if de > 0 else 'higher'}", f"{m(fe):.3f} vs {m(be):.3f}", paired_p(fe, be)),
-                ("Worst-group accuracy", da, da > 0, f"{da:+.1f} pts", f"{m(fa):.1f} vs {m(ba):.1f}", paired_p(fa, ba))]:
+                ("Worst-group accuracy", da, da > 0, f"{da:+.1f} pts", f"{m(fa):.1f} vs {m(ba):.1f}", paired_p(fa, ba)),
+                ("Worst-group macro-F1", df, df > 0, f"{df:+.1f} pts", f"{m(ff):.1f} vs {m(bf):.1f}", paired_p(ff, bf))]:
                 rows[key].append(cellfmt(txt, abs_txt, p, better)); n_total += 1; n_green += int(better)
+            if fp and bp_:
+                ratio = fp / bp_
+                smaller = ratio < 1
+                txt = f"{1/ratio:.1f}x smaller" if smaller else f"{ratio:.2f}x larger"
+                col = "#1a7f4b" if smaller else "#b03a3a"; bg = "rgba(31,159,110,.10)" if smaller else "rgba(176,58,58,.08)"
+                rows["Parameters"].append(f"<td style='background:{bg};color:{col};font-weight:600'>{txt}"
+                                          f"<span class='hint' style='color:var(--dim);font-weight:400'>{int(fp):,} vs {int(bp_):,}</span></td>")
         out.append("<div class='card'><table class='data'><thead><tr><th class='it'>metric</th>"
                    + "".join(f"<th>vs {h}</th>" for h in heads) + "</tr></thead><tbody>"
                    + "".join(f"<tr><td class='it'>{k}</td>{''.join(v)}</tr>" for k, v in rows.items())
                    + "</tbody></table></div>")
-    out.append(f"<p class='legend'><b>Summary.</b> {n_green} of {n_total} cells favour our method on the mean. "
+    out.append(f"<p class='legend'><b>Summary.</b> {n_green} of {n_total} tested cells favour our method on the mean. "
                "Lower worst-group loss and regret than every baseline on every dataset; worst-group accuracy is higher on the mean on NHANES and EMBED "
                "and within a point on Fed-Heart, but no accuracy difference against a published baseline is significant at 10 seeds. "
+               "Worst-group macro-F1 is significantly higher than all three baselines on NHANES (the imbalanced dataset), and 1 to 3 points lower on Fed-Heart and EMBED "
+               "(one of those six cells significant). Our model is the smallest on both tabular datasets and mid-sized on EMBED. "
                "For the paper: report the raw numbers in the main tables and quote the loss reductions in prose; "
                "keep this view as the summary, not the primary table.</p>")
     return "".join(out)

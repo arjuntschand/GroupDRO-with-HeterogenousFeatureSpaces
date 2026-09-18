@@ -39,7 +39,7 @@ The tabular architecture follows the November 2025 draft; the ICLR draft's desig
 | ERM, common features | 68.28 ± 1.0 \| 0.638 | 69.28 ± 1.5 \| 0.496 | 62.16 ± 3.4 \| 1.350 |
 | per-group + GroupDRO | 72.99 ± 1.2 \| 0.583 | 71.35 ± 1.9 \| 0.507 | 62.70 ± 2.9 \| 1.051 |
 | per-group + Regret-DRO | 73.18 ± 1.3 \| 0.576 | 70.84 ± 2.0 \| 0.527 | 61.02 ± 3.6 \| 1.344 |
-| per-group + anchors + GroupDRO | 71.15 ± 2.3 \| 0.591 | 74.30 ± 4.0 \| 0.524 | (rerun under frozen schedule, see FINAL_TABLES) |
+| per-group + anchors + GroupDRO | 71.15 ± 2.3 \| 0.591 | 74.30 ± 4.0 \| 0.524 | 61.62 ± 2.1 \| 1.134 |
 | **full method** (per-group + anchors + Regret-DRO) | **72.25 ± 1.5 \| 0.570** | **74.67 ± 3.7 \| 0.522** | **62.74 ± 3.1 \| 1.066** |
 | Reweigh / Flex-MoE / REMIND | 72.4 / 72.4 / 73.0 \| 0.64 / 0.79 / 0.66 | 72.8 / 72.7 / 72.3 \| 0.68 / 0.61 / 0.66 | 59.3 / 62.3 / 62.1 \| 2.12 / 1.33 / 1.18 |
 

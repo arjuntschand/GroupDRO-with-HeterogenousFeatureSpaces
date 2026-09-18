@@ -384,7 +384,7 @@ Ten seeds (0, 1, 42, 1337, 7, 2024, 31337, 11, 22, 33), one patient split, every
 |---|---|---|---|---|---|---|
 | ERM | – | 62.16 ± 3.60 | 1.350 ± 0.16 | 75.72 | 72.09 | – |
 | anchors only | – | 57.14 (p = 0.001) | 1.303 | 76.52 | 70.31 | – |
-| align only | – | 57.64 (p < 0.001) | 1.294 | 76.53 | 70.26 | – |
+| anchors + GroupDRO (align only) | 2.0 | 61.62 (p = 0.70) | 1.134 (p = 0.001) | 75.6 | 69.5 | 1.3 |
 | GroupDRO | 0.5 | 62.43 | 1.200 (p = 0.002) | 77.31 | 70.57 | 1.67 (all on g4) |
 | Regret-DRO | 0.5 | 57.57 (p = 0.012) | 2.172 (p < 0.001, worse) | 75.41 | 68.97 | 0.32 |
 | ours | 0.5 | 61.62 | 1.144 (p = 0.002) | 75.55 | 69.54 | 1.32 (g4, g6) |
@@ -399,7 +399,7 @@ Ten seeds (0, 1, 42, 1337, 7, 2024, 31337, 11, 22, 33), one patient split, every
 What this says:
 
 - **Worst-group accuracy: nothing beats ERM on EMBED.** The best DRO cells tie it (62.7 vs 62.2, a difference of one exam in g2). Anchors on their own cost five points (p = 0.001).
-- **Worst-group loss: DRO with an engaged λ beats ERM clearly** (1.35 → 1.05–1.14, p ≤ 0.002), and the anchored arm (ours, 1.066) is level with plain GroupDRO (1.051). The anchors add nothing on top of GroupDRO here.
+- **Worst-group loss: DRO with an engaged λ beats ERM clearly** (1.35 → 1.05–1.14, p ≤ 0.002), and the anchored arms (ours 1.066, anchors + GroupDRO 1.134) are level with or slightly behind plain GroupDRO (1.051). The anchors add nothing on top of GroupDRO here. (The anchors-only row has no DRO and is the one arm that is worse than ERM on accuracy.)
 - **Regret-DRO without anchors is worse than ERM** on loss (2.0–2.3). Its λ barely moves (the excess over R* is small, so the exponent is small) and a λ that stays uniform over-weights the 40-row groups, which are memorised. Plain GroupDRO's raw-loss signal is ten times larger, so it escapes the uniform start within an epoch.
 - **The eq. 13 floors make the regret arms worse on EMBED** (ours 61.6 → 55.6 at γ 0.5). The g5 floor of 0.244 gives g5 a permanent excess, so λ and the worst group move to g5's 14 test exams.
 - **Where λ goes:** to g4 and g6, the two largest groups. With the training-loss signal the small groups are memorised and shed weight. This is the opposite of what DRO is meant to do, and the held-out signal (which fixes it on the tabular datasets) fails here for the reason above.

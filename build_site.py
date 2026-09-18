@@ -421,6 +421,8 @@ def pergroup_table(data, glegend, metric="acc", tail=None):
                    + "</th>" for g in gs)
     rows = []
     for key, aliases, label, enc, dro, anc, kind in METHODS:
+        if kind == "ext":          # baselines have their own tab
+            continue
         by_seed = next((data[a] for a in aliases if a in data), None)
         if not by_seed:
             continue

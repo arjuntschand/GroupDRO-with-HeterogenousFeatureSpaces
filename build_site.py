@@ -855,7 +855,7 @@ def baseline_table(data, tail=None):
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>")
 
 
-def final_results_page():
+def final_results_page(loaded=None, merged_bl=None):
     """The 'Final results' tab: seven deliverables per dataset, status checked against the files
     that exist at build time, with the frozen protocol stated once. The status column is computed
     from the filesystem so it cannot say 'ready' for something that is not there."""
@@ -912,6 +912,70 @@ def final_results_page():
             tag = "<span class='tag best'>ready</span>" if st else "<span class='tag todo'>missing</span>"
             out.append(f"<tr><td class='it'>{i}</td><td class='it'>{html.escape(name)}</td><td class='it'>{tag}</td><td class='src'>{html.escape(src)}</td></tr>")
         out.append("</tbody></table></div>")
+    # ---- the results themselves, compiled per dataset in the same seven-item order ----
+    def sweep_table(path, arm):
+        """Equal-budget hyperparameter sweep (run_sweep.py): every config tried for the full
+        method, validation and test worst-group accuracy, sorted by validation."""
+        if not os.path.exists(path):
+            return "<p class='na'>no sweep file</p>"
+        import json as _json
+        J = _json.load(open(path)).get(arm) or {}
+        rows = J.get("all") or []
+        if not rows:
+            return "<p class='na'>no rows</p>"
+        rows = sorted(rows, key=lambda r: -r["val"])
+        keys = list(rows[0]["config"].keys())
+        h = "".join(f"<th>{html.escape(k)}</th>" for k in keys)
+        body_rows = []
+        for i, r in enumerate(rows):
+            cls = " class='best'" if i == 0 else ""
+            body_rows.append(f"<tr{cls}>" + "".join(f"<td>{r['config'][k]}</td>" for k in keys)
+                             + f"<td>{100*r['val']:.2f}</td><td>{100*r['test']:.2f}</td><td>{r.get('n','')}</td></tr>")
+        return ("<table class='data'><thead><tr>" + h + "<th>val worst-group acc</th><th>test worst-group acc</th><th>seeds</th></tr></thead><tbody>"
+                + "".join(body_rows) + "</tbody></table>")
+    GAMMA = {
+      "NHANES": [("gamma 0.02, per epoch (old)", "72.62", "0.519", "0.01", "-"), ("gamma 0.1, per step (frozen)", "74.67", "0.522", "0.4-0.7", "+2.05 (p=0.017); AUROC and class-balanced accuracy unchanged"),
+                 ("gamma 0.5, per step", "74.57", "0.517", "0.7", "+1.95 (p=0.011)"), ("gamma 2.0, per step", "75.35", "0.547", "1.0+", "+2.73 (p=0.08); AUROC and class-balanced accuracy fall: majority drift")],
+      "Fed-Heart": [("gamma 0.02, per epoch (old)", "72.10", "0.587", "0.01", "-"), ("gamma 0.1, per step (frozen)", "72.25", "0.570", "0.52", "+0.15 (p=0.81)"),
+                    ("gamma 0.5, per step", "72.60", "0.601", "0.73", "+0.50 (p=0.47)"), ("gamma 2.0, per step", "72.87", "0.608", "1.08", "+0.77 (p=0.46)")],
+      "EMBED": [("gamma 0.02, proportional init (old)", "56.11 (3 seeds)", "1.287", "0.00", "-"), ("gamma 0.5, uniform init, train signal", "61.62", "1.144", "1.32", "ties ERM on accuracy; loss -0.21 vs ERM (p=0.002)"),
+                ("gamma 2.0, uniform init, train signal (frozen)", "62.74", "1.066", "1.62", "ties ERM on accuracy; loss -0.28 vs ERM (p<0.001)"),
+                ("gamma 0.5 / 2.0 with eq. 13 floors", "55.64 / 60.98", "1.245 / 1.217", "1.3 / 1.7", "worse: g5's floor is unattainable, weight and worst group move to its 14 test exams")]}
+    def gamma_table(ds):
+        rows = GAMMA[ds]
+        return ("<table class='data'><thead><tr><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>weights moved (L1)</th><th class='it'>vs frozen-weight setting</th></tr></thead><tbody>"
+                + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td class='it'>{r[4]}</td></tr>" for r in rows)
+                + "</tbody></table>")
+    DESC = {"NHANES": "nhnested", "Fed-Heart": "fedheart", "EMBED": "embed"}
+    DYNF = {"NHANES": ("fig5_dynamics_nhanes_groupdro", "fig5_dynamics_nhanes_regretdro"),
+            "Fed-Heart": ("fig5_dynamics_fedheart_groupdro", "fig5_dynamics_fedheart_regretdro"),
+            "EMBED": ("fig5_dynamics_embed_groupdro", "fig5_dynamics_embed_ours")}
+    SCAT = {"NHANES": ["fig11_latent_scatter_main", "fig11_latent_scatter"], "Fed-Heart": ["fig11_latent_scatter_fedheart"], "EMBED": ["fig11_latent_scatter_embed_main", "fig11_latent_scatter_embed"]}
+    SWEEP = {"NHANES": "runs/sweep_nhanes/sweep.json", "Fed-Heart": "runs/sweep_fedheart/sweep.json", "EMBED": None}
+    def figblock(stem, cap=""):
+        rel = f"figs/paper/{stem}.png"
+        return (f"<div class='fig'><img src='{rel}' alt=''><div class='cap'>{html.escape(cap)}</div></div>"
+                if os.path.exists(os.path.join(SITE, rel)) else f"<p class='na'>{stem} not built</p>")
+    if loaded:
+        out.append("<h2 style='margin-top:48px'>The results themselves</h2><p class='sub'>Same seven items per dataset, compiled from the final families. Every table is generated from the metrics CSV of the run family named in the checklist above.</p>")
+        for ds in ["NHANES", "Fed-Heart", "EMBED"]:
+            d = next(x for x in DATASETS if x["key"] == DESC[ds]); data = loaded[d["key"]]
+            out.append(f"<h2 style='margin-top:40px'>{ds}</h2>")
+            out.append(f"<h3>1. Ablation table, our own methods</h3><div class='card'>{headline_table(data, d.get('tail'))}</div>")
+            mb = (merged_bl or {}).get(d["key"])
+            out.append("<h3>2. Baselines table, our method against the published baselines</h3>")
+            out.append(f"<div class='card'>{baseline_table(mb, d.get('tail'))}</div>" if mb else "<p class='na'>baselines not loaded</p>")
+            g1, g2 = DYNF[ds]
+            out.append("<h3>3. Per-group loss against epoch</h3>" + figblock(g1, f"{ds}, GroupDRO: per-group loss (top) with R* dashed, group weight below.") + figblock(g2, f"{ds}, Regret-DRO / full method: per-group loss (top), group weight below."))
+            out.append("<h3>4. Per-group group weight against epoch</h3><p class='legend'>The lower row of each panel above is the weight trajectory; the summary of where the weights end is the first figure on the Plots tab (lambda against R*).</p>")
+            out.append("<h3>5. Latent-space alignment scatter, anchors on and off</h3>" + "".join(figblock(st) for st in SCAT[ds]))
+            out.append("<h3>6. Hyperparameter sweep</h3><p class='legend'>Group-weight step size and refresh cadence (the sweep that fixed the protocol; 10 seeds).</p><div class='card'>" + gamma_table(ds) + "</div>")
+            if SWEEP[ds]:
+                out.append("<p class='legend'>Equal-budget sweep over anchor weight, group-weight step size and latent width for the full method, validation-selected (run_sweep.py; earlier protocol, 3 seeds per config).</p><div class='card'>" + sweep_table(SWEEP[ds], "Ours_Regret") + "</div>")
+            else:
+                out.append("<p class='legend'>EMBED: anchor weight swept over 0.1 / 1 / 10, uniform vs proportional weight start, training vs held-out weight signal, original vs eq. 13 floors; the full tables are on the report page.</p>")
+            gl = "".join(f"<li><b>{html.escape(k)}</b> {html.escape(v)}</li>" for k, v in d["groups"].items())
+            out.append(f"<h3>7. Dataset description and feature table</h3><div class='card' style='padding:16px 20px'><p class='blurb' style='margin:0 0 10px'>{html.escape(d['blurb'])}</p><ul style='margin:0'>{gl}</ul></div>")
     out.append("<h3>Group-weight step size, the sweep behind the protocol</h3>")
     out.append("<div class='card'><table class='data'><thead><tr><th class='it'>dataset</th><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>weights moved by reported epoch (L1)</th><th>vs frozen-weight setting</th></tr></thead><tbody>"
                "<tr><td class='it'>Fed-Heart (10 seeds x 5 folds)</td><td class='it'>gamma 0.02, per epoch (old)</td><td>72.10</td><td>0.587</td><td>0.01</td><td>-</td></tr>"
@@ -982,8 +1046,11 @@ one of them would be misleading in one direction or the other.</div>
 number. A model can average 90% while one group sits at 50%.</li>
 <li><b>Mean accuracy.</b> Averaged over groups, so a small group counts as much as a large one.</li>
 <li><b>Worst-group loss.</b> The highest cross-entropy any group suffers.</li>
-<li><b>R*.</b> The best loss a group could reach using only its own features, measured by
-training on that group alone with 5-fold cross-validation. A group's difficulty floor.</li>
+<li><b>R*.</b> A group's difficulty floor. On Fed-Heart and NHANES it follows eq. 13 of the
+draft: the lower of the group-only 5-fold out-of-fold loss and the constant-predictor loss, minus
+a bootstrap margin so the floor is not an over-estimate (runs/rstar_*_eq13.json). On EMBED it is
+the 5-fold out-of-fold loss of the better of a group-only and a joint fit; the eq. 13 margin is
+too wide for its 51-row group and was not used there.</li>
 <li><b>Excess loss.</b> Loss minus R*. Separates "this group is genuinely hard" from "the shared
 model is neglecting this group". Regret reweighting targets this instead of raw loss.</li>
 <li><b>Head and tail.</b> Head groups are common, tail groups are rare. On EMBED two of six view
@@ -1047,23 +1114,25 @@ def build(outdir=SITE):
                          "What each step is worth. EMBED has no common-features rung: g1 is "
                          "{FFDM CC} and g3 is {FFDM MLO}, so the six groups share no view and "
                          "there is no shared-feature model to build, so the chart starts from "
-                         "per-group ERM. Red bars have the anchors on. The interaction is "
-                         "visible here: Regret-DRO on its own does nothing (57.8, identical to "
-                         "ERM), but paired with the anchors it reaches 61.9. Regret needs the "
-                         "anchors, because it compares each group against its own reference "
-                         "loss and that comparison is only meaningful once the groups share a "
-                         "latent space."),
+                         "per-group ERM. Red bars have the anchors on. Under the frozen schedule "
+                         "every DRO arm with a moving weight ties ERM on worst-group accuracy "
+                         "(the worst group holds 37 exams, so one exam is 2.7 points) and beats "
+                         "it on worst-group loss; the anchors add nothing on top of GroupDRO "
+                         "here, and anchors without DRO cost five points."),
                         (f"figs/{d['key']}_pergroup.png",
-                         "Per-group accuracy, per-group ERM against the full method. The gain "
-                         "is concentrated in g2, one of the rare tail groups."),
+                         "Per-group accuracy, per-group ERM against the full method. The full "
+                         "method gains on the two large groups (g4, g6) and on g2, and loses on "
+                         "g1, g3 and g5: the weight went to the large groups, and the tail is "
+                         "not protected on EMBED."),
                         (f"figs/{d['key']}_lambda.png",
-                         "Where each method spends its group weight, averaged over 10 seeds. "
-                         "GroupDRO collapses onto g4 alone; ours splits across g4 and g6. "
-                         "Neither puts weight on the tail groups. g5 is the clearest case: it "
-                         "has by far the highest reference loss at 1.28, so it is intrinsically "
-                         "hard rather than neglected, and regret correctly declines to push on "
-                         "it. That is the rule working as designed, and it is also why regret "
-                         "does not raise worst-group accuracy here.")]
+                         "Where each method spends its group weight, averaged over 10 seeds "
+                         "(frozen schedule: uniform start, training-loss signal every 50 steps, "
+                         "gamma 2.0). Both GroupDRO and ours end almost entirely on g4, the "
+                         "largest group. With a training-loss signal the 40-row tail groups are "
+                         "memorised, their training loss goes to zero, and they shed weight; the "
+                         "held-out signal that fixes this on the tabular datasets fails on EMBED "
+                         "(see the report page). This is why DRO lowers worst-group loss on EMBED "
+                         "without raising worst-group accuracy.")]
             else:
                 figs = [(f"figs/{d['key']}_ladder.png",
                          "What each step is worth, building up from the baseline a practitioner "
@@ -1090,9 +1159,10 @@ def build(outdir=SITE):
             body.append("<h3>Excess loss by group</h3>")
             body.append("<p class='blurb'>Loss above each group's own reference loss R*. This "
                         "separates a group the model is neglecting (low R*, high excess) from "
-                        "one that is simply hard (high R*, low excess). R* is measured once by "
-                        "training on that group alone with 5-fold cross validation, and is the "
-                        "same constant for every method.</p>")
+                        "one that is simply hard (high R*, low excess). R* is estimated once "
+                        "from out-of-fold losses (eq. 13 floors on the tabular datasets, plain "
+                        "out-of-fold floors on EMBED; see Methods), and is the same constant for "
+                        "every method.</p>")
             body.append(f"<div class='card'>{rstar_strip(data)}"
                         f"{pergroup_table(data, d['groups'], 'excess')}</div>")
             body.append("<h3>Loss by group</h3>")
@@ -1104,29 +1174,33 @@ def build(outdir=SITE):
     # loss R* drawn as a horizontal line, and the group's DRO weight against epoch, for both
     # the GroupDRO and the regret variant of the full method.
     plots = ["<h2>Training dynamics</h2>",
-             "<div class='note'><b>Read the first two first.</b> <b>Lambda against R*</b> is the "
-             "mechanism test. R* is the lowest loss a group's own features permit, so a group "
-             "with a high R* is one no model can do much about. GroupDRO reweights on raw loss "
-             "and therefore chases exactly those groups: on NHANES its weight tracks R* with "
-             "slope +15.7 and correlation +0.94, putting 0.76 of its weight on the survey-only "
-             "group. Regret-DRO subtracts the floor first and does not track it, slope -1.85, "
-             "correlation -0.15. Fed-Heart is a null for both, because its lambda barely moves "
-             "there.<br><br><b>Per-group loss</b> shows why the max player cannot be fed training "
-             "loss. Switzerland trains on 20 patients and the VA on 25, so their train loss "
-             "collapses to near zero while test loss climbs past the R* line, the VA to nearly "
-             "three times what its features permit. By the training signal those are the two "
-             "best groups in the dataset. NHANES is the opposite regime: both groups sit above "
-             "their floor throughout and never memorise.</div>",
-             "<div class='note'><b>Why Fed-Heart's small groups diverge.</b> Switzerland and "
-             "the VA are capped at 20 and 25 training patients by "
-             "<code>group_max_train_samples</code>, out of 98 and 160 available. That cap is ours, "
-             "a deliberate scarcity manipulation to create a hard worst-group problem, not a "
-             "property of the dataset. A 38,946-parameter model memorises 20 samples trivially, "
-             "which is why train loss reaches 0.03 while test climbs past 0.73.<br><br>"
-             "<b>The validation curve is the one to check.</b> It drives the lambda update and "
-             "selects the reported epoch, so it has to track test rather than train or the whole "
-             "selection leaks. On Fed-Heart it correlates with test at r=0.94 and with train at "
-             "r=-0.62. Switzerland sits at train 0.03, val 0.67, test 0.73.</div>",
+             "<div class='note'><b>Read the first figure first.</b> <b>Lambda against R*</b> "
+             "shows where each max player ends up under the frozen protocol (weights start "
+             "uniform, held-out signal, refreshed every step at gamma 0.1). GroupDRO reweights on "
+             "raw held-out loss, so on Fed-Heart it settles on Hungarian and the VA, the two "
+             "groups with the highest loss; Regret-DRO subtracts each group's floor first and "
+             "puts all of its weight on Switzerland, whose eq. 13 floor (0.11) is far below any "
+             "loss the model reaches, so its excess never closes. On NHANES both put most of the "
+             "weight on the survey-only group, which is both the highest-loss and the "
+             "highest-excess group there. The capped Fed-Heart panel is the superseded scarcity "
+             "study under the old schedule, where the weights never left their initialisation.<br><br>"
+             "<b>Per-group loss</b> shows why the max player is fed held-out rather than training "
+             "loss on the tabular datasets: Switzerland's training loss falls toward zero while "
+             "its held-out and test loss rise, so a training signal would hand the most "
+             "vulnerable group less weight. It also shows the cost of an engaged regret player: "
+             "once Switzerland holds all the weight its held-out loss climbs, and validation-based "
+             "epoch selection is what stops the reported model before that. NHANES sits above its "
+             "floors throughout and does not memorise.</div>",
+             "<div class='note'><b>What changed from the earlier version of this tab.</b> The "
+             "previous figures were made under the draft's gamma 0.02 with one refresh per epoch, "
+             "where the weights moved 0.00 to 0.02 over training and the max player was in effect "
+             "switched off. All panels here are regenerated from the frozen-protocol families "
+             "(runs/final_fedheart, runs/final_nhanes), averaging 10 seeds and shading one "
+             "standard error. The EMBED panels are a single seed under its own frozen schedule "
+             "(uniform init, training-loss signal every 50 steps, gamma 2.0); there the weight "
+             "goes to the two largest groups, because with a training-loss signal the 40-row "
+             "groups are memorised and shed weight, and the held-out signal fails on EMBED for the "
+             "reason given on the report page.</div>",
              "<p class='blurb'>Every panel below averages 10 seeds and shades one standard "
              "error. The single-fold versions these replace could not separate signal from seed "
              "noise on NHANES, where test loss oscillated by about 0.1 between epochs.</p>"]
@@ -1200,6 +1274,7 @@ def build(outdir=SITE):
           ("embed", "EMBED", "runs/baselines_embed/metrics_long.csv",
            "runs/baselines_embed_matched/metrics_long.csv",
            "runs/baselines_embed_remind128/metrics_long.csv")]
+    merged_bl = {}
     for row in BL:
         key, label, relp, matp = row[0], row[1], row[2], row[3]
         overrides = row[4] if len(row) > 4 else None
@@ -1215,6 +1290,7 @@ def build(outdir=SITE):
         if overrides and os.path.exists(overrides):
             for m, v in load(overrides).items():
                 merged[f"{m}__released"] = v
+        merged_bl[key] = merged
         bl.append(f"<h3>{html.escape(label)}</h3>")
         bl.append(f"<div class='card'>{baseline_table(merged, d.get('tail'))}</div>")
         if not os.path.exists(matp):
@@ -1222,7 +1298,7 @@ def build(outdir=SITE):
     tabs.append(("Baselines", "sec-baselines")); secs.append(("sec-baselines", "".join(bl)))
 
     tabs.append(("Methods", "sec-methods")); secs.append(("sec-methods", methods_page()))
-    tabs.append(("Final results", "sec-plan")); secs.append(("sec-plan", final_results_page()))
+    tabs.append(("Final results", "sec-plan")); secs.append(("sec-plan", final_results_page(loaded, merged_bl)))
 
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "
                   f"class='{'on' if i == 0 else ''}'>{html.escape(t)}</a>"

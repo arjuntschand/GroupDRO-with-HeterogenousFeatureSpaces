@@ -273,13 +273,39 @@ def paired_p(a, b):
         return None
 
 
-def headline_table(data, tail=None):
-    """method x [worst-group acc, mean acc, macro-F1, worst-group loss].
+def per_seed_series(by_seed, tail=None):
+    """seed -> value for each numeric column of the headline table, for paired tests."""
+    out = {k: {} for k in ("worst_acc", "tail_acc", "wt_acc", "wt_f1", "worst_loss", "max_excess")}
+    for sd, groups in by_seed.items():
+        if not groups:
+            continue
+        accs = [g["acc"] for g in groups.values()]; ns = [g["n"] for g in groups.values()]
+        out["worst_acc"][sd] = min(accs)
+        if sum(ns) > 0:
+            out["wt_acc"][sd] = sum(a * n for a, n in zip(accs, ns)) / sum(ns)
+            f1v = [g["f1"] for g in groups.values()]
+            if all(v == v for v in f1v):
+                out["wt_f1"][sd] = sum(a * n for a, n in zip(f1v, ns)) / sum(ns)
+        if tail:
+            tv = [m["acc"] for g, m in groups.items() if g in tail]
+            if tv:
+                out["tail_acc"][sd] = sum(tv) / len(tv)
+        losses = [g["loss"] for g in groups.values() if g["loss"] == g["loss"]]
+        if losses:
+            out["worst_loss"][sd] = max(losses)
+        exs = [g["excess"] for g in groups.values() if g["excess"] == g["excess"]]
+        if exs:
+            out["max_excess"][sd] = max(exs)
+    return out
 
-    Ranking by raw mean alone is misleading when the spread across seeds is larger than the
-    gap between arms, which happens here whenever a group's test set is small. So the top row
-    by mean is compared against every other arm with a paired t-test over shared seeds, and
-    anything that is not significantly worse is marked as tied rather than beaten.
+
+def headline_table(data, tail=None):
+    """method x [worst-group acc, tail acc, overall acc, macro-F1, worst-group loss, max excess].
+
+    Our arms are tinted. In every numeric column the best arm (excluding controls and external
+    baselines) is bold on green, and any arm a paired t-test over shared seeds cannot separate
+    from it (p >= 0.05) is dotted-underlined, so a best-by-mean cell that only wins by noise is
+    not read as a clear win.
     """
     rows, summaries, series, summaries_meta = [], {}, {}, {}
     for key, aliases, label, enc, dro, anc, kind in METHODS:
@@ -288,62 +314,63 @@ def headline_table(data, tail=None):
             continue
         summaries[key] = (label, kind, summarize(by_seed, tail=tail))
         summaries_meta[key] = (enc, dro, anc)
-        series[key] = worst_by_seed(by_seed)
+        series[key] = per_seed_series(by_seed, tail=tail)
     if not summaries:
         return "<p class='na'>No runs yet.</p>"
 
-    # Rank WITHIN each encoder track rather than across the whole table. A shared-encoder arm
-    # and a per-group arm see different feature sets, so a single global winner compares two
-    # things that are not alternatives to each other. Per track the question is the useful one:
-    # given this encoder, which combination of DRO and anchors is best?
-    ranked = [k for k, (_, kind, s) in summaries.items()
-              if kind not in ("ctrl", "ext") and s["worst_acc"]]
-    tops, tied = set(), set()
-    for track in ("shared", "per-group"):
-        in_track = [k for k in ranked if summaries_meta[k][0] == track]
-        if not in_track:
+    HIGHER = {"worst_acc": True, "tail_acc": True, "wt_acc": True, "wt_f1": True,
+              "worst_loss": False, "max_excess": False}
+    ranked = [k for k, (_, kind, s) in summaries.items() if kind not in ("ctrl", "ext")]
+    best, tied = {}, {}
+    for col, higher in HIGHER.items():
+        cand = [k for k in ranked if summaries[k][2].get(col)]
+        if not cand:
             continue
-        top = max(in_track, key=lambda k: summaries[k][2]["worst_acc"][0])
-        tops.add(top); tied.add(top)
-        for k in in_track:
+        top = (max if higher else min)(cand, key=lambda k: summaries[k][2][col][0])
+        best[col] = top; tied[col] = set()
+        for k in cand:
             if k == top:
                 continue
-            pv = paired_p(series[top], series[k])
+            pv = paired_p(series[top][col], series[k][col])
             if pv is None or pv >= 0.05:
-                tied.add(k)
+                tied[col].add(k)
+
+    def fcell(key, col, digits=1):
+        v = summaries[key][2].get(col)
+        if v is None:
+            return "<td class='na'>—</td>"
+        style = ""
+        if best.get(col) == key:
+            style = " style='background:rgba(31,159,110,.18);font-weight:700'"
+        elif key in tied.get(col, ()):
+            style = " style='text-decoration:underline dotted;text-underline-offset:3px'"
+        return f"<td{style}>{v[0]:.{digits}f}<span class='sd'>±{v[1]:.{digits}f}</span></td>"
 
     for key, (label, kind, s) in summaries.items():
-        is_tied = key in tied
         tag = {"full": "<span class='tag ours'>full method</span>",
                "ctrl": "<span class='tag ctrl'>control</span>",
                "ext":  "<span class='tag ctrl'>external baseline</span>"}.get(kind, "")
-        if key in tops:
-            note = "<span class='tag best'>best for this encoder</span>"
-        elif is_tied:
-            note = "<span class='tag tied'>tied</span>"
-        else:
-            note = ""
-        enc_c, dro_c, anc_c = (summaries_meta[key])
+        enc_c, dro_c, anc_c = summaries_meta[key]
+        ours = enc_c == "per-group" and anc_c == "yes" and dro_c not in ("—", "")   # per-group + anchors + DRO
+        row_style = " style='background:rgba(29,111,139,.07)'" if ours else ""
         rows.append(
-            f"<tr class='{'best' if is_tied else ''}'>"
-            f"<td class='m'>{html.escape(label)}{tag}{note}</td>"
+            f"<tr{row_style}>"
+            f"<td class='m'>{html.escape(label)}{tag}</td>"
             f"<td class='sw'>{html.escape(enc_c)}</td>"
             f"<td class='sw'>{html.escape(dro_c)}</td>"
             f"<td class='sw'>{html.escape(anc_c)}</td>"
-            f"{cell(s['worst_acc'])}"
+            f"{fcell(key, 'worst_acc')}"
             f"<td class='sw'>{html.escape(s['worst_group'] or '')}</td>"
-            f"{cell(s['tail_acc'])}{cell(s['wt_acc'])}{cell(s['wt_f1'])}"
-            f"{cell(s['worst_loss'], 3)}{cell(s['max_excess'], 3)}"
+            f"{fcell(key, 'tail_acc')}{fcell(key, 'wt_acc')}{fcell(key, 'wt_f1')}"
+            f"{fcell(key, 'worst_loss', 3)}{fcell(key, 'max_excess', 3)}"
             f"<td class='sw'>{html.escape(s['excess_group'] or '')}</td>"
-            # Step 5 asks for parameter counts on every row, because row 4 (REMIND) is a
-            # different architecture and the comparison is meaningless without them.
             + (f"<td class='dim'>{int(s['n_params']):,}</td>"
                if s.get("n_params") else "<td class='na'>—</td>")
             + f"<td class='dim'>{s['seeds']}</td></tr>")
-    foot = ("<p class='legend'>Best is marked separately for each encoder, since a "
-            "common-feature model and a per-group model do not see the same inputs. "
-            "<b>Tied</b> means a paired t-test over shared seeds cannot separate it from the "
-            "best arm in its own track (p &ge; 0.05).</p>")
+    foot = ("<p class='legend'>Tinted rows are our arms (anchors + DRO). In each column the "
+            "<b>bold green</b> cell is the best arm on the mean (controls and external baselines "
+            "excluded); <span style='text-decoration:underline dotted'>dotted</span> cells are arms a "
+            "paired t-test over shared seeds cannot separate from it (p &ge; 0.05).</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
             "<th class='sw'>encoder</th><th class='sw'>DRO</th><th class='sw'>anchors</th>"
             "<th>worst-group acc <span class='hint'>higher better</span></th>"
@@ -821,38 +848,66 @@ def baseline_table(data, tail=None):
             ("ERM", "ERM, common features", "base"),
             ("erm", "Per-group encoders + ERM", "base"),
             ("PerGroupOnly", "Per-group encoders + ERM", "base")]
-    seen, rows = set(), []
-    def cellf(v, dp=1):
-        return f"<td>{v[0]:.{dp}f}<span class='sd'>±{v[1]:.{dp}f}</span></td>" if v else "<td class='na'>—</td>"
-    def emit(key, label, kind, suffix=""):
+    # Collect every row first so the per-column best (and the arms a paired test cannot
+    # separate from it) can be marked across our arms AND the baselines together: on this table
+    # the question is exactly "who is best on this metric among everything".
+    seen, entries = set(), []
+    def collect(key, label, kind, suffix=""):
         if key not in data or label in seen:
             return
         seen.add(label)
-        s_ = summarize(data[key], tail=tail)
+        entries.append((key, label + suffix, kind, summarize(data[key], tail=tail),
+                        per_seed_series(data[key], tail=tail)))
+    for k, l, kind in ROWS:
+        collect(k, l, kind)
+    for tag, lbl in [("released", " (published defaults)"), ("matched", " (capacity-matched)")]:
+        for m in ["Reweigh", "FlexMoE", "REMIND"]:
+            collect(f"{m}__{tag}", f"{m}{lbl}", "ext")
+    HIGHER = {"worst_acc": True, "tail_acc": True, "wt_acc": True, "wt_f1": True,
+              "worst_loss": False, "max_excess": False}
+    best, tied = {}, {}
+    for col, higher in HIGHER.items():
+        cand = [e for e in entries if e[3].get(col)]
+        if not cand:
+            continue
+        top = (max if higher else min)(cand, key=lambda e: e[3][col][0])
+        best[col] = top[1]; tied[col] = set()
+        for e in cand:
+            if e is top:
+                continue
+            pv = paired_p(top[4][col], e[4][col])
+            if pv is None or pv >= 0.05:
+                tied[col].add(e[1])
+    def fcell(label, s_, col, dp=1):
+        v = s_.get(col)
+        if not v:
+            return "<td class='na'>—</td>"
+        style = ""
+        if best.get(col) == label:
+            style = " style='background:rgba(31,159,110,.18);font-weight:700'"
+        elif label in tied.get(col, ()):
+            style = " style='text-decoration:underline dotted;text-underline-offset:3px'"
+        return f"<td{style}>{v[0]:.{dp}f}<span class='sd'>±{v[1]:.{dp}f}</span></td>"
+    rows = []
+    for key, label, kind, s_, _ in entries:
         npar = s_.get("n_params")
         tag = {"full": "<span class='tag ours'>ours</span>",
                "ext": "<span class='tag ctrl'>external</span>"}.get(kind, "")
+        row_style = " style='background:rgba(29,111,139,.07)'" if kind in ("full", "abl") else ""
         rows.append(
-            f"<tr class='{'best' if kind == 'full' else ''}'>"
-            f"<td class='m'>{html.escape(label)}{suffix}{tag}</td>"
-            f"{cellf(s_['worst_acc'])}{cellf(s_['tail_acc'])}{cellf(s_['wt_acc'])}"
-            f"{cellf(s_['wt_f1'])}{cellf(s_['worst_loss'], 3)}{cellf(s_['max_excess'], 3)}"
-            f"<td class='dim'>{int(npar):,}</td>" if npar else
-            f"<tr class='{'best' if kind == 'full' else ''}'>"
-            f"<td class='m'>{html.escape(label)}{suffix}{tag}</td>"
-            f"{cellf(s_['worst_acc'])}{cellf(s_['tail_acc'])}{cellf(s_['wt_acc'])}"
-            f"{cellf(s_['wt_f1'])}{cellf(s_['worst_loss'], 3)}{cellf(s_['max_excess'], 3)}"
-            f"<td class='na'>—</td>")
-        rows[-1] += f"<td class='dim'>{s_['seeds']}</td></tr>"
-    for k, l, kind in ROWS:
-        emit(k, l, kind)
-    for tag, lbl in [("released", " (published defaults)"), ("matched", " (capacity-matched)")]:
-        for m in ["Reweigh", "FlexMoE", "REMIND"]:
-            emit(f"{m}__{tag}", f"{m}{lbl}", "ext")
+            f"<tr{row_style}><td class='m'>{html.escape(label)}{tag}</td>"
+            f"{fcell(label, s_, 'worst_acc')}{fcell(label, s_, 'tail_acc')}{fcell(label, s_, 'wt_acc')}"
+            f"{fcell(label, s_, 'wt_f1')}{fcell(label, s_, 'worst_loss', 3)}{fcell(label, s_, 'max_excess', 3)}"
+            + (f"<td class='dim'>{int(npar):,}</td>" if npar else "<td class='na'>—</td>")
+            + f"<td class='dim'>{s_['seeds']}</td></tr>")
+    foot = ("<p class='legend'>Tinted rows are our anchored arms. In each column the <b>bold green</b> "
+            "cell is the best arm on the mean across everything in the table, ours and baselines alike; "
+            "<span style='text-decoration:underline dotted'>dotted</span> cells are arms a paired t-test over "
+            "shared seeds cannot separate from it (p &ge; 0.05).</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
             "<th>worst-group acc</th><th>tail acc</th><th>overall acc</th><th>macro-F1</th>"
             "<th>worst-group loss</th><th>max excess</th><th>params</th><th>seeds</th>"
-            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>")
+            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>" + foot)
 
 
 def vs_baselines_block(loaded, merged_bl):

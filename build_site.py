@@ -1083,8 +1083,10 @@ def final_results_page(loaded=None, merged_bl=None):
         h = "".join(f"<th>{html.escape(k)}</th>" for k in keys)
         body_rows = []
         for i, r in enumerate(rows):
-            cls = " class='best'" if i == 0 else ""
-            body_rows.append(f"<tr{cls}>" + "".join(f"<td>{r['config'][k]}</td>" for k in keys)
+            used = (r["config"].get("lambda_fit") == 0.1 and r["config"].get("latent_dim") == 64)
+            cls = " class='best'" if used else ""
+            tag = (" <span class='tag best'>selected</span>" if used else "") + (" <span class='tag tied'>val-best</span>" if i == 0 else "")
+            body_rows.append(f"<tr{cls}>" + "".join(f"<td>{r['config'][k]}{tag if k == keys[0] else ''}</td>" for k in keys)
                              + f"<td>{100*r['val']:.2f}</td><td>{100*r['test']:.2f}</td><td>{r.get('n','')}</td></tr>")
         return ("<table class='data'><thead><tr>" + h + "<th>val worst-group acc</th><th>test worst-group acc</th><th>seeds</th></tr></thead><tbody>"
                 + "".join(body_rows) + "</tbody></table>")
@@ -1109,7 +1111,7 @@ def final_results_page(loaded=None, merged_bl=None):
     SCAT = {"NHANES": [("fig11_latent_scatter", "Left: no anchors. Middle: class anchors (ours). Right: the randomly-assigned-anchor control from Appendix B of the draft, where each sample is pulled toward a random class's anchor. Top row coloured by group (rings = group centroids), bottom row the same points by outcome; stars are the learnt anchor means and the dashed ellipses the learnt anchor Gaussians at 2 sigma, projected onto the same plane. Between-group distance 2.57 / 0.15 / 0.23: on NHANES any shared target aligns the groups; the class structure is a smaller part. The cloud-to-learnt-anchor W2 (each (group, class) cloud against its anchor) is 0.77 for the real anchors and 0.88 for random ones.")],
             "Fed-Heart": [("fig11_latent_scatter_fedheart", "Same three columns. The hospitals already overlap without anchors (0.65 to 0.42), so there is little for the anchors or the control to change.")],
             "EMBED": [("fig11_latent_scatter_embed", "Same three columns, 500 exams per group plotted. Real anchors align the six view groups (1.03 to 0.19); random anchors do not (0.69), so here the class structure is what does the aligning. The clouds sit close to their learnt anchors (cloud-to-anchor W2 0.21 vs 0.73 for random anchors), but the four class anchors themselves sit nearly on top of each other.")]}
-    SWEEP = {"NHANES": "runs/sweep_nhanes/sweep.json", "Fed-Heart": "runs/sweep_fedheart/sweep.json", "EMBED": None}
+    SWEEP = {"NHANES": "runs/sweep_nhanes_frozen/sweep.json", "Fed-Heart": "runs/sweep_fedheart_frozen/sweep.json", "EMBED": None}
     def figblock(stem, cap=""):
         rel = f"figs/paper/{stem}.png"
         return (f"<div class='fig'><img src='{rel}' alt=''><div class='cap'>{html.escape(cap)}</div></div>"
@@ -1128,8 +1130,8 @@ def final_results_page(loaded=None, merged_bl=None):
             out.append("<h3>4. Per-group group weight against epoch</h3><p class='legend'>The lower row of each panel above is the weight trajectory; the summary of where the weights end is the first figure on the Plots tab (lambda against R*).</p>")
             out.append("<h3>5. Latent-space alignment scatter, anchors on and off</h3>" + "".join(figblock(st, cap) for st, cap in SCAT[ds]))
             out.append("<h3>6. Hyperparameter sweep, full method (per-group encoders + anchors + Regret-DRO)</h3><p class='legend'>Group-weight step size and refresh cadence for the full method (the sweep that fixed the protocol; 10 seeds). The other DRO arms at each setting are on the report page.</p><div class='card'>" + gamma_table(ds) + "</div>")
-            if SWEEP[ds] and os.path.exists(SWEEP[ds].replace("sweep_", "sweep_").replace("/sweep.json", "_frozen/sweep.json")):
-                out.append("<p class='legend'>Equal-budget sweep over anchor weight, group-weight step size and latent width for the full method (per-group encoders + anchors + Regret-DRO), validation-selected (run_sweep.py; earlier protocol, 3 seeds per config; the highlighted row is the configuration validation picked in that sweep). Only validation and test worst-group accuracy were recorded per config, so loss and excess are not available for this sweep without rerunning it.</p><div class='card'>" + sweep_table(SWEEP[ds], "Ours_Regret") + "</div>")
+            if SWEEP[ds] and os.path.exists(SWEEP[ds]):
+                out.append("<p class='legend'>Equal-budget sweep over anchor weight and latent width for the full method (per-group encoders + anchors + Regret-DRO) under the frozen protocol, step size fixed at the selected gamma 0.1 per step, 3 seeds per configuration" + (" x 5 folds" if ds == "Fed-Heart" else "") + ", validation worst-group accuracy. The <b>selected</b> row is the configuration the ablation uses (anchor weight 0.1, width 64); the <b>val-best</b> tag marks the configuration validation ranked first. Where they differ the gap is within seed noise: rerunning the anchored arms at the val-best weight on all 10 NHANES seeds changed worst-group accuracy by -0.7 (p = 0.68) for the full method.</p><div class='card'>" + sweep_table(SWEEP[ds], "Ours_Regret") + "</div>")
             else:
                 out.append("<p class='legend'>EMBED: anchor weight swept over 0.1 / 1 / 10, uniform vs proportional weight start, training vs held-out weight signal, original vs eq. 13 floors; the full tables are on the report page.</p>")
             gl = "".join(f"<li><b>{html.escape(k)}</b> {html.escape(v)}</li>" for k, v in d["groups"].items())

@@ -1,0 +1,139 @@
+{
+ "Ours_Regret": {
+  "all": [
+   {
+    "config": {
+     "lambda_fit": 0.01,
+     "lambda_sep": 0.01,
+     "latent_dim": 32,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.7395833333333334,
+    "test": 0.7277046015179506,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.01,
+     "lambda_sep": 0.01,
+     "latent_dim": 64,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.7609276729559747,
+    "test": 0.7609067579127459,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.01,
+     "lambda_sep": 0.01,
+     "latent_dim": 128,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.7473266097580655,
+    "test": 0.7349649174163974,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.05,
+     "lambda_sep": 0.05,
+     "latent_dim": 32,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.7399515264534967,
+    "test": 0.7296834901625321,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.05,
+     "lambda_sep": 0.05,
+     "latent_dim": 64,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.7331774174388217,
+    "test": 0.7226974622184202,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.05,
+     "lambda_sep": 0.05,
+     "latent_dim": 128,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.7354166666666666,
+    "test": 0.7206862073226904,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.1,
+     "lambda_sep": 0.1,
+     "latent_dim": 32,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.7374673319078165,
+    "test": 0.7239806102081552,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.1,
+     "lambda_sep": 0.1,
+     "latent_dim": 64,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.74375,
+    "test": 0.7348160821214713,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.1,
+     "lambda_sep": 0.1,
+     "latent_dim": 128,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.7428865229270611,
+    "test": 0.7361005675596006,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.3,
+     "lambda_sep": 0.3,
+     "latent_dim": 32,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.7497393977191731,
+    "test": 0.760876531579029,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.3,
+     "lambda_sep": 0.3,
+     "latent_dim": 64,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.742456640532193,
+    "test": 0.7258340461933276,
+    "n": 3
+   },
+   {
+    "config": {
+     "lambda_fit": 0.3,
+     "lambda_sep": 0.3,
+     "latent_dim": 128,
+     "groupdro_eta": 0.1
+    },
+    "val": 0.7512360362117118,
+    "test": 0.7628976835928786,
+    "n": 3
+   }
+  ],
+  "protocol": "frozen 2026-09-18: gamma 0.1 per step, 1/G init, eq. 13 floors, held-out signal; 3 seeds"
+ }
+}

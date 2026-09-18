@@ -1081,11 +1081,9 @@ def final_results_page(loaded=None, merged_bl=None):
     DYNF = {"NHANES": ("fig5_dynamics_nhanes_groupdro", "fig5_dynamics_nhanes_regretdro"),
             "Fed-Heart": ("fig5_dynamics_fedheart_groupdro", "fig5_dynamics_fedheart_regretdro"),
             "EMBED": ("fig5_dynamics_embed_groupdro", "fig5_dynamics_embed_ours")}
-    SCAT = {"NHANES": [("fig11_latent_scatter_main", "Main-text version: no anchors beside class anchors. Top row coloured by group (rings = group centroids), bottom row the same points by outcome (stars = learnt anchors)."),
-                       ("fig11_latent_scatter", "Appendix version: the same two panels plus the randomly-assigned-anchor control.")],
-            "Fed-Heart": [("fig11_latent_scatter_fedheart", "Three columns including the random-anchor control; the hospitals already overlap without anchors.")],
-            "EMBED": [("fig11_latent_scatter_embed_main", "Main-text version: no anchors beside class anchors (500 exams per group plotted)."),
-                      ("fig11_latent_scatter_embed", "Appendix version with the random-anchor control: random anchors do not align the groups (0.69 vs 0.19).")]}
+    SCAT = {"NHANES": [("fig11_latent_scatter", "Left: no anchors. Middle: class anchors (ours). Right: the randomly-assigned-anchor control from Appendix B of the draft, where each sample is pulled toward a random class's anchor. Top row coloured by group (rings = group centroids), bottom row the same points by outcome (stars = learnt anchors). Between-group distance 2.57 / 0.15 / 0.23: on NHANES any shared target aligns the groups; the class structure is a smaller part.")],
+            "Fed-Heart": [("fig11_latent_scatter_fedheart", "Same three columns. The hospitals already overlap without anchors (0.65 to 0.42), so there is little for the anchors or the control to change.")],
+            "EMBED": [("fig11_latent_scatter_embed", "Same three columns, 500 exams per group plotted. Real anchors align the six view groups (1.03 to 0.19); random anchors do not (0.69), so here the class structure is what does the aligning.")]}
     SWEEP = {"NHANES": "runs/sweep_nhanes/sweep.json", "Fed-Heart": "runs/sweep_fedheart/sweep.json", "EMBED": None}
     def figblock(stem, cap=""):
         rel = f"figs/paper/{stem}.png"
@@ -1116,8 +1114,7 @@ def final_results_page(loaded=None, merged_bl=None):
                + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{ds if i == 0 else ''}</td><td class='it'>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for ds in ["Fed-Heart", "NHANES", "EMBED"] for i, r in enumerate(GAMMA[ds]))
                + "</tbody></table></div>")
     out.append("<h3>Latent-space scatter, anchors on and off</h3>")
-    for stem, cap in [("fig11_latent_scatter_main", "NHANES, main-text version: top coloured by group (rings are group centroids), bottom the same points by outcome (stars are the learnt anchors). Between-group distance 2.57 to 0.15."),
-                      ("fig11_latent_scatter", "NHANES, three columns with the randomly-assigned-anchor control."),
+    for stem, cap in [("fig11_latent_scatter", "NHANES, three columns with the randomly-assigned-anchor control."),
                       ("fig11_latent_scatter_fedheart", "Fed-Heart: the hospitals already overlap without anchors."),
                       ("fig11_latent_scatter_embed", "EMBED: the six view groups align (1.03 to 0.19) and random anchors do not do it (0.69); the class anchors sit close together.")]:
         rel = f"figs/paper/{stem}.png"

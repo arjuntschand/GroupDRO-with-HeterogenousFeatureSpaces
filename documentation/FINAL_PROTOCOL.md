@@ -51,6 +51,10 @@ Paired over seeds: full method vs common-features ERM, Fed-Heart +3.96 (p < 0.00
 - No-common-information test (NHANES re-partitioned so groups share no columns, `runs/matrix_nhanes_partition`, `runs/baselines_nhanes_partition`): shared-encoder ERM and all three published baselines predict the majority class on the two smaller groups (AUROC 0.50); the per-group arms keep AUROC 0.55–0.71.
 - Dynamics: `figs/paper/fig5_dynamics_*` (mean of 10 seeds on tabular, seed 0 on EMBED) show λ moving under the frozen protocol.
 
+## EMBED anchor learning rate (tested 2026-09-18, not adopted)
+
+At EMBED's base learning rate (5e-5, step decay, 20 epochs) the four class anchors barely separate (anchor-mean separation 0.31 latent-scale units; the stars coincide in the scatter). Giving the anchor parameters their own learning rate in the same optimizer (`--anchor-lr`) separates them: 1.6 at 5e-4, 1.9 at 5e-3, between-class W2 0.60 → 0.86. At 10 seeds this changes nothing for the DRO arms (full method worst-group acc 62.74 → 62.37, loss 1.066 → 1.077, overall 76.47 → 77.10, all n.s.; validation max-excess 0.268 → 0.283, n.s.) and makes anchors-without-DRO worse (loss 1.30 → 1.56, p < 0.001). The protocol keeps 5e-5. Runs: `runs/embed_anchor_lr` (3 seeds, 5e-4 and 5e-3), `runs/embed_anchor_lr10` (10 seeds, 5e-4); figure `figs/paper/fig11_latent_scatter_embed_main_anchorlr`.
+
 ## Superseded families kept for the record
 
 `runs/fedheart_cv` (capped scarcity study, old schedule), `runs/fedheart_uncapped`, `runs/matrix_nhanes_nested`, `runs/embed_fix_final` (old schedule, λ frozen); `runs/gamma_sweep_*` (the γ sweeps), `runs/draft_arch/*` (architecture check), `runs/align_signal/*`, `runs/embed_final10` (all EMBED jobs including eq. 13 floors and γ 0.5). The report page for Xenia's 2026-09-17 request list (`documentation/XENIA_CHECKS_2026-09-17.md`) has every table behind these choices.

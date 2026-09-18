@@ -326,12 +326,22 @@ def _group_val_excess(model, data, masks, rstar_t, groups, anchors_on, lam_fit, 
 def train_one(method, data, masks, device, rstar, seed,
               epochs=20, lr=5e-5, wd=5e-5, batch=32,
               gamma=0.02, decay=0.9, lam_fit=1.0, lam_sep=1.0, dro_signal="train",
-              uniform_lambda_init=False, verbose=True):
+              uniform_lambda_init=False, verbose=True, anchor_lr=None):
     flags = METHOD_FLAGS[method]
     groups = [g for g in GROUPS if g in data]
     torch.manual_seed(seed); np.random.seed(seed)
     model = XeniaEmbedModel().to(device)
-    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
+    # One optimizer, one loss. anchor_lr gives the anchor parameters (means and log-variances)
+    # their own step size as a second parameter group; at the base 5e-5 for 20 epochs the four
+    # class anchors barely separate (they sit almost on top of each other in the latent scatter).
+    if anchor_lr is not None and flags["anchors"]:
+        anc_ids = {id(p) for p in model.anchors.parameters()}
+        rest = [p for p in model.parameters() if id(p) not in anc_ids]
+        opt = torch.optim.AdamW([{"params": rest, "lr": lr},
+                                 {"params": list(model.anchors.parameters()), "lr": anchor_lr}],
+                                lr=lr, weight_decay=wd)
+    else:
+        opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
     sched = torch.optim.lr_scheduler.StepLR(opt, step_size=5, gamma=0.1)
 
     K = len(groups)
@@ -503,6 +513,8 @@ def main():
                     help="initialise lambda uniformly instead of at group proportions. With "
                          "proportional init the four tail groups share only 1.5%% of the "
                          "gradient weight on EMBED.")
+    ap.add_argument("--anchor-lr", type=float, default=None,
+                    help="separate learning rate for the anchor parameters (default: same as --lr)")
     ap.add_argument("--rstar-eq13", action="store_true",
                     help="R~_g = min{fitted, constant predictor} - bootstrap margin c_g (draft eq. 13)")
     ap.add_argument("--save-latents", default=None,
@@ -550,7 +562,8 @@ def main():
                                     gamma=args.dro_gamma,
                                     lam_fit=args.lam_fit, lam_sep=args.lam_sep,
                                     dro_signal=args.dro_signal,
-                                    uniform_lambda_init=args.uniform_lambda_init)
+                                    uniform_lambda_init=args.uniform_lambda_init,
+                                    anchor_lr=args.anchor_lr)
             ov, pg = evaluate(model, data, masks, "test", device, rstar)
             if args.save_latents:
                 os.makedirs(args.save_latents, exist_ok=True)

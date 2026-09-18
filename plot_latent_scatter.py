@@ -23,6 +23,9 @@ from matplotlib.lines import Line2D
 import argparse
 _ap = argparse.ArgumentParser(); _ap.add_argument("--dataset", choices=["nhanes", "fedheart", "embed"], default="nhanes")
 _ap.add_argument("--columns", type=int, default=3, help="2 drops the random-anchor control (main-text version)")
+_ap.add_argument("--dir", default=None, help="override the latent-point directory")
+_ap.add_argument("--suffix", default="", help="appended to the output stem")
+_ap.add_argument("--subtitle", default=None, help="override the middle panel's title")
 ARGS = _ap.parse_args()
 SLOTS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]      # categorical slots 1-6, fixed order
 RAMP4 = ["#9ec5f4", "#5598e7", "#256abf", "#0d366b"]                            # ordinal outcome: one hue, light -> dark
@@ -44,7 +47,11 @@ DS = {
                    title="EMBED: test exams in the shared latent space. Six view-availability groups, each through its own encoder over frozen ViT features."),
 }
 D = DS[ARGS.dataset]
+if ARGS.dir:
+    D["dir"] = ARGS.dir
 ARMS = [(k, t, k not in ("no_anchors", "groupdro")) for k, t in D["arms"]][:ARGS.columns]
+if ARGS.subtitle:
+    ARMS = [(k, (ARGS.subtitle if i == 1 else t), a) for i, (k, t, a) in enumerate(ARMS)]
 GROUPS, GCOL = D["groups"], SLOTS[:len(D["groups"])]
 CCOL = RAMP4 if D["ordinal"] else [NEG, POS]
 SEED, CAP = D["seed"], D["cap"]
@@ -160,7 +167,7 @@ fig.suptitle(D["title"] + "\nW₂ values are scale-normalised. Axes are scaled p
              fontsize=10.5, color=INK, x=.01, ha="left")
 fig.tight_layout(rect=(0, 0, 1, .93), w_pad=2.0, h_pad=1.6)
 os.makedirs("figs/paper", exist_ok=True)
-STEM = "fig11_latent_scatter" + ("" if ARGS.dataset == "nhanes" else "_" + ARGS.dataset) + ("" if ARGS.columns == 3 else "_main")
+STEM = "fig11_latent_scatter" + ("" if ARGS.dataset == "nhanes" else "_" + ARGS.dataset) + ("" if ARGS.columns == 3 else "_main") + ARGS.suffix
 for ext in ("png", "pdf"):
     fig.savefig(f"figs/paper/{STEM}.{ext}", dpi=170, bbox_inches="tight", facecolor=SURF)
 print(f"  wrote figs/paper/{STEM}.png/.pdf")

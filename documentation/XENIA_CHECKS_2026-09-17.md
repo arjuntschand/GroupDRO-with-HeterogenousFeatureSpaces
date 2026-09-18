@@ -406,6 +406,10 @@ What this says:
 
 For the paper: EMBED supports "DRO with a working λ schedule lowers worst-group loss on a 1:1000-imbalanced cohort; ERM cannot be beaten on worst-group accuracy with 37 test exams", not "anchors help on EMBED". The 3-seed numbers reported earlier tonight (ours 63.58 at γ 2.0) sit inside the 10-seed spread.
 
+## EMBED anchors: under-trained, and fixing that changes nothing (2026-09-18)
+
+The EMBED scatter shows the four class anchors nearly coincident. With a separate 10x learning rate for the anchor parameters (same optimizer, same loss) they separate in density order (anchor-mean separation 0.31 → 1.6, between-class W2 0.60 → 0.86, groups still aligned at 0.24). At 10 seeds the full method's numbers do not move (worst-group acc 62.74 → 62.37, loss 1.066 → 1.077, overall 76.47 → 77.10, all n.s.) and validation does not prefer it, so the EMBED protocol keeps the base rate. The anchors' benefit on EMBED is the group alignment; the class-conditional structure, once present, adds nothing measurable.
+
 ## Baseline correction (2026-09-18)
 
 The REMIND reimplementation lacked the paper's group-specific residual routing matrices (Φ = Φ_shared + Φ_k with entropy gating) and used a softmax weight rule instead of λ_k ← λ_k exp(γ R_k) with γ = 0.02. Both were added and REMIND rerun at 10 seeds on all three datasets and on the no-common-information partition. Tabular numbers move by ≤ 0.5 accuracy points; on EMBED the corrected REMIND's worst-group loss rises from 1.107 to 1.207 (its γ = 0.02 is a milder weighting than the old rule), so the full method's loss advantage there becomes significant (11.7% lower, p = 0.004) while Fed-Heart vs REMIND becomes borderline (7.3% lower, p = 0.053). On the partition the corrected REMIND still predicts the majority class on G1 and G2 (90.0 / 89.7). The earlier runs are archived under `runs/baselines_*_softmoe_gdro`. "Reweigh" is inverse-frequency group reweighting; the paper's column of that name is logit adjustment.

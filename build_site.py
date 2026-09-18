@@ -953,8 +953,8 @@ def vs_baselines_block(loaded, merged_bl):
         mf = lambda m: sum(m.values()) / len(m)
         out.append(f"<h3 style='margin-top:22px'>{html.escape(d['label'])}</h3>"
                    f"<p class='legend'>Ours: worst-group accuracy {mf(fa):.1f}, worst-group loss {mf(fl):.3f}, regret {mf(fe):.3f}, "
-                   f"worst-group macro-F1 {mf(ff):.1f}, {int(fp):,} parameters</p>")
-        rows = {"Worst-group loss": [], "Regret (worst-group excess loss)": [], "Worst-group accuracy": [], "Worst-group macro-F1": [], "Parameters": []}
+                   f"{int(fp):,} parameters</p>")
+        rows = {"Worst-group loss": [], "Regret (worst-group excess loss)": [], "Worst-group accuracy": [], "Parameters": []}
         heads = []
         for b in ["Reweigh", "FlexMoE", "REMIND"]:
             bd = mb.get(f"{b}__released")
@@ -968,8 +968,7 @@ def vs_baselines_block(loaded, merged_bl):
             for key, diff, better, txt, abs_txt, p in [
                 ("Worst-group loss", dl, dl > 0, f"{abs(dl):.1f}% {'lower' if dl > 0 else 'higher'}", f"{m(fl):.3f} vs {m(bl_):.3f}", paired_p(fl, bl_)),
                 ("Regret (worst-group excess loss)", de, de > 0, f"{abs(de):.1f}% {'lower' if de > 0 else 'higher'}", f"{m(fe):.3f} vs {m(be):.3f}", paired_p(fe, be)),
-                ("Worst-group accuracy", da, da > 0, f"{da:+.1f} pts", f"{m(fa):.1f} vs {m(ba):.1f}", paired_p(fa, ba)),
-                ("Worst-group macro-F1", df, df > 0, f"{df:+.1f} pts", f"{m(ff):.1f} vs {m(bf):.1f}", paired_p(ff, bf))]:
+                ("Worst-group accuracy", da, da > 0, f"{da:+.1f} pts", f"{m(fa):.1f} vs {m(ba):.1f}", paired_p(fa, ba))]:
                 rows[key].append(cellfmt(txt, abs_txt, p, better)); n_total += 1; n_green += int(better)
             if fp and bp_:
                 ratio = fp / bp_
@@ -985,8 +984,7 @@ def vs_baselines_block(loaded, merged_bl):
     out.append(f"<p class='legend'><b>Summary.</b> {n_green} of {n_total} tested cells favour our method on the mean. "
                "Lower worst-group loss and regret than every baseline on every dataset; worst-group accuracy is higher on the mean on NHANES and EMBED "
                "and within a point on Fed-Heart, but no accuracy difference against a published baseline is significant at 10 seeds. "
-               "Worst-group macro-F1 is significantly higher than all three baselines on NHANES (the imbalanced dataset), and 1 to 3 points lower on Fed-Heart and EMBED "
-               "(one of those six cells significant). Our model is the smallest on both tabular datasets and mid-sized on EMBED. "
+               "Our model is the smallest on both tabular datasets and mid-sized on EMBED (macro-F1 per arm is in the tables below). "
                "For the paper: report the raw numbers in the main tables and quote the loss reductions in prose; "
                "keep this view as the summary, not the primary table.</p>")
     return "".join(out)
@@ -1228,6 +1226,7 @@ def build(outdir=SITE):
 
     tabs = [("Overview", "sec-overview")]
     secs = [("sec-overview", overview(loaded))]
+    # The Final results tab is inserted at the front once its inputs (merged baselines) exist.
 
     for d in DATASETS:
         data = loaded[d["key"]]
@@ -1432,7 +1431,7 @@ def build(outdir=SITE):
     tabs.append(("Baselines", "sec-baselines")); secs.append(("sec-baselines", "".join(bl)))
 
     tabs.append(("Methods", "sec-methods")); secs.append(("sec-methods", methods_page()))
-    tabs.append(("Final results", "sec-plan")); secs.append(("sec-plan", final_results_page(loaded, merged_bl)))
+    tabs.insert(0, ("Final results", "sec-plan")); secs.insert(0, ("sec-plan", final_results_page(loaded, merged_bl)))
 
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "
                   f"class='{'on' if i == 0 else ''}'>{html.escape(t)}</a>"

@@ -309,6 +309,8 @@ def headline_table(data, tail=None):
     """
     rows, summaries, series, summaries_meta = [], {}, {}, {}
     for key, aliases, label, enc, dro, anc, kind in METHODS:
+        if kind == "ext":          # the published baselines have their own tab and table
+            continue
         by_seed = next((data[a] for a in aliases if a in data), None)
         if not by_seed:
             continue
@@ -830,24 +832,13 @@ def baseline_table(data, tail=None):
     # "Per-group encoders + GroupDRO" on the Fed-Heart tab and "GroupDRO, per-group, anchors off"
     # here, and as "Per-group + anchors + Regret-DRO" there and "Ours: per-group + anchors +
     # regret" here. The numbers always agreed, but two names for one arm reads as two results.
+    # Only the method's two anchored arms appear against the baselines; the unanchored arms are
+    # ablations of our own method and live in the ablation table on each dataset tab.
     ROWS = [("Ours_Regret", "Per-group + anchors + Regret-DRO", "full"),
             ("ours", "Per-group + anchors + Regret-DRO", "full"),
             ("Ours_GDRO", "Per-group + anchors + GroupDRO", "abl"),
             ("Ours", "Per-group + anchors + GroupDRO", "abl"),
-            ("align_only", "Per-group + anchors + GroupDRO", "abl"),
-            ("GroupDRO", "Per-group encoders + GroupDRO", "base"),
-            ("groupdro", "Per-group encoders + GroupDRO", "base"),
-            # Per-group + Regret-DRO, anchors off. This was missing from every dataset's
-            # baseline table while being present in METHODS and in every CSV, so the tab
-            # silently dropped it. It is the arm that isolates regret from the anchors, which
-            # is the comparison the regret claim rests on -- and on EMBED it is one of the
-            # three arms that return identical worst-group accuracy, so leaving it out hid
-            # that result rather than merely shortening the table.
-            ("RegretDRO", "Per-group encoders + Regret-DRO", "base"),
-            ("regret_only", "Per-group encoders + Regret-DRO", "base"),
-            ("ERM", "ERM, common features", "base"),
-            ("erm", "Per-group encoders + ERM", "base"),
-            ("PerGroupOnly", "Per-group encoders + ERM", "base")]
+            ("align_only", "Per-group + anchors + GroupDRO", "abl")]
     # Collect every row first so the per-column best (and the arms a paired test cannot
     # separate from it) can be marked across our arms AND the baselines together: on this table
     # the question is exactly "who is best on this metric among everything".

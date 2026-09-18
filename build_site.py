@@ -535,6 +535,15 @@ li b{color:var(--ink)}
 .fig{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
 .fig img{width:100%;height:auto;border-radius:7px;background:#fff;display:block}
 .fig .cap{color:var(--dim);font-size:12px;margin-top:9px;line-height:1.45}
+.toc{position:fixed;left:18px;top:110px;width:170px;font-size:12.5px;line-height:1.35;display:none;z-index:15}
+section.on .toc{display:block}
+/* on mid-width screens the centred column would sit under the sidebar, so nudge it right */
+@media (min-width:1300px) and (max-width:1460px){body.plan main{margin-left:210px}}
+.toc .toc-t{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);margin-bottom:8px}
+.toc a{display:block;color:var(--faint);text-decoration:none;padding:5px 10px;border-left:2px solid var(--line);transition:color .2s,border-color .2s,background .2s}
+.toc a:hover{color:var(--ink)}
+.toc a.on{color:var(--ink);border-left-color:var(--ours);background:var(--card);box-shadow:0 0 0 1px var(--line),0 0 14px rgba(29,111,139,.25)}
+@media (max-width:1300px){.toc{display:none!important}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 """
 
@@ -542,7 +551,18 @@ JS = r"""
 function show(id,el){document.querySelectorAll('section').forEach(s=>s.classList.remove('on'));
 document.getElementById(id).classList.add('on');
 document.querySelectorAll('nav a').forEach(a=>a.classList.remove('on'));el.classList.add('on');
-window.scrollTo(0,0);}
+document.body.classList.toggle('plan',id==='sec-plan');
+window.scrollTo(0,0);spy();}
+document.addEventListener('DOMContentLoaded',function(){document.body.classList.toggle('plan',!!document.querySelector('#sec-plan.on'))});
+
+/* Final-results sidebar: the entry whose heading was passed most recently glows. */
+function spy(){var toc=document.getElementById('fr-toc');if(!toc||!document.getElementById('sec-plan').classList.contains('on'))return;
+var ids=[].map.call(toc.querySelectorAll('a'),function(a){return a.getAttribute('data-t')});var cur=ids[0];
+ids.forEach(function(id){var h=document.getElementById(id);if(h&&h.getBoundingClientRect().top<140)cur=id;});
+toc.querySelectorAll('a').forEach(function(a){a.classList.toggle('on',a.getAttribute('data-t')===cur)});}
+window.addEventListener('scroll',spy,{passive:true});window.addEventListener('load',spy);
+document.addEventListener('click',function(e){var a=e.target.closest('#fr-toc a');if(!a)return;e.preventDefault();
+var h=document.getElementById(a.getAttribute('data-t'));if(h){window.scrollTo({top:h.getBoundingClientRect().top+window.scrollY-100,behavior:'smooth'});}});
 
 /* Sortable tables.
    Every table on the site is authored in a deliberate order: simplest arm first, our method
@@ -935,7 +955,7 @@ def vs_baselines_block(loaded, merged_bl):
         ptxt = "n.s." if (p is None or p >= 0.05) else f"p={p:.3f}"
         return (f"<td style='background:{bg};color:{col};font-weight:600'>{diff_txt}"
                 f"<span class='hint' style='color:var(--dim);font-weight:400'>{abs_txt} · {ptxt}</span></td>")
-    out = ["<h3>Our method against the published baselines, at a glance</h3>",
+    out = ["<h3 id='fr-heat'>Our method against the published baselines, at a glance</h3>",
            "<p class='legend'>Full method (per-group encoders + anchors + Regret-DRO) against Reweigh, Flex-MoE and "
            "REMIND at their published configurations, means over 10 seeds under the frozen protocol. "
            "<b>Worst-group loss</b> and <b>regret</b> (worst group's loss minus its floor R*): relative reduction, "
@@ -943,7 +963,8 @@ def vs_baselines_block(loaded, merged_bl):
            "red = ours worse; strong shading = paired t-test p &lt; 0.05, pale shading = not separable (n.s.). "
            "Raw numbers for every arm are in the tables below.</p>"]
     n_green = n_total = 0
-    for d in DATASETS:
+    order = {"nhnested": 0, "fedheart": 1, "embed": 2}
+    for d in sorted(DATASETS, key=lambda x: order.get(x["key"], 9)):
         data = loaded.get(d["key"]); mb = (merged_bl or {}).get(d["key"])
         if not data or not mb:
             continue
@@ -1039,11 +1060,19 @@ def final_results_page(loaded=None, merged_bl=None):
         ("Hyperparameter sweep", ok("runs/embed_final10/metrics_long.csv"), "gamma 0.02/0.1/0.5/2.0, uniform vs proportional init, train vs held-out signal, original vs eq. 13 floors, anchor weight 0.1/1/10 (report page)"),
         ("Dataset description and feature table", True, "EMBED tab header; six view-set groups"),
       ]}
-    out = ["<h2>Final results</h2>", "<p class='sub'>Seven deliverables per dataset, status read from the files that exist at build time.</p>", PROTO, pend]
+    side = ("<aside class='toc' id='fr-toc'><div class='toc-t'>On this page</div>"
+            "<a href='#fr-heat' data-t='fr-heat'>Heatmaps vs baselines</a>"
+            "<a href='#fr-nhnested' data-t='fr-nhnested'>NHANES</a>"
+            "<a href='#fr-fedheart' data-t='fr-fedheart'>Fed-Heart</a>"
+            "<a href='#fr-embed' data-t='fr-embed'>EMBED</a>"
+            "<a href='#fr-gamma' data-t='fr-gamma'>Step-size sweep</a>"
+            "<a href='#fr-check' data-t='fr-check'>Checklist</a></aside>")
+    out = [side, "<h2>Final results</h2>", "<p class='sub'>Seven deliverables per dataset, status read from the files that exist at build time.</p>", PROTO, pend]
     if loaded:
         out.append(vs_baselines_block(loaded, merged_bl))
     n_ok = sum(1 for v in D.values() for _, st, _ in v if st); n_all = sum(len(v) for v in D.values())
     out.append(f"<div class='grid'><div class='stat'><div class='k'>Ready</div><div class='v'>{n_ok} of {n_all}</div><div class='d'>deliverables, produced from committed runs</div></div></div>")
+    out.append("<h3 id='fr-check'>Deliverables checklist</h3>")
     for ds, rows in D.items():
         out.append(f"<h3>{ds}</h3><div class='card'><table class='data'><thead><tr><th class='it'>#</th><th class='it'>Deliverable</th><th class='it'>Status</th><th class='src'>Where</th></tr></thead><tbody>")
         for i, (name, st, src) in enumerate(rows, 1):
@@ -1101,7 +1130,7 @@ def final_results_page(loaded=None, merged_bl=None):
         out.append("<h2 style='margin-top:48px'>The results themselves</h2><p class='sub'>Same seven items per dataset, compiled from the final families. Every table is generated from the metrics CSV of the run family named in the checklist above.</p>")
         for ds in ["NHANES", "Fed-Heart", "EMBED"]:
             d = next(x for x in DATASETS if x["key"] == DESC[ds]); data = loaded[d["key"]]
-            out.append(f"<h2 style='margin-top:40px'>{ds}</h2>")
+            out.append(f"<h2 id='fr-{DESC[ds]}' style='margin-top:40px'>{ds}</h2>")
             out.append(f"<h3>1. Ablation table, our own methods</h3><div class='card'>{headline_table(data, d.get('tail'))}</div>")
             mb = (merged_bl or {}).get(d["key"])
             out.append("<h3>2. Baselines table, our method against the published baselines</h3>")
@@ -1117,7 +1146,7 @@ def final_results_page(loaded=None, merged_bl=None):
                 out.append("<p class='legend'>EMBED: anchor weight swept over 0.1 / 1 / 10, uniform vs proportional weight start, training vs held-out weight signal, original vs eq. 13 floors; the full tables are on the report page.</p>")
             gl = "".join(f"<li><b>{html.escape(k)}</b> {html.escape(v)}</li>" for k, v in d["groups"].items())
             out.append(f"<h3>7. Dataset description and feature table</h3><div class='card' style='padding:16px 20px'><p class='blurb' style='margin:0 0 10px'>{html.escape(d['blurb'])}</p><ul style='margin:0'>{gl}</ul></div>")
-    out.append("<h3>Group-weight step size, the sweep behind the protocol (all three datasets)</h3>")
+    out.append("<h3 id='fr-gamma'>Group-weight step size, the sweep behind the protocol (all three datasets)</h3>")
     out.append("<div class='card'><table class='data'><thead><tr><th class='it'>dataset</th><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>worst-group excess</th><th>weights moved (L1)</th><th class='it'>vs frozen-weight setting</th></tr></thead><tbody>"
                + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{ds if i == 0 else ''}</td><td class='it'>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for ds in ["Fed-Heart", "NHANES", "EMBED"] for i, r in enumerate(GAMMA[ds]))
                + "</tbody></table></div>")

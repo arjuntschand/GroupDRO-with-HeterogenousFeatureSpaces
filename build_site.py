@@ -871,6 +871,10 @@ def final_results_page():
              "experiments/nhanes_final.yaml; families runs/final_fedheart, runs/final_nhanes, "
              "runs/final_embed, each with a PROTOCOL.md. The sweeps that fixed these choices are on "
              "the report page (Xenia checks, 2026-09-17).</div>")
+    pend = ("<div class='note'><b>One row pending.</b> The EMBED 'per-group + anchors + GroupDRO' "
+            "ablation arm is being rerun under the frozen weight schedule (its first 10-seed pass "
+            "used the old frozen-weight one); every other EMBED row is final.</div>"
+            if not os.path.exists("runs/final_embed/ALIGN_FINAL") else "")
     D = {
       "NHANES": [
         ("Ablation table, our own methods", ok("runs/final_nhanes/metrics_long.csv"), "NHANES tab; runs/final_nhanes (10 arms x 10 seeds)"),
@@ -893,13 +897,13 @@ def final_results_page():
       "EMBED": [
         ("Ablation table, our own methods", ok("runs/final_embed/metrics_long.csv"), "EMBED tab; runs/final_embed (6 arms x 10 seeds x 6 groups)"),
         ("Baselines table", ok("runs/baselines_embed/metrics_long.csv","runs/baselines_embed_matched/metrics_long.csv"), "Baselines tab; runs/baselines_embed, _matched, _remind128, same cached features"),
-        ("Per-group loss vs epoch", ok("runs/embed_dynamics/curve_ours_s0.json"), "runs/embed_dynamics, per-group validation loss and accuracy logged per epoch (seed 0, four arms)"),
-        ("Per-group weight vs epoch", ok("runs/embed_final10/g2.0/s0/curve_ours_s0.json"), "runs/embed_final10/*/s*/curve_*.json, lambda logged every epoch for all 10 seeds"),
+        ("Per-group loss vs epoch", ok("figs/paper/fig5_dynamics_embed_ours.png"), "Plots tab; runs/embed_dynamics, per-group validation loss logged per epoch (seed 0, four arms)"),
+        ("Per-group weight vs epoch", ok("figs/paper/fig5_dynamics_embed_ours.png"), "Plots tab, lower row; lambda logged every epoch for all 10 seeds in runs/embed_final10"),
         ("Latent-space scatter, anchors on/off", ok("figs/paper/fig11_latent_scatter_embed.png"), "below; fig11_latent_scatter_embed (3-column) and _main"),
         ("Hyperparameter sweep", ok("runs/embed_final10/metrics_long.csv"), "gamma 0.02/0.1/0.5/2.0, uniform vs proportional init, train vs held-out signal, original vs eq. 13 floors, anchor weight 0.1/1/10 (report page)"),
         ("Dataset description and feature table", True, "EMBED tab header; six view-set groups"),
       ]}
-    out = ["<h2>Final results</h2>", "<p class='sub'>Seven deliverables per dataset, status read from the files that exist at build time.</p>", PROTO]
+    out = ["<h2>Final results</h2>", "<p class='sub'>Seven deliverables per dataset, status read from the files that exist at build time.</p>", PROTO, pend]
     n_ok = sum(1 for v in D.values() for _, st, _ in v if st); n_all = sum(len(v) for v in D.values())
     out.append(f"<div class='grid'><div class='stat'><div class='k'>Ready</div><div class='v'>{n_ok} of {n_all}</div><div class='d'>deliverables, produced from committed runs</div></div></div>")
     for ds, rows in D.items():
@@ -1148,7 +1152,11 @@ def build(outdir=SITE):
            ("fig5_dynamics_nhanes_groupdro",
             "NHANES, GroupDRO: per-group loss against R*, with that group's weight below"),
            ("fig5_dynamics_nhanes_regretdro",
-            "NHANES, Regret-DRO: per-group loss against R*, with that group's weight below")]
+            "NHANES, Regret-DRO: per-group loss against R*, with that group's weight below"),
+           ("fig5_dynamics_embed_groupdro",
+            "EMBED, GroupDRO: per-group validation loss against R*, with that group's weight below (seed 0)"),
+           ("fig5_dynamics_embed_ours",
+            "EMBED, anchors + Regret-DRO: per-group validation loss against R*, with that group's weight below (seed 0)")]
     shown = 0
     for stem, cap in DYN:
         # Look in both places. plot_mechanism.py writes figs/paper/, plot_training_dynamics.py

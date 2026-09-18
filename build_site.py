@@ -855,6 +855,69 @@ def baseline_table(data, tail=None):
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>")
 
 
+def vs_baselines_block(loaded, merged_bl):
+    """Colour-coded comparison of the full method against the three published baselines, one
+    table per dataset, computed from the same per-seed series the Baselines tab uses. Loss and
+    regret are relative reductions; accuracy is in percentage points. A cell is coloured only by
+    the sign of the mean difference; the paired p-value is printed in every cell and cells that a
+    paired test cannot separate are marked n.s., so the colour never overstates the evidence."""
+    FULL = ["Ours_Regret", "ours"]
+    def excess_by_seed(by_seed):
+        return {sd: max(g["excess"] for g in gr.values()) for sd, gr in by_seed.items() if gr}
+    def cellfmt(diff_txt, abs_txt, p, better):
+        sig = p is not None and p < 0.05
+        col = ("#1a7f4b" if better else "#b03a3a")
+        bg = ("rgba(31,159,110,.16)" if better else "rgba(176,58,58,.14)") if sig else ("rgba(31,159,110,.06)" if better else "rgba(176,58,58,.05)")
+        ptxt = "n.s." if (p is None or p >= 0.05) else f"p={p:.3f}"
+        return (f"<td style='background:{bg};color:{col};font-weight:600'>{diff_txt}"
+                f"<span class='hint' style='color:var(--dim);font-weight:400'>{abs_txt} · {ptxt}</span></td>")
+    out = ["<h3>Our method against the published baselines, at a glance</h3>",
+           "<p class='legend'>Full method (per-group encoders + anchors + Regret-DRO) against Reweigh, Flex-MoE and "
+           "REMIND at their published configurations, means over 10 seeds under the frozen protocol. "
+           "<b>Worst-group loss</b> and <b>regret</b> (worst group's loss minus its floor R*): relative reduction, "
+           "(baseline − ours) / baseline. <b>Worst-group accuracy</b>: difference in percentage points. Green = ours better, "
+           "red = ours worse; strong shading = paired t-test p &lt; 0.05, pale shading = not separable (n.s.). "
+           "Raw numbers for every arm are in the tables below.</p>"]
+    n_green = n_total = 0
+    for d in DATASETS:
+        data = loaded.get(d["key"]); mb = (merged_bl or {}).get(d["key"])
+        if not data or not mb:
+            continue
+        full = next((data[a] for a in FULL if a in data), None)
+        if not full:
+            continue
+        fa, fl, fe = worst_by_seed(full), worst_loss_by_seed(full), excess_by_seed(full)
+        mf = lambda m: sum(m.values()) / len(m)
+        out.append(f"<h3 style='margin-top:22px'>{html.escape(d['label'])}</h3>"
+                   f"<p class='legend'>Ours: worst-group accuracy {mf(fa):.1f}, worst-group loss {mf(fl):.3f}, regret {mf(fe):.3f}</p>")
+        rows = {"Worst-group loss": [], "Regret (worst-group excess loss)": [], "Worst-group accuracy": []}
+        heads = []
+        for b in ["Reweigh", "FlexMoE", "REMIND"]:
+            bd = mb.get(f"{b}__released")
+            if not bd:
+                continue
+            heads.append("Flex-MoE" if b == "FlexMoE" else b)
+            ba, bl_, be = worst_by_seed(bd), worst_loss_by_seed(bd), excess_by_seed(bd)
+            seeds = sorted(set(fa) & set(ba))
+            m = lambda x: sum(x[k] for k in seeds) / len(seeds)
+            dl = (m(bl_) - m(fl)) / m(bl_) * 100; de = (m(be) - m(fe)) / m(be) * 100; da = m(fa) - m(ba)
+            for key, diff, better, txt, abs_txt, p in [
+                ("Worst-group loss", dl, dl > 0, f"{abs(dl):.1f}% {'lower' if dl > 0 else 'higher'}", f"{m(fl):.3f} vs {m(bl_):.3f}", paired_p(fl, bl_)),
+                ("Regret (worst-group excess loss)", de, de > 0, f"{abs(de):.1f}% {'lower' if de > 0 else 'higher'}", f"{m(fe):.3f} vs {m(be):.3f}", paired_p(fe, be)),
+                ("Worst-group accuracy", da, da > 0, f"{da:+.1f} pts", f"{m(fa):.1f} vs {m(ba):.1f}", paired_p(fa, ba))]:
+                rows[key].append(cellfmt(txt, abs_txt, p, better)); n_total += 1; n_green += int(better)
+        out.append("<div class='card'><table class='data'><thead><tr><th class='it'>metric</th>"
+                   + "".join(f"<th>vs {h}</th>" for h in heads) + "</tr></thead><tbody>"
+                   + "".join(f"<tr><td class='it'>{k}</td>{''.join(v)}</tr>" for k, v in rows.items())
+                   + "</tbody></table></div>")
+    out.append(f"<p class='legend'><b>Summary.</b> {n_green} of {n_total} cells favour our method on the mean. "
+               "Lower worst-group loss and regret than every baseline on every dataset; worst-group accuracy is higher on the mean on NHANES and EMBED "
+               "and within a point on Fed-Heart, but no accuracy difference against a published baseline is significant at 10 seeds. "
+               "For the paper: report the raw numbers in the main tables and quote the loss reductions in prose; "
+               "keep this view as the summary, not the primary table.</p>")
+    return "".join(out)
+
+
 def final_results_page(loaded=None, merged_bl=None):
     """The 'Final results' tab: seven deliverables per dataset, status checked against the files
     that exist at build time, with the frozen protocol stated once. The status column is computed
@@ -904,6 +967,8 @@ def final_results_page(loaded=None, merged_bl=None):
         ("Dataset description and feature table", True, "EMBED tab header; six view-set groups"),
       ]}
     out = ["<h2>Final results</h2>", "<p class='sub'>Seven deliverables per dataset, status read from the files that exist at build time.</p>", PROTO, pend]
+    if loaded:
+        out.append(vs_baselines_block(loaded, merged_bl))
     n_ok = sum(1 for v in D.values() for _, st, _ in v if st); n_all = sum(len(v) for v in D.values())
     out.append(f"<div class='grid'><div class='stat'><div class='k'>Ready</div><div class='v'>{n_ok} of {n_all}</div><div class='d'>deliverables, produced from committed runs</div></div></div>")
     for ds, rows in D.items():

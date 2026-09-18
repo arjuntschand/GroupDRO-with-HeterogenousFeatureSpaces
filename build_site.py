@@ -933,24 +933,29 @@ def final_results_page(loaded=None, merged_bl=None):
                              + f"<td>{100*r['val']:.2f}</td><td>{100*r['test']:.2f}</td><td>{r.get('n','')}</td></tr>")
         return ("<table class='data'><thead><tr>" + h + "<th>val worst-group acc</th><th>test worst-group acc</th><th>seeds</th></tr></thead><tbody>"
                 + "".join(body_rows) + "</tbody></table>")
+    # (setting, worst-group acc, worst-group loss, worst-group excess = max_g(loss_g - R*_g), weights moved, note)
     GAMMA = {
-      "NHANES": [("gamma 0.02, per epoch (old)", "72.62", "0.519", "0.01", "-"), ("gamma 0.1, per step (frozen)", "74.67", "0.522", "0.4-0.7", "+2.05 (p=0.017); AUROC and class-balanced accuracy unchanged"),
-                 ("gamma 0.5, per step", "74.57", "0.517", "0.7", "+1.95 (p=0.011)"), ("gamma 2.0, per step", "75.35", "0.547", "1.0+", "+2.73 (p=0.08); AUROC and class-balanced accuracy fall: majority drift")],
-      "Fed-Heart": [("gamma 0.02, per epoch (old)", "72.10", "0.587", "0.01", "-"), ("gamma 0.1, per step (frozen)", "72.25", "0.570", "0.52", "+0.15 (p=0.81)"),
-                    ("gamma 0.5, per step", "72.60", "0.601", "0.73", "+0.50 (p=0.47)"), ("gamma 2.0, per step", "72.87", "0.608", "1.08", "+0.77 (p=0.46)")],
-      "EMBED": [("gamma 0.02, proportional init (old)", "56.11 (3 seeds)", "1.287", "0.00", "-"), ("gamma 0.5, uniform init, train signal", "61.62", "1.144", "1.32", "ties ERM on accuracy; loss -0.21 vs ERM (p=0.002)"),
-                ("gamma 2.0, uniform init, train signal (frozen)", "62.74", "1.066", "1.62", "ties ERM on accuracy; loss -0.28 vs ERM (p<0.001)"),
-                ("gamma 0.5 / 2.0 with eq. 13 floors", "55.64 / 60.98", "1.245 / 1.217", "1.3 / 1.7", "worse: g5's floor is unattainable, weight and worst group move to its 14 test exams")]}
+      "NHANES": [("gamma 0.02, per epoch (old)", "72.62", "0.519", "0.266", "0.01", "-"), ("gamma 0.1, per step (frozen)", "74.67", "0.522", "0.269", "0.4-0.7", "+2.05 (p=0.017); AUROC and class-balanced accuracy unchanged"),
+                 ("gamma 0.5, per step", "74.57", "0.517", "0.267", "0.7", "+1.95 (p=0.011)"), ("gamma 2.0, per step", "75.35", "0.547", "0.290", "1.0+", "+2.73 (p=0.08); AUROC and class-balanced accuracy fall: majority drift")],
+      "Fed-Heart": [("gamma 0.02, per epoch (old)", "72.10", "0.587", "0.245", "0.01", "-"), ("gamma 0.1, per step (frozen)", "72.25", "0.570", "0.266", "0.52", "+0.15 (p=0.81)"),
+                    ("gamma 0.5, per step", "72.60", "0.601", "0.235", "0.73", "+0.50 (p=0.47)"), ("gamma 2.0, per step", "72.87", "0.608", "0.283", "1.08", "+0.77 (p=0.46)")],
+      "EMBED": [("gamma 0.02, proportional init (old)", "56.11 (3 seeds)", "1.287", "0.413", "0.00", "-"), ("gamma 0.5, uniform init, train signal", "61.62", "1.144", "0.342", "1.32", "ties ERM on accuracy; loss -0.21 vs ERM (p=0.002)"),
+                ("gamma 2.0, uniform init, train signal (frozen)", "62.74", "1.066", "0.280", "1.62", "ties ERM on accuracy; loss -0.28 vs ERM (p<0.001)"),
+                ("gamma 0.5 / 2.0 with eq. 13 floors", "55.64 / 60.98", "1.245 / 1.217", "1.00 / 0.97 (vs eq. 13 floors)", "1.3 / 1.7", "worse: g5's floor is unattainable, weight and worst group move to its 14 test exams")]}
     def gamma_table(ds):
         rows = GAMMA[ds]
-        return ("<table class='data'><thead><tr><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>weights moved (L1)</th><th class='it'>vs frozen-weight setting</th></tr></thead><tbody>"
-                + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td class='it'>{r[4]}</td></tr>" for r in rows)
+        return ("<table class='data'><thead><tr><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>worst-group excess (regret)</th><th>weights moved (L1)</th><th class='it'>vs frozen-weight setting</th></tr></thead><tbody>"
+                + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for r in rows)
                 + "</tbody></table>")
     DESC = {"NHANES": "nhnested", "Fed-Heart": "fedheart", "EMBED": "embed"}
     DYNF = {"NHANES": ("fig5_dynamics_nhanes_groupdro", "fig5_dynamics_nhanes_regretdro"),
             "Fed-Heart": ("fig5_dynamics_fedheart_groupdro", "fig5_dynamics_fedheart_regretdro"),
             "EMBED": ("fig5_dynamics_embed_groupdro", "fig5_dynamics_embed_ours")}
-    SCAT = {"NHANES": ["fig11_latent_scatter_main", "fig11_latent_scatter"], "Fed-Heart": ["fig11_latent_scatter_fedheart"], "EMBED": ["fig11_latent_scatter_embed_main", "fig11_latent_scatter_embed"]}
+    SCAT = {"NHANES": [("fig11_latent_scatter_main", "Main-text version: no anchors beside class anchors. Top row coloured by group (rings = group centroids), bottom row the same points by outcome (stars = learnt anchors)."),
+                       ("fig11_latent_scatter", "Appendix version: the same two panels plus the randomly-assigned-anchor control.")],
+            "Fed-Heart": [("fig11_latent_scatter_fedheart", "Three columns including the random-anchor control; the hospitals already overlap without anchors.")],
+            "EMBED": [("fig11_latent_scatter_embed_main", "Main-text version: no anchors beside class anchors (500 exams per group plotted)."),
+                      ("fig11_latent_scatter_embed", "Appendix version with the random-anchor control: random anchors do not align the groups (0.69 vs 0.19).")]}
     SWEEP = {"NHANES": "runs/sweep_nhanes/sweep.json", "Fed-Heart": "runs/sweep_fedheart/sweep.json", "EMBED": None}
     def figblock(stem, cap=""):
         rel = f"figs/paper/{stem}.png"
@@ -968,28 +973,18 @@ def final_results_page(loaded=None, merged_bl=None):
             g1, g2 = DYNF[ds]
             out.append("<h3>3. Per-group loss against epoch</h3>" + figblock(g1, f"{ds}, GroupDRO: per-group loss (top) with R* dashed, group weight below.") + figblock(g2, f"{ds}, Regret-DRO / full method: per-group loss (top), group weight below."))
             out.append("<h3>4. Per-group group weight against epoch</h3><p class='legend'>The lower row of each panel above is the weight trajectory; the summary of where the weights end is the first figure on the Plots tab (lambda against R*).</p>")
-            out.append("<h3>5. Latent-space alignment scatter, anchors on and off</h3>" + "".join(figblock(st) for st in SCAT[ds]))
+            out.append("<h3>5. Latent-space alignment scatter, anchors on and off</h3>" + "".join(figblock(st, cap) for st, cap in SCAT[ds]))
             out.append("<h3>6. Hyperparameter sweep</h3><p class='legend'>Group-weight step size and refresh cadence (the sweep that fixed the protocol; 10 seeds).</p><div class='card'>" + gamma_table(ds) + "</div>")
             if SWEEP[ds]:
-                out.append("<p class='legend'>Equal-budget sweep over anchor weight, group-weight step size and latent width for the full method, validation-selected (run_sweep.py; earlier protocol, 3 seeds per config).</p><div class='card'>" + sweep_table(SWEEP[ds], "Ours_Regret") + "</div>")
+                out.append("<p class='legend'>Equal-budget sweep over anchor weight, group-weight step size and latent width for the full method, validation-selected (run_sweep.py; earlier protocol, 3 seeds per config). Only validation and test worst-group accuracy were recorded per config, so loss and excess are not available for this sweep without rerunning it.</p><div class='card'>" + sweep_table(SWEEP[ds], "Ours_Regret") + "</div>")
             else:
                 out.append("<p class='legend'>EMBED: anchor weight swept over 0.1 / 1 / 10, uniform vs proportional weight start, training vs held-out weight signal, original vs eq. 13 floors; the full tables are on the report page.</p>")
             gl = "".join(f"<li><b>{html.escape(k)}</b> {html.escape(v)}</li>" for k, v in d["groups"].items())
             out.append(f"<h3>7. Dataset description and feature table</h3><div class='card' style='padding:16px 20px'><p class='blurb' style='margin:0 0 10px'>{html.escape(d['blurb'])}</p><ul style='margin:0'>{gl}</ul></div>")
-    out.append("<h3>Group-weight step size, the sweep behind the protocol</h3>")
-    out.append("<div class='card'><table class='data'><thead><tr><th class='it'>dataset</th><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>weights moved by reported epoch (L1)</th><th>vs frozen-weight setting</th></tr></thead><tbody>"
-               "<tr><td class='it'>Fed-Heart (10 seeds x 5 folds)</td><td class='it'>gamma 0.02, per epoch (old)</td><td>72.10</td><td>0.587</td><td>0.01</td><td>-</td></tr>"
-               "<tr class='best'><td class='it'></td><td class='it'>gamma 0.1, per step (frozen)</td><td>72.25</td><td>0.570</td><td>0.52</td><td>+0.15 (p=0.81)</td></tr>"
-               "<tr><td class='it'></td><td class='it'>gamma 0.5, per step</td><td>72.60</td><td>0.601</td><td>0.73</td><td>+0.50 (p=0.47)</td></tr>"
-               "<tr><td class='it'></td><td class='it'>gamma 2.0, per step</td><td>72.87</td><td>0.608</td><td>1.08</td><td>+0.77 (p=0.46)</td></tr>"
-               "<tr><td class='it'>NHANES (10 seeds)</td><td class='it'>gamma 0.02, per epoch (old)</td><td>72.62</td><td>0.519</td><td>0.01</td><td>-</td></tr>"
-               "<tr class='best'><td class='it'></td><td class='it'>gamma 0.1, per step (frozen)</td><td>74.67</td><td>0.522</td><td>0.4-0.7</td><td>+2.05 (p=0.017); AUROC and class-balanced accuracy unchanged</td></tr>"
-               "<tr><td class='it'></td><td class='it'>gamma 0.5, per step</td><td>74.57</td><td>0.517</td><td>0.7</td><td>+1.95 (p=0.011)</td></tr>"
-               "<tr><td class='it'></td><td class='it'>gamma 2.0, per step</td><td>75.35</td><td>0.547</td><td>1.0+</td><td>+2.73 (p=0.08); AUROC and class-balanced accuracy fall: majority drift</td></tr>"
-               "<tr><td class='it'>EMBED (10 seeds)</td><td class='it'>gamma 0.02, proportional init (old)</td><td>56.11 (3 seeds)</td><td>1.287</td><td>0.00</td><td>-</td></tr>"
-               "<tr><td class='it'></td><td class='it'>gamma 0.5, uniform init, train signal</td><td>61.62</td><td>1.144</td><td>1.32</td><td>ties ERM on accuracy; loss -0.21 vs ERM (p=0.002)</td></tr>"
-               "<tr class='best'><td class='it'></td><td class='it'>gamma 2.0, uniform init, train signal (frozen)</td><td>62.74</td><td>1.066</td><td>1.62</td><td>ties ERM on accuracy; loss -0.28 vs ERM (p&lt;0.001)</td></tr>"
-               "</tbody></table></div>")
+    out.append("<h3>Group-weight step size, the sweep behind the protocol (all three datasets)</h3>")
+    out.append("<div class='card'><table class='data'><thead><tr><th class='it'>dataset</th><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>worst-group excess</th><th>weights moved (L1)</th><th class='it'>vs frozen-weight setting</th></tr></thead><tbody>"
+               + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{ds if i == 0 else ''}</td><td class='it'>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for ds in ["Fed-Heart", "NHANES", "EMBED"] for i, r in enumerate(GAMMA[ds]))
+               + "</tbody></table></div>")
     out.append("<h3>Latent-space scatter, anchors on and off</h3>")
     for stem, cap in [("fig11_latent_scatter_main", "NHANES, main-text version: top coloured by group (rings are group centroids), bottom the same points by outcome (stars are the learnt anchors). Between-group distance 2.57 to 0.15."),
                       ("fig11_latent_scatter", "NHANES, three columns with the randomly-assigned-anchor control."),

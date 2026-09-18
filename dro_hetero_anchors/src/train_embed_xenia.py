@@ -426,8 +426,14 @@ def train_one(method, data, masks, device, rstar, seed,
         sched.step()
         ov, pg_val = evaluate(model, data, masks, "val", device, rstar)
         sel = ov[flags["select"]]
+        # Per-group train and test loss are logged for the dynamics plots only; epoch selection
+        # reads the validation numbers above.
+        _, pg_tr = evaluate(model, data, masks, "train", device, rstar)
+        _, pg_te = evaluate(model, data, masks, "test", device, rstar)
         curve.append({"epoch": ep, "lambda": lam.detach().cpu().numpy().tolist(),
                       "per_group_loss": {g_: float(r_["loss"]) for g_, r_ in pg_val.items()},
+                      "per_group_loss_train": {g_: float(r_["loss"]) for g_, r_ in pg_tr.items()},
+                      "per_group_loss_test": {g_: float(r_["loss"]) for g_, r_ in pg_te.items()},
                       "per_group_acc": {g_: float(r_["acc"]) for g_, r_ in pg_val.items()},
                       **{k: ov[k] for k in
                     ["overall_acc", "worst_group_acc", "tail_acc", "avg_loss", "max_excess"]}})

@@ -474,7 +474,7 @@ body{margin:0;background:var(--bg);color:var(--ink);
   font:15px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased}
 header{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line)}
-.bar{max-width:1240px;margin:0 auto;padding:14px 24px;display:flex;align-items:baseline;gap:20px;
+.bar{max-width:1160px;margin:0 auto;padding:14px 24px;display:flex;align-items:baseline;gap:20px;
   flex-wrap:wrap}
 .bar h1{font-size:15px;font-weight:600;margin:0;letter-spacing:-.01em}
 nav{display:flex;gap:2px;flex-wrap:wrap;margin-left:auto}
@@ -482,7 +482,7 @@ nav a{color:var(--dim);text-decoration:none;padding:6px 12px;border-radius:6px;f
 nav a:hover{color:var(--ink);background:var(--bg)}
 nav a.on{color:var(--ink);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
 nav a:focus-visible{outline:2px solid var(--ours);outline-offset:1px}
-main{max-width:1240px;margin:0 auto;padding:36px 24px 100px}
+main{max-width:1160px;margin:0 auto;padding:36px 24px 100px}
 section{display:none} section.on{display:block}
 h2{font-size:26px;font-weight:650;margin:0 0 6px;letter-spacing:-.02em;text-wrap:balance}
 h3{font-size:13px;font-weight:600;margin:38px 0 12px;color:var(--dim);
@@ -538,12 +538,12 @@ li b{color:var(--ink)}
 .toc{position:fixed;left:22px;top:120px;width:215px;font-size:15px;line-height:1.4;display:none;z-index:15}
 section.on .toc{display:block}
 /* on mid-width screens the centred column would sit under the sidebar, so nudge it right */
-@media (min-width:1500px) and (max-width:1760px){body.plan main{margin-left:260px}}
+@media (min-width:1420px) and (max-width:1680px){body.plan main{margin-left:260px}}
 .toc .toc-t{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-bottom:10px}
 .toc a{display:block;color:var(--faint);text-decoration:none;padding:9px 14px;border-left:3px solid var(--line);transition:color .2s,border-color .2s,background .2s}
 .toc a:hover{color:var(--ink)}
 .toc a.on{color:var(--ink);border-left-color:var(--ours);background:var(--card);box-shadow:0 0 0 1px var(--line),0 0 14px rgba(29,111,139,.25)}
-@media (max-width:1500px){.toc{display:none!important}}
+@media (max-width:1420px){.toc{display:none!important}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 """
 

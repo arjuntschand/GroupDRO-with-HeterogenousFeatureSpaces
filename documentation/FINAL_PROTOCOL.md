@@ -4,7 +4,7 @@ What was run for the numbers in `runs/FINAL_TABLES.txt`, the results site and th
 
 ## Method as run
 
-Per-group encoders φ_g (one MLP per group over that group's own feature set) → shared latent space (dim 32 tabular, 64 EMBED) → shared classifier head → per-class Gaussian anchors. Loss = CE + λ_fit · W₂-fit + λ_sep · L_sep, with group weights λ_g on the CE term updated by exponentiated gradient on a running per-group loss (GroupDRO) or on the excess over a per-group optimal-loss floor R̃_g (Regret-DRO).
+Per-group encoders φ_g (one MLP per group over that group's own feature set) → shared latent space (dim 64 on all three datasets) → shared classifier head → per-class Gaussian anchors. Loss = CE + λ_fit · W₂-fit + λ_sep · L_sep, with group weights λ_g on the CE term updated by exponentiated gradient on a running per-group loss (GroupDRO) or on the excess over a per-group optimal-loss floor R̃_g (Regret-DRO).
 
 | | Fed-Heart, NHANES | EMBED |
 |---|---|---|

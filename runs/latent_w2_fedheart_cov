@@ -1,0 +1,35 @@
+{
+  "no anchors": {
+    "latent_scale": 4.629666422944977,
+    "w2_between_groups_same_class": 13.828190432654488,
+    "w2_group_to_anchor": 13.534736633300781,
+    "w2_between_classes_same_group": 13.035006205240885,
+    "w2_between_groups_same_class_normalised": 0.6451577981876341,
+    "w2_group_to_anchor_normalised": 0.6314666353429458,
+    "w2_between_classes_same_group_normalised": 0.6081515830789023,
+    "class_over_group_ratio": 0.9426400561030355,
+    "worst": NaN
+  },
+  "real anchors": {
+    "latent_scale": 0.9029748534421898,
+    "w2_between_groups_same_class": 0.3438119391600291,
+    "w2_group_to_anchor": 0.4014776817389897,
+    "w2_between_classes_same_group": 0.5057434737682343,
+    "w2_between_groups_same_class_normalised": 0.4216670269373027,
+    "w2_group_to_anchor_normalised": 0.4923909880912062,
+    "w2_between_classes_same_group_normalised": 0.6202674272970323,
+    "class_over_group_ratio": 1.470988689350992,
+    "worst": NaN
+  },
+  "random anchors": {
+    "latent_scale": 0.9240303060259808,
+    "w2_between_groups_same_class": 0.5589121845033433,
+    "w2_group_to_anchor": 0.4544364724840437,
+    "w2_between_classes_same_group": 0.3880776862303416,
+    "w2_between_groups_same_class_normalised": 0.6545926836641118,
+    "w2_group_to_anchor_normalised": 0.532231714258509,
+    "w2_between_classes_same_group_normalised": 0.4545129291203686,
+    "class_over_group_ratio": 0.69434465196924,
+    "worst": NaN
+  }
+}

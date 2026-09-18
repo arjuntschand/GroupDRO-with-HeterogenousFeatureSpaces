@@ -17,6 +17,7 @@ import numpy as np, matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
+from matplotlib.patches import Ellipse
 from matplotlib.lines import Line2D
 
 import argparse
@@ -61,6 +62,20 @@ def w2_stats(z, y, g):
     cc = [d(fits[a], fits[b]) for a in fits for b in fits if a[1] == b[1] and a[0] < b[0]]
     return (np.mean(gg) / s2 if gg else np.nan, np.mean(cc) / s2 if cc else np.nan)
 
+def w2_to_anchor(z, y, g, A, S):
+    """Mean over (group, class) clouds of the scale-normalised diagonal W2 between the cloud's
+    Gaussian and the LEARNT anchor N(m_c, S_c). This is the fit between the empirical class
+    distributions and the learnt ones."""
+    s2 = float((z ** 2).sum(1).mean()); av = np.stack([np.diag(S[c]) for c in range(len(A))]); out = []
+    for c in np.unique(y):
+        for k in np.unique(g):
+            zz = z[(y == c) & (g == k)]
+            if len(zz) >= 5:
+                m, v = zz.mean(0), zz.var(0) + 1e-6
+                out.append(float(((m - A[c]) ** 2).sum() + ((np.sqrt(v) - np.sqrt(av[c])) ** 2).sum()))
+    return np.mean(out) / s2 if out else np.nan
+
+
 def pca2(z):
     mu = z.mean(0); u, s, vt = np.linalg.svd(z - mu, full_matrices=False)
     return mu, vt[:2], (s[:2] ** 2) / (s ** 2).sum()
@@ -71,6 +86,7 @@ rng = np.random.default_rng(0)
 for j, (key, title, show_anchor) in enumerate(ARMS):
     d = np.load(f"{D['dir']}/{key}_s{SEED}.npz")
     z, y, g, A = d["z"], d["y"], d["g"], d["anchor_m"]
+    S_anc = d["anchor_S"] if "anchor_S" in d.files and d["anchor_S"].size else None
     mu, P, var = pca2(z)
     xy = (z - mu) @ P.T; axy = (A - mu) @ P.T
     NG = len(GROUPS)
@@ -102,6 +118,13 @@ for j, (key, title, show_anchor) in enumerate(ARMS):
                 spread_a = max(np.ptp(axy[:len(D["classes"]), 0]), np.ptp(axy[:len(D["classes"]), 1]))
                 coincident = spread_a < 0.08 * 2 * lx
                 for c_, lab in enumerate(D["classes"]):
+                    if S_anc is not None:
+                        # learnt anchor N(m_c, S_c) projected onto the PCA plane: 2-sigma ellipse
+                        S2 = P @ S_anc[c_] @ P.T
+                        ev, evec = np.linalg.eigh(S2)
+                        ang = np.degrees(np.arctan2(evec[1, 1], evec[0, 1]))
+                        ax.add_patch(Ellipse(axy[c_], width=4 * np.sqrt(max(ev[1], 1e-12)), height=4 * np.sqrt(max(ev[0], 1e-12)),
+                                             angle=ang, facecolor=CCOL[c_], alpha=.12, edgecolor=CCOL[c_], lw=1.4, ls="--", zorder=4))
                     ax.scatter(*axy[c_], marker="*", s=330, color=CCOL[c_], edgecolor=INK, linewidth=1.1, zorder=6)
                     if not coincident:
                         ax.annotate("anchor: " + lab, axy[c_], xytext=(9, 9), textcoords="offset points", fontsize=8.5, color=INK, zorder=7,
@@ -123,12 +146,15 @@ for j, (key, title, show_anchor) in enumerate(ARMS):
     else:
         bg, bc = w2_stats(z, y, g); src = "this seed"
     note = f"W₂ between groups {bg:.2f}  ·  between classes {bc:.2f}  ({src})"
-    axes[0][j].set_title(f"{title}\n", fontsize=11, color=INK, loc="left")
-    axes[0][j].text(0, 1.02, note, transform=axes[0][j].transAxes, fontsize=8, color=INK2, va="bottom")
+    if show_anchor and S_anc is not None:
+        note += f"\ncloud → learnt anchor {w2_to_anchor(z, y, g, A, S_anc):.2f} (this seed)"
+    axes[0][j].set_title(f"{title}\n\n", fontsize=11, color=INK, loc="left")
+    axes[0][j].text(0, 1.02, note, transform=axes[0][j].transAxes, fontsize=8, color=INK2, va="bottom", linespacing=1.3)
 h1 = [Line2D([], [], marker="o", ls="", ms=6, color=GCOL[k], alpha=.8, label=GROUPS[k]) for k in range(len(GROUPS))]
 h1 += [Line2D([], [], marker="o", ls="", ms=10, markerfacecolor="#ffffff", markeredgecolor=INK, label="group centroid")]
 axes[0][0].legend(handles=h1, fontsize=7.5 if len(GROUPS) > 4 else 8, frameon=False, loc="lower left")
 h2 = [Line2D([], [], marker="o", ls="", ms=6, color=CCOL[c_], label=D["classes"][c_]) for c_ in range(len(D["classes"]))]
+h2 += [Line2D([], [], marker="*", ls="", ms=11, color=INK2, label="learnt anchor mean"), Line2D([], [], ls="--", color=INK2, label="learnt anchor, 2σ")]
 axes[1][0].legend(handles=h2, fontsize=8, frameon=False, loc="lower left")
 fig.suptitle(D["title"] + "\nW₂ values are scale-normalised. Axes are scaled per panel." + ("" if ARGS.dataset == "embed" else " The anchors shrink the latent space by an order of magnitude or more.") + "",
              fontsize=10.5, color=INK, x=.01, ha="left")

@@ -936,9 +936,9 @@ def train(cfg):
                         xg = xg[:, feature_indices[gid]]
                     z[m] = enc(xg)
                 zs.append(z.cpu()); ys.append(y.cpu()); gs.append(g.cpu())
-        m_anc, _, _ = anchors.forward()
+        m_anc, S_anc, _ = anchors.forward()
         out["final_latents"] = {"z": torch.cat(zs), "y": torch.cat(ys),
-                                "g": torch.cat(gs), "anchor_m": m_anc.detach().cpu()}
+                                "g": torch.cat(gs), "anchor_m": m_anc.detach().cpu(), "anchor_S": S_anc.detach().cpu()}
     return out
 
 

@@ -355,7 +355,7 @@ def headline_table(data, tail=None):
                "ctrl": "<span class='tag ctrl'>control</span>",
                "ext":  "<span class='tag ctrl'>external baseline</span>"}.get(kind, "")
         enc_c, dro_c, anc_c = summaries_meta[key]
-        ours = enc_c == "per-group" and anc_c == "yes" and dro_c not in ("—", "")   # per-group + anchors + DRO
+        ours = kind == "full"   # the method: per-group encoders + anchors + Regret-DRO
         row_style = " style='background:rgba(31,159,110,.14)'" if ours else ""
         rows.append(
             f"<tr{row_style}>"
@@ -371,7 +371,7 @@ def headline_table(data, tail=None):
             + (f"<td class='dim'>{int(s['n_params']):,}</td>"
                if s.get("n_params") else "<td class='na'>—</td>")
             + f"<td class='dim'>{s['seeds']}</td></tr>")
-    foot = ("<p class='legend'>Green rows are our method (per-group encoders + anchors + DRO). Parameters are "
+    foot = ("<p class='legend'>The green row is our method (per-group encoders + anchors + Regret-DRO). Parameters are "
             "inference parameters (anchors are training-only and excluded). Mean ± sd over seeds; paired "
             "comparisons are in the heatmaps at the top of the Final results tab.</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
@@ -903,14 +903,14 @@ def baseline_table(data, tail=None):
         npar = s_.get("n_params")
         tag = {"full": "<span class='tag ours'>ours</span>",
                "ext": "<span class='tag ctrl'>external</span>"}.get(kind, "")
-        row_style = " style='background:rgba(31,159,110,.14)'" if kind in ("full", "abl") else ""
+        row_style = " style='background:rgba(31,159,110,.14)'" if kind == "full" else ""
         rows.append(
             f"<tr{row_style}><td class='m'>{html.escape(label)}{tag}</td>"
             f"{fcell(label, s_, 'worst_acc')}{fcell(label, s_, 'tail_acc')}{fcell(label, s_, 'wt_acc')}"
             f"{fcell(label, s_, 'wt_f1')}{fcell(label, s_, 'wt_loss', 3)}{fcell(label, s_, 'worst_loss', 3)}{fcell(label, s_, 'max_excess', 3)}"
             + (f"<td class='dim'>{int(npar):,}</td>" if npar else "<td class='na'>—</td>")
             + f"<td class='dim'>{s_['seeds']}</td></tr>")
-    foot = ("<p class='legend'>Green rows are our method's two anchored arms. Mean ± sd over 10 seeds; "
+    foot = ("<p class='legend'>The green row is our method (per-group encoders + anchors + Regret-DRO); the anchors + GroupDRO row is its R* = 0 variant. Mean ± sd over 10 seeds; "
             "paired tests against each baseline are in the heatmaps at the top of the Final results tab.</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
             "<th>worst-group acc</th><th>tail acc</th><th>overall acc</th><th>macro-F1</th>"
@@ -1100,7 +1100,7 @@ def final_results_page(loaded=None, merged_bl=None):
     def gamma_table(ds):
         rows = GAMMA[ds]
         return ("<table class='data'><thead><tr><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>worst-group excess (regret)</th><th>weights moved (L1)</th><th class='it'>vs frozen-weight setting</th></tr></thead><tbody>"
-                + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for r in rows)
+                + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{r[0].replace(' (frozen)', '')}{" <span class='tag best'>selected</span>" if 'frozen' in r[0] else ''}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for r in rows)
                 + "</tbody></table>")
     DESC = {"NHANES": "nhnested", "Fed-Heart": "fedheart", "EMBED": "embed"}
     DYNF = {"NHANES": ("fig5_dynamics_nhanes_groupdro", "fig5_dynamics_nhanes_regretdro"),
@@ -1128,7 +1128,7 @@ def final_results_page(loaded=None, merged_bl=None):
             out.append("<h3>4. Per-group group weight against epoch</h3><p class='legend'>The lower row of each panel above is the weight trajectory; the summary of where the weights end is the first figure on the Plots tab (lambda against R*).</p>")
             out.append("<h3>5. Latent-space alignment scatter, anchors on and off</h3>" + "".join(figblock(st, cap) for st, cap in SCAT[ds]))
             out.append("<h3>6. Hyperparameter sweep, full method (per-group encoders + anchors + Regret-DRO)</h3><p class='legend'>Group-weight step size and refresh cadence for the full method (the sweep that fixed the protocol; 10 seeds). The other DRO arms at each setting are on the report page.</p><div class='card'>" + gamma_table(ds) + "</div>")
-            if SWEEP[ds]:
+            if SWEEP[ds] and os.path.exists(SWEEP[ds].replace("sweep_", "sweep_").replace("/sweep.json", "_frozen/sweep.json")):
                 out.append("<p class='legend'>Equal-budget sweep over anchor weight, group-weight step size and latent width for the full method (per-group encoders + anchors + Regret-DRO), validation-selected (run_sweep.py; earlier protocol, 3 seeds per config; the highlighted row is the configuration validation picked in that sweep). Only validation and test worst-group accuracy were recorded per config, so loss and excess are not available for this sweep without rerunning it.</p><div class='card'>" + sweep_table(SWEEP[ds], "Ours_Regret") + "</div>")
             else:
                 out.append("<p class='legend'>EMBED: anchor weight swept over 0.1 / 1 / 10, uniform vs proportional weight start, training vs held-out weight signal, original vs eq. 13 floors; the full tables are on the report page.</p>")
@@ -1136,7 +1136,7 @@ def final_results_page(loaded=None, merged_bl=None):
             out.append(f"<h3>7. Dataset description and feature table</h3><div class='card' style='padding:16px 20px'><p class='blurb' style='margin:0 0 10px'>{html.escape(d['blurb'])}</p><ul style='margin:0'>{gl}</ul></div>")
     out.append("<h3 id='fr-gamma'>Group-weight step size, the sweep behind the protocol (all three datasets; full method = per-group encoders + anchors + Regret-DRO)</h3>")
     out.append("<div class='card'><table class='data'><thead><tr><th class='it'>dataset</th><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>worst-group excess</th><th>weights moved (L1)</th><th class='it'>vs frozen-weight setting</th></tr></thead><tbody>"
-               + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{ds if i == 0 else ''}</td><td class='it'>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for ds in ["Fed-Heart", "NHANES", "EMBED"] for i, r in enumerate(GAMMA[ds]))
+               + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{ds if i == 0 else ''}</td><td class='it'>{r[0].replace(' (frozen)', '')}{" <span class='tag best'>selected</span>" if 'frozen' in r[0] else ''}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for ds in ["Fed-Heart", "NHANES", "EMBED"] for i, r in enumerate(GAMMA[ds]))
                + "</tbody></table></div>")
     return "".join(out)
 

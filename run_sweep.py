@@ -30,6 +30,14 @@ SEEDS = [42, 1337, 7]
 N_CONFIGS = 12                      # identical for every method, ours included
 
 
+def our_grid_frozen():
+    """Frozen-protocol grid (2026-09-18): the step size is fixed at the selected gamma 0.1 per
+    step (its own sweep is reported separately), so the equal budget goes to the anchor weight
+    and the latent width."""
+    g = list(itertools.product([0.01, 0.05, 0.1, 0.3], [32, 64, 128]))
+    return [{"lambda_fit": a, "lambda_sep": a, "latent_dim": d} for a, d in g][:N_CONFIGS]
+
+
 def our_grid():
     """Ours: the anchor weight, the DRO step size, and the latent width.
 
@@ -79,35 +87,41 @@ def main():
     ap.add_argument("--folds", type=int, default=1)
     ap.add_argument("--epochs", type=int, default=None)
     ap.add_argument("--smoke", action="store_true", help="one config, one seed, few epochs")
+    ap.add_argument("--base", default=None, help="config to sweep from (default: the paper base config)")
+    ap.add_argument("--rstar", default=None, help="optimal-loss file (default: the paper R* file)")
+    ap.add_argument("--out", default=None)
+    ap.add_argument("--frozen", action="store_true",
+                    help="frozen-protocol grid: anchor weight x latent width at the selected step size")
     args = ap.parse_args()
 
     import importlib
     mod = ("dro_hetero_anchors.src.train_nhanes" if args.dataset == "nhanes"
            else "dro_hetero_anchors.src.train_fedheart")
     train = importlib.import_module(mod).train
-    base_path = ("experiments/nhanes_pergroup_gdro.yaml" if args.dataset == "nhanes"
-                 else "experiments/fedheart_exp_paper_hetagg_gdro.yaml")
+    base_path = args.base or ("experiments/nhanes_pergroup_gdro.yaml" if args.dataset == "nhanes"
+                              else "experiments/fedheart_exp_paper_hetagg_gdro.yaml")
     base = yaml.safe_load(open(base_path))
-    base["val_frac"] = 0.2                       # sweep-only; canonical configs stay at 0
+    base["val_frac"] = base.get("val_frac") or 0.2   # keep the config's split when it has one
     if args.epochs:
         base["epochs"] = args.epochs
     if args.dataset == "nhanes":
         base.setdefault("data_split_seed", 100)
 
-    out = f"runs/sweep_{args.dataset}"
+    out = args.out or f"runs/sweep_{args.dataset}"
     os.makedirs(out, exist_ok=True)
     seeds = args.seeds[:1] if args.smoke else args.seeds
 
     # (method label, config list, config->cfg patch)
     def ours_patch(cfg, hp):
         cfg.update(common_encoder=False, groupdro_enabled=True, use_regret=True, **hp)
-        rp = (f"runs/rstar_{args.dataset}.json" if args.dataset == "fedheart"
-              else "runs/rstar_nhanes_nested.json")
+        rp = args.rstar or (f"runs/rstar_{args.dataset}.json" if args.dataset == "fedheart"
+                            else "runs/rstar_nhanes_nested.json")
         rs = json.load(open(rp))["rstar"]
         cfg["optimal_losses"] = [rs[str(i)] for i in range(len(rs))]
         return cfg
 
-    jobs = [("Ours_Regret", our_grid()[:1] if args.smoke else our_grid(), ours_patch)]
+    _grid = our_grid_frozen() if args.frozen else our_grid()
+    jobs = [("Ours_Regret", _grid[:1] if args.smoke else _grid, ours_patch)]
 
     results = {}
     for label, grid, patch in jobs:

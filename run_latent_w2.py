@@ -99,8 +99,10 @@ def main():
                 os.makedirs(args.save_latents, exist_ok=True)
                 np.savez_compressed(os.path.join(args.save_latents, f"{name.replace(' ', '_')}_s{seed}.npz"),
                                     z=np.asarray(lat["z"]), y=np.asarray(lat["y"]), g=np.asarray(lat["g"]),
-                                    anchor_m=np.asarray(lat["anchor_m"]))
-            st = stats(lat["z"], lat["y"], lat["g"], lat["anchor_m"])
+                                    anchor_m=np.asarray(lat["anchor_m"]),
+                                    anchor_S=np.asarray(lat.get("anchor_S")) if lat.get("anchor_S") is not None else np.zeros(0))
+            _av = (np.einsum("cii->ci", np.asarray(lat["anchor_S"])) if lat.get("anchor_S") is not None else None)
+            st = stats(lat["z"], lat["y"], lat["g"], lat["anchor_m"], anchor_var=_av)
             st["worst"] = float(r.get("test_worst_group_acc", r.get("worst", float("nan"))))
             per.append(st)
             print(f"  {name} s{seed}: " + " ".join(f"{k}={v:.4g}" for k, v in st.items()), flush=True)

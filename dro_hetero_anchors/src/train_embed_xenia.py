@@ -567,7 +567,9 @@ def main():
                         _gs.append(np.full(len(_sub["y"]), _gi))
                 np.savez_compressed(os.path.join(args.save_latents, f"{method}_s{seed}.npz"),
                                     z=np.concatenate(_zs), y=np.concatenate(_ys), g=np.concatenate(_gs),
-                                    anchor_m=model.anchors.m.detach().cpu().numpy(), groups=np.array(_names))
+                                    anchor_m=model.anchors.m.detach().cpu().numpy(),
+                                    anchor_S=np.stack([np.diag(v) for v in model.anchors.var().detach().cpu().numpy()]),
+                                    groups=np.array(_names))
             print(f"[seed {seed}] {method}: test overall={ov['overall_acc']:.3f} "
                   f"worst={ov['worst_group_acc']:.3f}({ov['worst_group']}) tail={ov['tail_acc']:.3f}")
             for g, row in pg.items():

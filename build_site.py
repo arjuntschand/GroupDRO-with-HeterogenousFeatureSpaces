@@ -474,7 +474,7 @@ body{margin:0;background:var(--bg);color:var(--ink);
   font:15px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased}
 header{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line)}
-.bar{max-width:1080px;margin:0 auto;padding:14px 24px;display:flex;align-items:baseline;gap:20px;
+.bar{max-width:1400px;margin:0 auto;padding:14px 24px;display:flex;align-items:baseline;gap:20px;
   flex-wrap:wrap}
 .bar h1{font-size:15px;font-weight:600;margin:0;letter-spacing:-.01em}
 nav{display:flex;gap:2px;flex-wrap:wrap;margin-left:auto}
@@ -482,7 +482,7 @@ nav a{color:var(--dim);text-decoration:none;padding:6px 12px;border-radius:6px;f
 nav a:hover{color:var(--ink);background:var(--bg)}
 nav a.on{color:var(--ink);background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
 nav a:focus-visible{outline:2px solid var(--ours);outline-offset:1px}
-main{max-width:1080px;margin:0 auto;padding:36px 24px 100px}
+main{max-width:1400px;margin:0 auto;padding:36px 24px 100px}
 section{display:none} section.on{display:block}
 h2{font-size:26px;font-weight:650;margin:0 0 6px;letter-spacing:-.02em;text-wrap:balance}
 h3{font-size:13px;font-weight:600;margin:38px 0 12px;color:var(--dim);
@@ -492,7 +492,7 @@ h3{font-size:13px;font-weight:600;margin:38px 0 12px;color:var(--dim);
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 20px 18px;
   margin:14px 0;overflow-x:auto}
 table.data{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
-table.data th{text-align:right;padding:14px 12px 10px;font-weight:600;font-size:11.5px;
+table.data th{text-align:right;padding:14px 10px 10px;font-weight:600;font-size:11.5px;
   color:var(--dim);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);
   white-space:nowrap}
 table.data th:first-child,table.data td.m{text-align:left}
@@ -502,7 +502,7 @@ table.data th::after{content:'↕';opacity:.25;margin-left:6px;font-size:10px}
 table.data th.asc::after{content:'↑';opacity:.9}
 table.data th.desc::after{content:'↓';opacity:.9}
 table.data th.def::after{content:'↕';opacity:.25}
-table.data td{text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);
+table.data td{text-align:right;padding:9px 10px;border-bottom:1px solid var(--line);
   white-space:nowrap}
 table.data tbody tr:last-child td{border-bottom:0}
 td.m{font-weight:500}
@@ -535,15 +535,15 @@ li b{color:var(--ink)}
 .fig{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
 .fig img{width:100%;height:auto;border-radius:7px;background:#fff;display:block}
 .fig .cap{color:var(--dim);font-size:12px;margin-top:9px;line-height:1.45}
-.toc{position:fixed;left:18px;top:110px;width:170px;font-size:12.5px;line-height:1.35;display:none;z-index:15}
+.toc{position:fixed;left:22px;top:120px;width:215px;font-size:15px;line-height:1.4;display:none;z-index:15}
 section.on .toc{display:block}
 /* on mid-width screens the centred column would sit under the sidebar, so nudge it right */
-@media (min-width:1300px) and (max-width:1460px){body.plan main{margin-left:210px}}
-.toc .toc-t{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);margin-bottom:8px}
-.toc a{display:block;color:var(--faint);text-decoration:none;padding:5px 10px;border-left:2px solid var(--line);transition:color .2s,border-color .2s,background .2s}
+@media (min-width:1500px) and (max-width:1900px){body.plan main{margin-left:260px}}
+.toc .toc-t{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-bottom:10px}
+.toc a{display:block;color:var(--faint);text-decoration:none;padding:9px 14px;border-left:3px solid var(--line);transition:color .2s,border-color .2s,background .2s}
 .toc a:hover{color:var(--ink)}
 .toc a.on{color:var(--ink);border-left-color:var(--ours);background:var(--card);box-shadow:0 0 0 1px var(--line),0 0 14px rgba(29,111,139,.25)}
-@media (max-width:1300px){.toc{display:none!important}}
+@media (max-width:1500px){.toc{display:none!important}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 """
 
@@ -1061,12 +1061,10 @@ def final_results_page(loaded=None, merged_bl=None):
         ("Dataset description and feature table", True, "EMBED tab header; six view-set groups"),
       ]}
     side = ("<aside class='toc' id='fr-toc'><div class='toc-t'>On this page</div>"
-            "<a href='#fr-heat' data-t='fr-heat'>Heatmaps vs baselines</a>"
+            "<a href='#fr-heat' data-t='fr-heat'>Heatmaps</a>"
             "<a href='#fr-nhnested' data-t='fr-nhnested'>NHANES</a>"
             "<a href='#fr-fedheart' data-t='fr-fedheart'>Fed-Heart</a>"
-            "<a href='#fr-embed' data-t='fr-embed'>EMBED</a>"
-            "<a href='#fr-gamma' data-t='fr-gamma'>Step-size sweep</a>"
-            "<a href='#fr-check' data-t='fr-check'>Checklist</a></aside>")
+            "<a href='#fr-embed' data-t='fr-embed'>EMBED</a></aside>")
     out = [side, "<h2>Final results</h2>", "<p class='sub'>Seven deliverables per dataset, status read from the files that exist at build time.</p>", PROTO, pend]
     if loaded:
         out.append(vs_baselines_block(loaded, merged_bl))

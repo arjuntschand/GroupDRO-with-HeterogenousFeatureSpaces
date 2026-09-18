@@ -1113,13 +1113,6 @@ def final_results_page(loaded=None, merged_bl=None):
     out.append("<div class='card'><table class='data'><thead><tr><th class='it'>dataset</th><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>worst-group excess</th><th>weights moved (L1)</th><th class='it'>vs frozen-weight setting</th></tr></thead><tbody>"
                + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{ds if i == 0 else ''}</td><td class='it'>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for ds in ["Fed-Heart", "NHANES", "EMBED"] for i, r in enumerate(GAMMA[ds]))
                + "</tbody></table></div>")
-    out.append("<h3>Latent-space scatter, anchors on and off</h3>")
-    for stem, cap in [("fig11_latent_scatter", "NHANES, three columns with the randomly-assigned-anchor control."),
-                      ("fig11_latent_scatter_fedheart", "Fed-Heart: the hospitals already overlap without anchors."),
-                      ("fig11_latent_scatter_embed", "EMBED: the six view groups align (1.03 to 0.19) and random anchors do not do it (0.69); the class anchors sit close together.")]:
-        rel = f"figs/paper/{stem}.png"
-        if os.path.exists(os.path.join(SITE, rel)):
-            out.append(f"<div class='fig'><img src='{rel}' alt=''><div class='cap'>{html.escape(cap)}</div></div>")
     return "".join(out)
 
 

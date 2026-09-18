@@ -1008,20 +1008,20 @@ def final_results_page(loaded=None, merged_bl=None):
     from the filesystem so it cannot say 'ready' for something that is not there."""
     def ok(*paths):
         return all(os.path.exists(x) for x in paths)
-    PROTO = ("<div class='note'><b>Frozen protocol (2026-09-18).</b> Tabular: architecture as "
-             "built for every arm (MLP head with 32 hidden units, full-covariance anchors, class "
-             "moments pooled over groups), group weights start uniform (1/G), optimal-loss floors "
-             "from eq. 13 of the draft, weights driven by held-out loss and refreshed every step at "
-             "gamma 0.1, 10 seeds; Fed-Heart is uncapped and 5-fold. EMBED: weights start uniform, "
-             "the draft's schedule (running training loss, refresh every 50 steps) at gamma 2.0, "
-             "original 5-fold floors, 10 seeds. Configs: experiments/fedheart_final.yaml, "
-             "experiments/nhanes_final.yaml; families runs/final_fedheart, runs/final_nhanes, "
-             "runs/final_embed, each with a PROTOCOL.md. The sweeps that fixed these choices are on "
-             "the report page (Xenia checks, 2026-09-17).</div>")
-    pend = ("<div class='note'><b>One row pending.</b> The EMBED 'per-group + anchors + GroupDRO' "
-            "ablation arm is being rerun under the frozen weight schedule (its first 10-seed pass "
-            "used the old frozen-weight one); every other EMBED row is final.</div>"
-            if not os.path.exists("runs/final_embed/ALIGN_FINAL") else "")
+    PROTO = ("<div class='note'><b>Experimental protocol.</b> Every number on this page comes from one "
+             "fixed training recipe, 10 seeds per arm, with the reported epoch chosen on a validation split "
+             "(never on test) and paired tests over seeds. "
+             "<b>Fed-Heart and NHANES:</b> per-group MLP encoders into a 64-d latent space, MLP head (32 hidden), "
+             "full-covariance class anchors with class moments pooled over groups, anchor weight 0.1; group weights "
+             "start uniform (1/G), are driven by held-out per-group loss and refreshed every step with step size "
+             "0.1; per-group optimal-loss floors are the lower of a group-only fit and the constant predictor, "
+             "minus a bootstrap margin (eq. 13). Fed-Heart uses 5-fold cross-validation with no group capped; "
+             "NHANES a fixed split. <b>EMBED:</b> frozen ViT-Base features, per-view projections, per-group MLPs, "
+             "linear head, diagonal anchors (weight 1.0); group weights start uniform and follow the running "
+             "training loss, refreshed every 50 steps with step size 2.0; plain out-of-fold floors. "
+             "Baselines (Reweigh, Flex-MoE, REMIND) run on the same splits, seeds and features. "
+             "Configs: <code>experiments/fedheart_final.yaml</code>, <code>experiments/nhanes_final.yaml</code>; "
+             "result files under <code>runs/final_*</code>; the sweeps behind each setting are further down this tab.</div>")
     D = {
       "NHANES": [
         ("Ablation table, our own methods", ok("runs/final_nhanes/metrics_long.csv"), "NHANES tab; runs/final_nhanes (10 arms x 10 seeds)"),

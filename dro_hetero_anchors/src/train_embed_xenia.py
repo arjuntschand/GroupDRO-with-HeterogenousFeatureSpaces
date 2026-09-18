@@ -424,9 +424,11 @@ def train_one(method, data, masks, device, rstar, seed,
             lam = torch.clamp(lam, min=1e-8); lam = lam / lam.sum()
             model.train()
         sched.step()
-        ov, _ = evaluate(model, data, masks, "val", device, rstar)
+        ov, pg_val = evaluate(model, data, masks, "val", device, rstar)
         sel = ov[flags["select"]]
         curve.append({"epoch": ep, "lambda": lam.detach().cpu().numpy().tolist(),
+                      "per_group_loss": {g_: float(r_["loss"]) for g_, r_ in pg_val.items()},
+                      "per_group_acc": {g_: float(r_["acc"]) for g_, r_ in pg_val.items()},
                       **{k: ov[k] for k in
                     ["overall_acc", "worst_group_acc", "tail_acc", "avg_loss", "max_excess"]}})
         if sel < best_sel:

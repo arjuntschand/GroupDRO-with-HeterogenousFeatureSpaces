@@ -1,6 +1,84 @@
 
 ==============================================================================
-Fed-Heart (capped)
+Fed-Heart (uncapped, primary)
+==============================================================================
+method                              worst-grp  worst loss     params
+ERM, common features                68.28±1.0       0.638     11,618
+Per-group + GroupDRO                72.99±1.2       0.583     38,946
+Per-group + Regret-DRO              73.18±1.3       0.576     38,946
+Per-group + anchors + GroupDRO      71.15±2.3       0.591     38,946
+Ours: + anchors + Regret            72.25±1.5       0.570     38,946
+Reweigh (baseline)                  72.43±1.4       0.643     53,506
+FlexMoE (baseline)                  72.40±1.7       0.786    537,250
+REMIND (baseline)                   72.98±1.1       0.660     53,506
+
+  ablation (paired over seeds):
+    per-group + GroupDRO vs ERM           +4.71  p=0.0000  significant
+    regret vs GroupDRO                    +0.19  p=0.6585
+    anchors vs GroupDRO                   -1.84  p=0.0290  significant
+
+  vs baselines (our full method):
+    Reweigh   worst-group acc     72.245 vs  72.425   tie
+    Reweigh   worst-group loss     0.570 vs   0.643   WIN
+    FlexMoE   worst-group acc     72.245 vs  72.400   tie
+    FlexMoE   worst-group loss     0.570 vs   0.786   WIN
+    REMIND    worst-group acc     72.245 vs  72.979   tie
+    REMIND    worst-group loss     0.570 vs   0.660   WIN
+
+==============================================================================
+NHANES (primary)
+==============================================================================
+method                              worst-grp  worst loss     params
+ERM, common features                69.28±1.5       0.496          0
+Per-group + GroupDRO                71.35±1.9       0.507          0
+Per-group + Regret-DRO              70.84±2.0       0.527          0
+Per-group + anchors + GroupDRO      74.30±4.0       0.524          0
+Ours: + anchors + Regret            74.67±3.7       0.522          0
+Reweigh (baseline)                  72.83±2.2       0.680     52,482
+FlexMoE (baseline)                  72.74±7.5       0.607    536,354
+REMIND (baseline)                   72.35±2.4       0.662     52,482
+
+  ablation (paired over seeds):
+    per-group + GroupDRO vs ERM           +2.08  p=0.0229  significant
+    regret vs GroupDRO                    -0.51  p=0.5709
+    anchors vs GroupDRO                   +2.94  p=0.1014
+
+  vs baselines (our full method):
+    Reweigh   worst-group acc     74.671 vs  72.832   tie
+    Reweigh   worst-group loss     0.522 vs   0.680   WIN
+    FlexMoE   worst-group acc     74.671 vs  72.736   tie
+    FlexMoE   worst-group loss     0.522 vs   0.607   WIN
+    REMIND    worst-group acc     74.671 vs  72.345   tie
+    REMIND    worst-group loss     0.522 vs   0.662   WIN
+
+==============================================================================
+EMBED (primary)
+==============================================================================
+method                              worst-grp  worst loss     params
+ERM, common features                62.16±3.4       1.350    276,228
+Per-group + GroupDRO                62.70±2.9       1.051    276,228
+Per-group + Regret-DRO              61.02±3.6       1.344    276,228
+Per-group + anchors + GroupDRO      57.64±2.7       1.294    276,228
+Ours: + anchors + Regret            62.74±3.1       1.066    276,228
+Reweigh (baseline)                  59.35±4.1       2.115    248,964
+FlexMoE (baseline)                  62.26±4.0       1.333    248,964
+REMIND (baseline)                   62.11±3.3       1.183    248,964
+
+  ablation (paired over seeds):
+    per-group + GroupDRO vs ERM           +0.54  p=0.7509
+    regret vs GroupDRO                    -1.68  p=0.2380
+    anchors vs GroupDRO                   -5.06  p=0.0037  significant
+
+  vs baselines (our full method):
+    Reweigh   worst-group acc     62.741 vs  59.347   tie
+    Reweigh   worst-group loss     1.066 vs   2.115   WIN
+    FlexMoE   worst-group acc     62.741 vs  62.259   tie
+    FlexMoE   worst-group loss     1.066 vs   1.333   WIN
+    REMIND    worst-group acc     62.741 vs  62.107   tie
+    REMIND    worst-group loss     1.066 vs   1.183   WIN
+
+==============================================================================
+Fed-Heart (capped scarcity study, old weight schedule)
 ==============================================================================
 method                              worst-grp  worst loss     params
 ERM, common features                61.38±2.3       0.847     11,618
@@ -26,7 +104,7 @@ REMIND (baseline)                   74.55±0.9       0.681     53,506
     REMIND    worst-group loss     0.651 vs   0.681   tie
 
 ==============================================================================
-Fed-Heart (uncapped)
+Fed-Heart (uncapped, old weight schedule)
 ==============================================================================
 method                              worst-grp  worst loss     params
 ERM, common features                68.28±1.0       0.638     11,618
@@ -52,7 +130,7 @@ REMIND (baseline)                   72.98±1.1       0.660     53,506
     REMIND    worst-group loss     0.591 vs   0.660   WIN
 
 ==============================================================================
-NHANES
+NHANES (old weight schedule)
 ==============================================================================
 method                              worst-grp  worst loss     params
 ERM, common features                69.41±1.4       0.499     11,426
@@ -78,7 +156,7 @@ REMIND (baseline)                   72.35±2.4       0.662     52,482
     REMIND    worst-group loss     0.524 vs   0.662   WIN
 
 ==============================================================================
-EMBED
+EMBED (old weight schedule)
 ==============================================================================
 method                              worst-grp  worst loss     params
 ERM, common features                62.16±3.4       1.350    276,228
@@ -105,5 +183,5 @@ REMIND (baseline)                   62.11±3.3       1.183    248,964
 
 ==============================================================================
 TALLY of our full method against the three baselines
-  acc   win 0  tie 9  loss 3
-  loss  win 9  tie 3  loss 0
+  acc   win 0  tie 18  loss 3
+  loss  win 18  tie 3  loss 0

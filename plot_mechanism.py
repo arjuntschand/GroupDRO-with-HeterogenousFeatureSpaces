@@ -31,13 +31,14 @@ os.makedirs(OUT, exist_ok=True)
 # Fed-Heart appears as the UNCAPPED run: that is FLamby's standard protocol, our best arm
 # beats all three baselines there, and the capped variant caps Switzerland and the VA at 20 and
 # 25 patients, which is a scarcity manipulation we imposed. The capped dynamics are kept below
-# as the scarcity study rather than as the headline.
+# as the scarcity study rather than as the headline. The uncapped and NHANES sources are the
+# frozen-protocol families (1/G init, eq. 13 floors, held-out signal, gamma 0.1 per step).
 DS = [
-    ("Fed-Heart", "runs/fedheart_uncapped/{a}_s*_f0/metrics.csv", "runs/rstar_fedheart.json",
+    ("Fed-Heart", "runs/gamma_sweep_fh10/g0.1_s1/{a}_s*_f0/metrics.csv", "runs/rstar_fedheart_eq13.json",
      ["Cleveland", "Hungarian", "Switzerland", "VA"], ["Switzerland", "VA"]),
     ("Fed-Heart capped", "runs/fedheart_cv/{a}_s*_f0/metrics.csv", "runs/rstar_fedheart.json",
      ["Cleveland", "Hungarian", "Switzerland", "VA"], ["Switzerland", "VA"]),
-    ("NHANES", "runs/matrix_nhanes_nested/{a}_s*/metrics.csv", "runs/rstar_nhanes_nested.json",
+    ("NHANES", "runs/gamma_sweep_nh_val10/g0.1_s1/{a}_s*/metrics.csv", "runs/rstar_nhanes_eq13.json",
      ["survey only", "+ exam", "+ labs"], ["survey only", "+ labs"]),
 ]
 ARMS = [("GroupDRO", "GroupDRO", "#4a7ba7", "o"), ("RegretDRO", "Regret-DRO", "#c0625f", "s")]

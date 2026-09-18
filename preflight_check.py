@@ -11,15 +11,15 @@ import csv, json, os, sys
 from collections import defaultdict
 
 DATASETS = {
-    "fedheart": ("runs/fedheart_cv/metrics_long.csv",
-                 ["runs/baselines_fedheart/metrics_long.csv",
-                  "runs/baselines_fedheart_matched/metrics_long.csv"],
-                 "runs/rstar_fedheart.json"),
-    "nhanes":   ("runs/matrix_nhanes_nested/metrics_long.csv",
+    "fedheart": ("runs/final_fedheart/metrics_long.csv",
+                 ["runs/baselines_fedheart_uncapped/metrics_long.csv",
+                  "runs/baselines_fedheart_uncapped_matched/metrics_long.csv"],
+                 "runs/rstar_fedheart_eq13.json"),
+    "nhanes":   ("runs/final_nhanes/metrics_long.csv",
                  ["runs/baselines_nhanes/metrics_long.csv",
                   "runs/baselines_nhanes_matched/metrics_long.csv"],
-                 "runs/rstar_nhanes_nested.json"),
-    "embed":    ("runs/embed_xenia_production/metrics_long.csv",
+                 "runs/rstar_nhanes_eq13.json"),
+    "embed":    ("runs/final_embed/metrics_long.csv",
                  ["runs/baselines_embed/metrics_long.csv",
                   "runs/baselines_embed_remind128/metrics_long.csv",
                   "runs/baselines_embed_matched/metrics_long.csv"],

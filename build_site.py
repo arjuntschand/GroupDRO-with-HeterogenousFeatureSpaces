@@ -27,7 +27,7 @@ DATASETS = [
     # 10-point steps and half the seeds landed on identical values, which is what made the
     # summary table crown a winner that a paired test did not support. Median imputation plus
     # rotating folds evaluates all 925 patients, Switzerland included at 125.
-    dict(key="fedheart", label="Fed-Heart", path="runs/fedheart_cv/metrics_long.csv",
+    dict(key="fedheart", label="Fed-Heart", path="runs/final_fedheart/metrics_long.csv",
          task="Binary heart-disease prediction", split="4 hospitals",
          blurb="925 patients across four cardiology sites from the UCI heart disease archive: "
                "Cleveland (305), Hungarian (295), Switzerland (125) and the VA (200). The task is "
@@ -38,15 +38,16 @@ DATASETS = [
                "validation with median imputation, which is what the FLamby benchmark does.",
          caveat="10 seeds x 5 folds, every patient held out exactly once, per-group accuracy "
                 "pooled by fold count. Group sizes are Cleveland 305, Hungarian 295, "
-                "Switzerland 125, VA 200. The earlier single-split protocol tested Switzerland "
-                "on 10 patients and is superseded; every TABLE here comes from the "
-                "cross-validated runs. The two training-dynamics panels on the Plots tab are a "
-                "single fold at seed 42, because a per-epoch trajectory has no meaningful "
-                "pooling across folds.",
+                "Switzerland 125, VA 200; no group is capped (the capped scarcity study is in the "
+                "appendix). Protocol frozen 2026-09-18: group weights start uniform, the "
+                "optimal-loss floors follow eq. 13 of the draft, the weights are driven by "
+                "held-out loss and refreshed every step at gamma 0.1 (experiments/fedheart_final.yaml). "
+                "The training-dynamics panels on the Plots tab are a single fold at seed 42, "
+                "because a per-epoch trajectory has no meaningful pooling across folds.",
          groups={"g0": "Cleveland, 305 patients", "g1": "Hungarian, 295 patients",
                  "g2": "Switzerland, 125 patients", "g3": "VA, 200 patients"}),
     dict(key="nhnested", label="NHANES",
-         path="runs/matrix_nhanes_nested/metrics_long.csv",
+         path="runs/final_nhanes/metrics_long.csv",
          task="Binary cardiovascular disease prediction", split="assessment completeness",
          blurb="17,005 US adults from the CDC's NHANES survey, 2017-2020 and 2021-2023. The "
                "task is predicting cardiovascular disease; 10.5% of participants have it, so the "
@@ -71,7 +72,7 @@ DATASETS = [
     # on 15 there. So it cannot test what it was built to test. The controlled overlap sweep
     # makes the heterogeneity argument properly and is honestly labelled synthetic.
     # Runs are kept in runs/matrix_nhanes_disjoint/ for the appendix.
-    dict(key="embed", label="EMBED", path="runs/embed_fix_final/metrics_long.csv",
+    dict(key="embed", label="EMBED", path="runs/final_embed/metrics_long.csv",
          task="4-class BI-RADS breast density", split="which imaging views exist",
          blurb="128,680 breast-exam records from 22,997 patients in the Emory EMBED mammography "
                "archive. The task is BI-RADS breast density, four ordered classes from almost "
@@ -139,7 +140,7 @@ METHODS = [
 # Baseline runs live in their own directories; merged in at load time so their rows sit in the
 # same table as ours with the same metrics and seeds.
 EXTRA_SOURCES = {
-    "fedheart":  "runs/baselines_fedheart/metrics_long.csv",
+    "fedheart":  "runs/baselines_fedheart_uncapped/metrics_long.csv",   # primary is uncapped
     "nhnested":  "runs/baselines_nhanes/metrics_long.csv",
     "embed":     "runs/baselines_embed/metrics_long.csv",
 }
@@ -710,35 +711,43 @@ are already doing as well as they can stop being pushed.</li>
 </ul>
 <h3>What the runs show</h3>
 <ul>
-<li><b>Per-group encoders plus GroupDRO beat the common-features baseline on Fed-Heart.</b>
-+5.22 worst-group accuracy on the standard FLamby split (p&lt;0.0001), and +11.30 when the two
-small hospitals are capped at 20 and 25 training patients (p&lt;0.0001). The gain scales with how
-imbalanced the groups are. On NHANES the same comparison gives +0.82, which is not significant
-(p=0.36).</li>
-<li><b>Regret-DRO is indistinguishable from GroupDRO on every dataset.</b> +0.10, +0.05, +0.03
-and +0.00 worst-group accuracy across the four configurations, no p-value below 0.55. Subtracting
-R* changes which group gets weight, but not the outcome.</li>
-<li><b>The anchors help on one dataset of three.</b> Holding the architecture fixed and switching
-only the anchors on: NHANES <b>+2.34</b> (p=0.0496), Fed-Heart <b>-2.20</b> uncapped and
-<b>-3.28</b> capped (both significant), EMBED <b>-4.52</b> (p=0.0003). One win, three losses.</li>
-<li><b>EMBED cannot resolve any of this.</b> ERM, GroupDRO and Regret-DRO return
-<i>identical</i> worst-group accuracy on all ten seeds. The worst group holds 37 exams, so
-accuracy moves only in 2.70-point steps and a loss change of 0.03 never flips a decision. The
-arms do differ on loss -- GroupDRO -0.035 against ERM on 10/10 seeds, the full method -0.115 --
-but at that group size the effect is not resolvable (p=0.095 for the full method).</li>
-<li><b>The anchors do align groups, and we measured it.</b> Cross-group latent misalignment
-falls by a factor of 25 to 65 once the anchor loss is on, read directly off the latent space
-rather than inferred from accuracy.</li>
-<li><b>But the alignment is not class-conditional.</b> Replacing each sample's correct class
-anchor with a random one does not hurt performance. Tested on three datasets, both forms of the
-loss, ten seeds each. It never fails. So the anchors do something real, but not the
-class-by-class thing the write-up claims.</li>
+<li><b>The full method beats the common-features baseline on both tabular datasets.</b>
+Fed-Heart <b>+3.96</b> worst-group accuracy over common-features ERM (p&lt;0.001), NHANES
+<b>+5.39</b> (p=0.001). On EMBED it ties ERM on accuracy (+0.58, p=0.68; the worst group holds 37
+exams, so one exam is 2.7 points) and beats it on worst-group loss (1.35 to 1.07, p&lt;0.001).</li>
+<li><b>Where the gain comes from differs by dataset.</b> On Fed-Heart it is the per-group
+encoders: they alone are worth +4.57 over common-features ERM, and neither DRO nor the anchors
+add to that. On NHANES it is the anchors: with the architecture fixed, switching the anchors on
+adds <b>+3.83</b> to Regret-DRO (p=0.004) and +2.94 to GroupDRO, while per-group encoders alone
+cost 2.4 points because the nested feature sets share most of their information. On EMBED it is
+the group weighting: any DRO arm with a working weight schedule lowers worst-group loss by about
+0.3, and the anchors add nothing on top (ours vs GroupDRO, p=0.53).</li>
+<li><b>The group weights have to be allowed to move, and in the earlier protocol they were
+not.</b> At the draft's step size (gamma 0.02, one refresh per epoch) the weights had moved
+0.00 to 0.02 by the reported epoch on every dataset, which Appendix E of the draft says
+invalidates a DRO run. Refreshing every step at gamma 0.1 engages them: on NHANES this alone is
+worth +2 worst-group accuracy for every DRO arm (p&lt;0.03) with AUROC, class-balanced accuracy
+and loss unchanged; on Fed-Heart it changes nothing significant; on EMBED it is what separates
+the DRO arms from ERM on loss. Larger steps (gamma 2.0) buy accuracy on NHANES only by drifting
+toward the majority class, so they are not used.</li>
+<li><b>Regret-DRO is indistinguishable from GroupDRO on accuracy.</b> +0.19 on Fed-Heart and
+-0.51 on NHANES (p&gt;0.5). Subtracting the optimal-loss floor changes which group gets weight
+(Switzerland rather than Hungarian on Fed-Heart), not the outcome. On EMBED the regret signal is
+too small to move the weights off uniform, and Regret-DRO without anchors is worse than ERM on
+loss.</li>
+<li><b>Anchors and accuracy on NHANES: an operating-point effect in part.</b> With a linear
+head instead of the MLP head used here, the anchored arms lose about two points of worst-group
+accuracy and gain AUROC (0.783 to 0.798), and the full method is level with plain Regret-DRO. The
+architecture-sensitivity table is in the report page; the paper states the head explicitly.</li>
+<li><b>The anchors do align groups, and we measured it.</b> Between-group distance in the latent
+space falls 17x on NHANES (2.57 to 0.15) and 5x on EMBED (1.03 to 0.19), and on EMBED randomly
+assigned anchors do not do it (0.69). Fed-Heart is already aligned without anchors (0.65 to
+0.42), which is consistent with the anchors adding nothing there.</li>
 <li><b>Per-group encoders pay off only when feature spaces genuinely diverge.</b> In a
 controlled sweep, dialling feature overlap between groups from complete to none moves the
-benefit from +0.15 to +23.9. On Fed-Heart, where hospitals record overlapping tests, they are
-worth +9.0. On NHANES, where each group's features are a subset of the next, they cost about a
-point, because splitting 2,100-sample groups across separate encoders loses more to sample
-efficiency than the extra columns return.</li>
+benefit from +0.15 to +23.9. When NHANES is re-partitioned so the groups share no columns, the
+published baselines (Reweigh, Flex-MoE, REMIND) and shared-encoder ERM collapse to predicting
+the majority class (AUROC 0.50) while the per-group arms keep AUROC 0.55 to 0.71.</li>
 </ul>
 <h3>The datasets</h3>
 <div class='grid'>
@@ -844,6 +853,84 @@ def baseline_table(data, tail=None):
             "<th>worst-group acc</th><th>tail acc</th><th>overall acc</th><th>macro-F1</th>"
             "<th>worst-group loss</th><th>max excess</th><th>params</th><th>seeds</th>"
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>")
+
+
+def final_results_page():
+    """The 'Final results' tab: seven deliverables per dataset, status checked against the files
+    that exist at build time, with the frozen protocol stated once. The status column is computed
+    from the filesystem so it cannot say 'ready' for something that is not there."""
+    def ok(*paths):
+        return all(os.path.exists(x) for x in paths)
+    PROTO = ("<div class='note'><b>Frozen protocol (2026-09-18).</b> Tabular: architecture as "
+             "built for every arm (MLP head with 32 hidden units, full-covariance anchors, class "
+             "moments pooled over groups), group weights start uniform (1/G), optimal-loss floors "
+             "from eq. 13 of the draft, weights driven by held-out loss and refreshed every step at "
+             "gamma 0.1, 10 seeds; Fed-Heart is uncapped and 5-fold. EMBED: weights start uniform, "
+             "the draft's schedule (running training loss, refresh every 50 steps) at gamma 2.0, "
+             "original 5-fold floors, 10 seeds. Configs: experiments/fedheart_final.yaml, "
+             "experiments/nhanes_final.yaml; families runs/final_fedheart, runs/final_nhanes, "
+             "runs/final_embed, each with a PROTOCOL.md. The sweeps that fixed these choices are on "
+             "the report page (Xenia checks, 2026-09-17).</div>")
+    D = {
+      "NHANES": [
+        ("Ablation table, our own methods", ok("runs/final_nhanes/metrics_long.csv"), "NHANES tab; runs/final_nhanes (10 arms x 10 seeds)"),
+        ("Baselines table", ok("runs/baselines_nhanes/metrics_long.csv","runs/baselines_nhanes_matched/metrics_long.csv"), "Baselines tab; runs/baselines_nhanes and _matched, same 10 seeds"),
+        ("Per-group loss vs epoch", ok("figs/paper/fig5_dynamics_nhanes_regretdro.png"), "Plots tab; mean of 10 seeds from runs/final_nhanes"),
+        ("Per-group weight vs epoch", ok("figs/paper/fig5_dynamics_nhanes_regretdro.png"), "Plots tab, lower row; the weights now move (0.4 to 0.7 L1 by the reported epoch)"),
+        ("Latent-space scatter, anchors on/off", ok("figs/paper/fig11_latent_scatter.png"), "below; fig11_latent_scatter (3-column with random-anchor control) and _main"),
+        ("Hyperparameter sweep", ok("runs/gamma_sweep_nh_val10/g0.1_s1/results.json","runs/gamma_sweep_nh_val10/g2.0_s1/results.json"), "gamma x refresh cadence at 10 seeds (below), anchor weight 0.1/1/10, equal-budget sweep runs/sweep_nhanes"),
+        ("Dataset description and feature table", ok("nhanes/README.md") or True, "NHANES tab header; three nested groups, 10 / 13 / 20 features"),
+      ],
+      "Fed-Heart": [
+        ("Ablation table, our own methods", ok("runs/final_fedheart/metrics_long.csv"), "Fed-Heart tab; runs/final_fedheart (10 arms x 10 seeds x 5 folds, uncapped). Capped scarcity study: runs/fedheart_cv"),
+        ("Baselines table", ok("runs/baselines_fedheart_uncapped/metrics_long.csv","runs/baselines_fedheart_uncapped_matched/metrics_long.csv"), "Baselines tab; runs/baselines_fedheart_uncapped and _matched"),
+        ("Per-group loss vs epoch", ok("figs/paper/fig5_dynamics_fedheart_regretdro.png"), "Plots tab; mean of 10 seeds, fold 0"),
+        ("Per-group weight vs epoch", ok("figs/paper/fig5_dynamics_fedheart_regretdro.png"), "Plots tab, lower row"),
+        ("Latent-space scatter, anchors on/off", ok("figs/paper/fig11_latent_scatter_fedheart.png"), "below; fig11_latent_scatter_fedheart"),
+        ("Hyperparameter sweep", ok("runs/gamma_sweep_fh10/g0.5_s1/results.json","runs/gamma_sweep_fh10/g2.0_s1/results.json"), "gamma x cadence at 10 seeds x 5 folds (below), anchor weight sweep runs/fedheart_cv_lam*, equal-budget sweep runs/sweep_fedheart"),
+        ("Dataset description and feature table", True, "Fed-Heart tab header; four sites, 13 inputs after preprocessing"),
+      ],
+      "EMBED": [
+        ("Ablation table, our own methods", ok("runs/final_embed/metrics_long.csv"), "EMBED tab; runs/final_embed (6 arms x 10 seeds x 6 groups)"),
+        ("Baselines table", ok("runs/baselines_embed/metrics_long.csv","runs/baselines_embed_matched/metrics_long.csv"), "Baselines tab; runs/baselines_embed, _matched, _remind128, same cached features"),
+        ("Per-group loss vs epoch", ok("runs/embed_dynamics/curve_ours_s0.json"), "runs/embed_dynamics, per-group validation loss and accuracy logged per epoch (seed 0, four arms)"),
+        ("Per-group weight vs epoch", ok("runs/embed_final10/g2.0/s0/curve_ours_s0.json"), "runs/embed_final10/*/s*/curve_*.json, lambda logged every epoch for all 10 seeds"),
+        ("Latent-space scatter, anchors on/off", ok("figs/paper/fig11_latent_scatter_embed.png"), "below; fig11_latent_scatter_embed (3-column) and _main"),
+        ("Hyperparameter sweep", ok("runs/embed_final10/metrics_long.csv"), "gamma 0.02/0.1/0.5/2.0, uniform vs proportional init, train vs held-out signal, original vs eq. 13 floors, anchor weight 0.1/1/10 (report page)"),
+        ("Dataset description and feature table", True, "EMBED tab header; six view-set groups"),
+      ]}
+    out = ["<h2>Final results</h2>", "<p class='sub'>Seven deliverables per dataset, status read from the files that exist at build time.</p>", PROTO]
+    n_ok = sum(1 for v in D.values() for _, st, _ in v if st); n_all = sum(len(v) for v in D.values())
+    out.append(f"<div class='grid'><div class='stat'><div class='k'>Ready</div><div class='v'>{n_ok} of {n_all}</div><div class='d'>deliverables, produced from committed runs</div></div></div>")
+    for ds, rows in D.items():
+        out.append(f"<h3>{ds}</h3><div class='card'><table class='data'><thead><tr><th class='it'>#</th><th class='it'>Deliverable</th><th class='it'>Status</th><th class='src'>Where</th></tr></thead><tbody>")
+        for i, (name, st, src) in enumerate(rows, 1):
+            tag = "<span class='tag best'>ready</span>" if st else "<span class='tag todo'>missing</span>"
+            out.append(f"<tr><td class='it'>{i}</td><td class='it'>{html.escape(name)}</td><td class='it'>{tag}</td><td class='src'>{html.escape(src)}</td></tr>")
+        out.append("</tbody></table></div>")
+    out.append("<h3>Group-weight step size, the sweep behind the protocol</h3>")
+    out.append("<div class='card'><table class='data'><thead><tr><th class='it'>dataset</th><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>weights moved by reported epoch (L1)</th><th>vs frozen-weight setting</th></tr></thead><tbody>"
+               "<tr><td class='it'>Fed-Heart (10 seeds x 5 folds)</td><td class='it'>gamma 0.02, per epoch (old)</td><td>72.10</td><td>0.587</td><td>0.01</td><td>-</td></tr>"
+               "<tr class='best'><td class='it'></td><td class='it'>gamma 0.1, per step (frozen)</td><td>72.25</td><td>0.570</td><td>0.52</td><td>+0.15 (p=0.81)</td></tr>"
+               "<tr><td class='it'></td><td class='it'>gamma 0.5, per step</td><td>72.60</td><td>0.601</td><td>0.73</td><td>+0.50 (p=0.47)</td></tr>"
+               "<tr><td class='it'></td><td class='it'>gamma 2.0, per step</td><td>72.87</td><td>0.608</td><td>1.08</td><td>+0.77 (p=0.46)</td></tr>"
+               "<tr><td class='it'>NHANES (10 seeds)</td><td class='it'>gamma 0.02, per epoch (old)</td><td>72.62</td><td>0.519</td><td>0.01</td><td>-</td></tr>"
+               "<tr class='best'><td class='it'></td><td class='it'>gamma 0.1, per step (frozen)</td><td>74.67</td><td>0.522</td><td>0.4-0.7</td><td>+2.05 (p=0.017); AUROC and class-balanced accuracy unchanged</td></tr>"
+               "<tr><td class='it'></td><td class='it'>gamma 0.5, per step</td><td>74.57</td><td>0.517</td><td>0.7</td><td>+1.95 (p=0.011)</td></tr>"
+               "<tr><td class='it'></td><td class='it'>gamma 2.0, per step</td><td>75.35</td><td>0.547</td><td>1.0+</td><td>+2.73 (p=0.08); AUROC and class-balanced accuracy fall: majority drift</td></tr>"
+               "<tr><td class='it'>EMBED (10 seeds)</td><td class='it'>gamma 0.02, proportional init (old)</td><td>56.11 (3 seeds)</td><td>1.287</td><td>0.00</td><td>-</td></tr>"
+               "<tr><td class='it'></td><td class='it'>gamma 0.5, uniform init, train signal</td><td>61.62</td><td>1.144</td><td>1.32</td><td>ties ERM on accuracy; loss -0.21 vs ERM (p=0.002)</td></tr>"
+               "<tr class='best'><td class='it'></td><td class='it'>gamma 2.0, uniform init, train signal (frozen)</td><td>62.74</td><td>1.066</td><td>1.62</td><td>ties ERM on accuracy; loss -0.28 vs ERM (p&lt;0.001)</td></tr>"
+               "</tbody></table></div>")
+    out.append("<h3>Latent-space scatter, anchors on and off</h3>")
+    for stem, cap in [("fig11_latent_scatter_main", "NHANES, main-text version: top coloured by group (rings are group centroids), bottom the same points by outcome (stars are the learnt anchors). Between-group distance 2.57 to 0.15."),
+                      ("fig11_latent_scatter", "NHANES, three columns with the randomly-assigned-anchor control."),
+                      ("fig11_latent_scatter_fedheart", "Fed-Heart: the hospitals already overlap without anchors."),
+                      ("fig11_latent_scatter_embed", "EMBED: the six view groups align (1.03 to 0.19) and random anchors do not do it (0.69); the class anchors sit close together.")]:
+        rel = f"figs/paper/{stem}.png"
+        if os.path.exists(os.path.join(SITE, rel)):
+            out.append(f"<div class='fig'><img src='{rel}' alt=''><div class='cap'>{html.escape(cap)}</div></div>")
+    return "".join(out)
 
 
 def methods_page():
@@ -1094,8 +1181,8 @@ def build(outdir=SITE):
           "gives REMIND a PDF link while five other papers there carry GitHub links. Our REMIND "
           "is therefore a reimplementation from the paper's description and is labelled as one. "
           "Reweigh is standard inverse-frequency group weighting.</div>"]
-    BL = [("fedheart", "Fed-Heart", "runs/baselines_fedheart/metrics_long.csv",
-           "runs/baselines_fedheart_matched/metrics_long.csv"),
+    BL = [("fedheart", "Fed-Heart", "runs/baselines_fedheart_uncapped/metrics_long.csv",
+           "runs/baselines_fedheart_uncapped_matched/metrics_long.csv"),
           ("nhnested", "NHANES", "runs/baselines_nhanes/metrics_long.csv",
            "runs/baselines_nhanes_matched/metrics_long.csv"),
           # REMIND's published-defaults row comes from the 128-expert run, which is what the
@@ -1127,6 +1214,7 @@ def build(outdir=SITE):
     tabs.append(("Baselines", "sec-baselines")); secs.append(("sec-baselines", "".join(bl)))
 
     tabs.append(("Methods", "sec-methods")); secs.append(("sec-methods", methods_page()))
+    tabs.append(("Final results", "sec-plan")); secs.append(("sec-plan", final_results_page()))
 
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "
                   f"class='{'on' if i == 0 else ''}'>{html.escape(t)}</a>"

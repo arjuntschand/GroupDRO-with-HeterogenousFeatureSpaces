@@ -10,8 +10,8 @@ import shutil
 import copy, json, yaml
 from dro_hetero_anchors.src.train_nhanes import train
 
-BASE = "experiments/nhanes_pergroup_gdro.yaml"
-RSTAR = "runs/rstar_nhanes_nested.json"
+BASE = "experiments/nhanes_final.yaml"   # frozen protocol: 1/G init, eq. 13 floors, gamma 0.1 per step
+RSTAR = "runs/rstar_nhanes_eq13.json"
 SEED = 42
 
 rs = json.load(open(RSTAR))["rstar"]

@@ -5,8 +5,8 @@ import shutil
 import json, yaml
 from dro_hetero_anchors.src.train_fedheart import train
 
-BASE = "experiments/fedheart_exp_paper_hetagg_gdro.yaml"
-rs = json.load(open("runs/rstar_fedheart.json"))["rstar"]
+BASE = "experiments/fedheart_final.yaml"   # frozen protocol: uncapped, 1/G init, eq. 13 floors, gamma 0.1 per step
+rs = json.load(open("runs/rstar_fedheart_eq13.json"))["rstar"]
 rstar = [rs[str(i)] if str(i) in rs else rs.get(i, 0.0) for i in range(len(rs))]
 print("R*_g =", [round(x, 4) for x in rstar], flush=True)
 

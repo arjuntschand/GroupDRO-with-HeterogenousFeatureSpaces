@@ -175,6 +175,7 @@ def summarize(by_seed, tail=None):
     """Per-seed summary stats, then mean/std across seeds."""
     worst_acc, mean_acc, worst_loss, mean_f1, max_excess = [], [], [], [], []
     wt_acc, wt_f1, tail_acc, n_params = [], [], [], []
+    wt_loss = []                       # sample-weighted overall loss: the price paid on average
     worst_who, excess_who = [], []
     for _, groups in by_seed.items():
         if not groups:
@@ -189,6 +190,9 @@ def summarize(by_seed, tail=None):
         ns = [g["n"] for g in groups.values()]
         if sum(ns) > 0:
             wt_acc.append(sum(a * n for a, n in zip(accs, ns)) / sum(ns))
+            lv_ = [g["loss"] for g in groups.values()]
+            if all(v == v for v in lv_):
+                wt_loss.append(sum(l * n for l, n in zip(lv_, ns)) / sum(ns))
             f1v = [g["f1"] for g in groups.values()]
             if all(v == v for v in f1v):
                 wt_f1.append(sum(a * n for a, n in zip(f1v, ns)) / sum(ns))
@@ -228,7 +232,7 @@ def summarize(by_seed, tail=None):
         return max(set(v), key=v.count) if v else None
     return dict(worst_acc=ms(worst_acc), mean_acc=ms(mean_acc),
                 worst_loss=ms(worst_loss), mean_f1=ms(mean_f1),
-                max_excess=ms(max_excess), wt_acc=ms(wt_acc), wt_f1=ms(wt_f1),
+                max_excess=ms(max_excess), wt_acc=ms(wt_acc), wt_f1=ms(wt_f1), wt_loss=ms(wt_loss),
                 tail_acc=ms(tail_acc), n_params=(max(n_params) if n_params else None),
                 worst_group=modal(worst_who),
                 excess_group=modal(excess_who), seeds=len(worst_acc))
@@ -275,7 +279,7 @@ def paired_p(a, b):
 
 def per_seed_series(by_seed, tail=None):
     """seed -> value for each numeric column of the headline table, for paired tests."""
-    out = {k: {} for k in ("worst_acc", "tail_acc", "wt_acc", "wt_f1", "worst_loss", "max_excess")}
+    out = {k: {} for k in ("worst_acc", "tail_acc", "wt_acc", "wt_f1", "wt_loss", "worst_loss", "max_excess")}
     for sd, groups in by_seed.items():
         if not groups:
             continue
@@ -283,6 +287,9 @@ def per_seed_series(by_seed, tail=None):
         out["worst_acc"][sd] = min(accs)
         if sum(ns) > 0:
             out["wt_acc"][sd] = sum(a * n for a, n in zip(accs, ns)) / sum(ns)
+            lv_ = [g["loss"] for g in groups.values()]
+            if all(v == v for v in lv_):
+                out["wt_loss"][sd] = sum(l * n for l, n in zip(lv_, ns)) / sum(ns)
             f1v = [g["f1"] for g in groups.values()]
             if all(v == v for v in f1v):
                 out["wt_f1"][sd] = sum(a * n for a, n in zip(f1v, ns)) / sum(ns)
@@ -321,7 +328,7 @@ def headline_table(data, tail=None):
         return "<p class='na'>No runs yet.</p>"
 
     HIGHER = {"worst_acc": True, "tail_acc": True, "wt_acc": True, "wt_f1": True,
-              "worst_loss": False, "max_excess": False}
+              "wt_loss": False, "worst_loss": False, "max_excess": False}
     ranked = [k for k, (_, kind, s) in summaries.items() if kind not in ("ctrl", "ext")]
     best, tied = {}, {}
     for col, higher in HIGHER.items():
@@ -364,7 +371,7 @@ def headline_table(data, tail=None):
             f"{fcell(key, 'worst_acc')}"
             f"<td class='sw'>{html.escape(s['worst_group'] or '')}</td>"
             f"{fcell(key, 'tail_acc')}{fcell(key, 'wt_acc')}{fcell(key, 'wt_f1')}"
-            f"{fcell(key, 'worst_loss', 3)}{fcell(key, 'max_excess', 3)}"
+            f"{fcell(key, 'wt_loss', 3)}{fcell(key, 'worst_loss', 3)}{fcell(key, 'max_excess', 3)}"
             f"<td class='sw'>{html.escape(s['excess_group'] or '')}</td>"
             + (f"<td class='dim'>{int(s['n_params']):,}</td>"
                if s.get("n_params") else "<td class='na'>—</td>")
@@ -380,6 +387,7 @@ def headline_table(data, tail=None):
             "<th>tail-mean acc</th>"
             "<th>overall acc <span class='hint'>whole dataset</span></th>"
             "<th>overall macro-F1</th>"
+            "<th>overall loss <span class='hint'>sample-weighted</span></th>"
             "<th>worst-group loss <span class='hint'>lower better</span></th>"
             "<th>max excess loss <span class='hint'>lower better</span></th>"
             "<th class='sw'>which</th>"
@@ -857,7 +865,7 @@ def baseline_table(data, tail=None):
         for m in ["Reweigh", "FlexMoE", "REMIND"]:
             collect(f"{m}__{tag}", f"{m}{lbl}", "ext")
     HIGHER = {"worst_acc": True, "tail_acc": True, "wt_acc": True, "wt_f1": True,
-              "worst_loss": False, "max_excess": False}
+              "wt_loss": False, "worst_loss": False, "max_excess": False}
     best, tied = {}, {}
     for col, higher in HIGHER.items():
         cand = [e for e in entries if e[3].get(col)]
@@ -890,7 +898,7 @@ def baseline_table(data, tail=None):
         rows.append(
             f"<tr{row_style}><td class='m'>{html.escape(label)}{tag}</td>"
             f"{fcell(label, s_, 'worst_acc')}{fcell(label, s_, 'tail_acc')}{fcell(label, s_, 'wt_acc')}"
-            f"{fcell(label, s_, 'wt_f1')}{fcell(label, s_, 'worst_loss', 3)}{fcell(label, s_, 'max_excess', 3)}"
+            f"{fcell(label, s_, 'wt_f1')}{fcell(label, s_, 'wt_loss', 3)}{fcell(label, s_, 'worst_loss', 3)}{fcell(label, s_, 'max_excess', 3)}"
             + (f"<td class='dim'>{int(npar):,}</td>" if npar else "<td class='na'>—</td>")
             + f"<td class='dim'>{s_['seeds']}</td></tr>")
     foot = ("<p class='legend'>Tinted rows are our anchored arms. In each column the <b>bold green</b> "
@@ -899,7 +907,7 @@ def baseline_table(data, tail=None):
             "shared seeds cannot separate from it (p &ge; 0.05).</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
             "<th>worst-group acc</th><th>tail acc</th><th>overall acc</th><th>macro-F1</th>"
-            "<th>worst-group loss</th><th>max excess</th><th>params</th><th>seeds</th>"
+            "<th>overall loss</th><th>worst-group loss</th><th>max excess</th><th>params</th><th>seeds</th>"
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>" + foot)
 
 

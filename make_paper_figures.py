@@ -26,11 +26,11 @@ os.makedirs(OUT, exist_ok=True)
 # (label, ours csv, baselines csv, arm-name map). Arm names differ per runner, which is why the
 # map is explicit rather than guessed.
 DATASETS = [
-    ("Fed-Heart", "runs/fedheart_cv/metrics_long.csv",
-     "runs/baselines_fedheart/metrics_long.csv",
+    ("Fed-Heart", "runs/final_fedheart/metrics_long.csv",
+     "runs/baselines_fedheart_uncapped/metrics_long.csv",
      {"erm": "ERM", "pergroup": "PerGroupOnly", "dro": "GroupDRO",
       "regret": "RegretDRO", "anchors_dro": "Ours", "full": "Ours_Regret"}),
-    ("NHANES", "runs/matrix_nhanes_nested/metrics_long.csv",
+    ("NHANES", "runs/final_nhanes/metrics_long.csv",
      "runs/baselines_nhanes/metrics_long.csv",
      {"erm": "ERM", "pergroup": "PerGroupOnly", "dro": "GroupDRO",
       "regret": "RegretDRO", "anchors_dro": "Ours_GDRO", "full": "Ours_Regret"}),
@@ -38,7 +38,7 @@ DATASETS = [
     # align_only 57.64 vs 57.14) because only fix_final uses the corrected R*, and
     # final_report.py and build_site.py both read fix_final. Pointing the figures at the
     # other run made Table 1 disagree with the site on the same quantity.
-    ("EMBED", "runs/embed_fix_final/metrics_long.csv",
+    ("EMBED", "runs/final_embed/metrics_long.csv",
      "runs/baselines_embed/metrics_long.csv",
      {"erm": "erm", "pergroup": None, "dro": "groupdro",
       "regret": "regret_only", "anchors_dro": "align_only", "full": "ours"}),

@@ -2,29 +2,29 @@
 \toprule
 Dataset & Method & Worst-group acc. & Worst-group loss & Params \\
 \midrule
-Fed-Heart & ERM{,} common features & 61.38\{,}$\pm$\{,}2.3 & 0.847 & 11{,}618 \\
- & Per-group + GroupDRO & 72.68\{,}$\pm$\{,}1.9* & 0.638 & 38{,}946 \\
- & Per-group + Regret-DRO & 72.78\{,}$\pm$\{,}1.6* & 0.643 & 38{,}946 \\
- & Per-group + anchors + GroupDRO & 69.40\{,}$\pm$\{,}2.4* & 0.651 & 38{,}946 \\
- & Ours (per-group + anchors + Regret) & 69.30\{,}$\pm$\{,}2.5* & 0.651 & 38{,}946 \\
- & Reweigh & 71.30\{,}$\pm$\{,}1.0 & 1.092 & 53{,}506 \\
- & FlexMoE & 72.66\{,}$\pm$\{,}0.9 & 1.029 & 537{,}250 \\
- & REMIND & 74.55\{,}$\pm$\{,}0.9 & 0.681 & 53{,}506 \\
+Fed-Heart & ERM{,} common features & 68.28\{,}$\pm$\{,}1.0 & 0.638 & 11{,}618 \\
+ & Per-group + GroupDRO & 72.99\{,}$\pm$\{,}1.2* & 0.583 & 38{,}946 \\
+ & Per-group + Regret-DRO & 73.18\{,}$\pm$\{,}1.3* & 0.576 & 38{,}946 \\
+ & Per-group + anchors + GroupDRO & 71.15\{,}$\pm$\{,}2.3* & 0.591 & 38{,}946 \\
+ & Ours (per-group + anchors + Regret) & 72.25\{,}$\pm$\{,}1.5* & 0.570 & 38{,}946 \\
+ & Reweigh & 72.43\{,}$\pm$\{,}1.4 & 0.643 & 53{,}506 \\
+ & FlexMoE & 72.40\{,}$\pm$\{,}1.7 & 0.786 & 537{,}250 \\
+ & REMIND & 72.98\{,}$\pm$\{,}1.1 & 0.660 & 53{,}506 \\
 \midrule
-NHANES & ERM{,} common features & 69.41\{,}$\pm$\{,}1.4 & 0.499 & 11{,}426 \\
- & Per-group + GroupDRO & 70.23\{,}$\pm$\{,}2.4 & 0.531 & 30{,}818 \\
- & Per-group + Regret-DRO & 70.26\{,}$\pm$\{,}2.3 & 0.513 & 30{,}818 \\
- & Per-group + anchors + GroupDRO & 72.57\{,}$\pm$\{,}1.9* & 0.536 & 30{,}818 \\
- & Ours (per-group + anchors + Regret) & 72.28\{,}$\pm$\{,}1.2* & 0.524 & 30{,}818 \\
+NHANES & ERM{,} common features & 69.28\{,}$\pm$\{,}1.5 & 0.496 & 11{,}426 \\
+ & Per-group + GroupDRO & 71.35\{,}$\pm$\{,}1.9* & 0.507 & 30{,}818 \\
+ & Per-group + Regret-DRO & 70.84\{,}$\pm$\{,}2.0 & 0.527 & 30{,}818 \\
+ & Per-group + anchors + GroupDRO & 74.30\{,}$\pm$\{,}4.0* & 0.524 & 30{,}818 \\
+ & Ours (per-group + anchors + Regret) & 74.67\{,}$\pm$\{,}3.7* & 0.522 & 30{,}818 \\
  & Reweigh & 72.83\{,}$\pm$\{,}2.2 & 0.680 & 52{,}482 \\
  & FlexMoE & 72.74\{,}$\pm$\{,}7.5 & 0.607 & 536{,}354 \\
  & REMIND & 72.35\{,}$\pm$\{,}2.4 & 0.662 & 52{,}482 \\
 \midrule
 EMBED & ERM{,} common features & 62.16\{,}$\pm$\{,}3.4 & 1.350 & 276{,}228 \\
- & Per-group + GroupDRO & 62.16\{,}$\pm$\{,}3.4 & 1.315 & 276{,}228 \\
- & Per-group + Regret-DRO & 62.16\{,}$\pm$\{,}3.4 & 1.345 & 276{,}228 \\
- & Per-group + anchors + GroupDRO & 57.64\{,}$\pm$\{,}2.7 & 1.294 & 276{,}228 \\
- & Ours (per-group + anchors + Regret) & 58.94\{,}$\pm$\{,}4.2 & 1.234 & 276{,}228 \\
+ & Per-group + GroupDRO & 62.70\{,}$\pm$\{,}2.9 & 1.051 & 276{,}228 \\
+ & Per-group + Regret-DRO & 61.02\{,}$\pm$\{,}3.6 & 1.344 & 276{,}228 \\
+ & Per-group + anchors + GroupDRO & 61.62\{,}$\pm$\{,}2.8 & 1.134 & 276{,}228 \\
+ & Ours (per-group + anchors + Regret) & 62.74\{,}$\pm$\{,}3.1 & 1.066 & 276{,}228 \\
  & Reweigh & 59.35\{,}$\pm$\{,}4.1 & 2.115 & 248{,}964 \\
  & FlexMoE & 62.26\{,}$\pm$\{,}4.0 & 1.333 & 248{,}964 \\
  & REMIND & 62.11\{,}$\pm$\{,}3.3 & 1.183 & 248{,}964 \\

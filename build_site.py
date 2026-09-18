@@ -994,8 +994,8 @@ def vs_baselines_block(loaded, merged_bl):
                    + "".join(f"<tr><td class='it'>{k}</td>{''.join(v)}</tr>" for k, v in rows.items())
                    + "</tbody></table></div>")
     out.append(f"<p class='legend'><b>Summary.</b> {n_green} of {n_total} tested cells favour our method on the mean. "
-               "Lower worst-group loss and regret than every baseline on every dataset; worst-group accuracy is higher on the mean on NHANES and EMBED "
-               "and within a point on Fed-Heart, but no accuracy difference against a published baseline is significant at 10 seeds. "
+               "Lower worst-group loss and regret than every baseline on every dataset (8 of 9 cells significant for each; where significant, loss 11–50% and regret 21–80% lower; the exception is Fed-Heart vs REMIND on both). "
+               "Worst-group accuracy is higher on the mean on NHANES and EMBED and within a point on Fed-Heart, but no worst-group accuracy difference against a published baseline is significant at 10 seeds; overall accuracy ties on the tabular datasets and is significantly higher than all three baselines on EMBED. "
                "Our model is the smallest on both tabular datasets and mid-sized on EMBED (macro-F1 per arm is in the tables below). "
                "For the paper: report the raw numbers in the main tables and quote the loss reductions in prose; "
                "keep this view as the summary, not the primary table.</p>")

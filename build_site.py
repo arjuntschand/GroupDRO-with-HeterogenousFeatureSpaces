@@ -1022,6 +1022,9 @@ def final_results_page(loaded=None, merged_bl=None):
              "Baselines (Reweigh, Flex-MoE, REMIND) run on the same splits, seeds and features. "
              "Configs: <code>experiments/fedheart_final.yaml</code>, <code>experiments/nhanes_final.yaml</code>; "
              "result files under <code>runs/final_*</code>; the sweeps behind each setting are further down this tab.</div>")
+    pend = ("<div class='note'><b>One row pending.</b> The EMBED 'per-group + anchors + GroupDRO' "
+            "ablation arm is being rerun under the frozen weight schedule; every other EMBED row is final.</div>"
+            if not os.path.exists("runs/final_embed/ALIGN_FINAL") else "")
     D = {
       "NHANES": [
         ("Ablation table, our own methods", ok("runs/final_nhanes/metrics_long.csv"), "NHANES tab; runs/final_nhanes (10 arms x 10 seeds)"),

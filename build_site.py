@@ -348,12 +348,7 @@ def headline_table(data, tail=None):
         v = summaries[key][2].get(col)
         if v is None:
             return "<td class='na'>—</td>"
-        style = ""
-        if best.get(col) == key:
-            style = " style='background:rgba(31,159,110,.18);font-weight:700'"
-        elif key in tied.get(col, ()):
-            style = " style='text-decoration:underline dotted;text-underline-offset:3px'"
-        return f"<td{style}>{v[0]:.{digits}f}<span class='sd'>±{v[1]:.{digits}f}</span></td>"
+        return f"<td>{v[0]:.{digits}f}<span class='sd'>±{v[1]:.{digits}f}</span></td>"
 
     for key, (label, kind, s) in summaries.items():
         tag = {"full": "<span class='tag ours'>full method</span>",
@@ -361,7 +356,7 @@ def headline_table(data, tail=None):
                "ext":  "<span class='tag ctrl'>external baseline</span>"}.get(kind, "")
         enc_c, dro_c, anc_c = summaries_meta[key]
         ours = enc_c == "per-group" and anc_c == "yes" and dro_c not in ("—", "")   # per-group + anchors + DRO
-        row_style = " style='background:rgba(29,111,139,.07)'" if ours else ""
+        row_style = " style='background:rgba(31,159,110,.14)'" if ours else ""
         rows.append(
             f"<tr{row_style}>"
             f"<td class='m'>{html.escape(label)}{tag}</td>"
@@ -376,10 +371,9 @@ def headline_table(data, tail=None):
             + (f"<td class='dim'>{int(s['n_params']):,}</td>"
                if s.get("n_params") else "<td class='na'>—</td>")
             + f"<td class='dim'>{s['seeds']}</td></tr>")
-    foot = ("<p class='legend'>Parameters are inference parameters (anchors are training-only and excluded). Tinted rows are our arms (anchors + DRO). In each column the "
-            "<b>bold green</b> cell is the best arm on the mean (controls and external baselines "
-            "excluded); <span style='text-decoration:underline dotted'>dotted</span> cells are arms a "
-            "paired t-test over shared seeds cannot separate from it (p &ge; 0.05).</p>")
+    foot = ("<p class='legend'>Green rows are our method (per-group encoders + anchors + DRO). Parameters are "
+            "inference parameters (anchors are training-only and excluded). Mean ± sd over seeds; paired "
+            "comparisons are in the heatmaps at the top of the Final results tab.</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
             "<th class='sw'>encoder</th><th class='sw'>DRO</th><th class='sw'>anchors</th>"
             "<th>worst-group acc <span class='hint'>higher better</span></th>"
@@ -903,28 +897,21 @@ def baseline_table(data, tail=None):
         v = s_.get(col)
         if not v:
             return "<td class='na'>—</td>"
-        style = ""
-        if best.get(col) == label:
-            style = " style='background:rgba(31,159,110,.18);font-weight:700'"
-        elif label in tied.get(col, ()):
-            style = " style='text-decoration:underline dotted;text-underline-offset:3px'"
-        return f"<td{style}>{v[0]:.{dp}f}<span class='sd'>±{v[1]:.{dp}f}</span></td>"
+        return f"<td>{v[0]:.{dp}f}<span class='sd'>±{v[1]:.{dp}f}</span></td>"
     rows = []
     for key, label, kind, s_, _ in entries:
         npar = s_.get("n_params")
         tag = {"full": "<span class='tag ours'>ours</span>",
                "ext": "<span class='tag ctrl'>external</span>"}.get(kind, "")
-        row_style = " style='background:rgba(29,111,139,.07)'" if kind in ("full", "abl") else ""
+        row_style = " style='background:rgba(31,159,110,.14)'" if kind in ("full", "abl") else ""
         rows.append(
             f"<tr{row_style}><td class='m'>{html.escape(label)}{tag}</td>"
             f"{fcell(label, s_, 'worst_acc')}{fcell(label, s_, 'tail_acc')}{fcell(label, s_, 'wt_acc')}"
             f"{fcell(label, s_, 'wt_f1')}{fcell(label, s_, 'wt_loss', 3)}{fcell(label, s_, 'worst_loss', 3)}{fcell(label, s_, 'max_excess', 3)}"
             + (f"<td class='dim'>{int(npar):,}</td>" if npar else "<td class='na'>—</td>")
             + f"<td class='dim'>{s_['seeds']}</td></tr>")
-    foot = ("<p class='legend'>Tinted rows are our anchored arms. In each column the <b>bold green</b> "
-            "cell is the best arm on the mean across everything in the table, ours and baselines alike; "
-            "<span style='text-decoration:underline dotted'>dotted</span> cells are arms a paired t-test over "
-            "shared seeds cannot separate from it (p &ge; 0.05).</p>")
+    foot = ("<p class='legend'>Green rows are our method's two anchored arms. Mean ± sd over 10 seeds; "
+            "paired tests against each baseline are in the heatmaps at the top of the Final results tab.</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
             "<th>worst-group acc</th><th>tail acc</th><th>overall acc</th><th>macro-F1</th>"
             "<th>overall loss</th><th>worst-group loss</th><th>max excess</th><th>params</th><th>seeds</th>"
@@ -1142,7 +1129,7 @@ def final_results_page(loaded=None, merged_bl=None):
             out.append("<h3>5. Latent-space alignment scatter, anchors on and off</h3>" + "".join(figblock(st, cap) for st, cap in SCAT[ds]))
             out.append("<h3>6. Hyperparameter sweep, full method (per-group encoders + anchors + Regret-DRO)</h3><p class='legend'>Group-weight step size and refresh cadence for the full method (the sweep that fixed the protocol; 10 seeds). The other DRO arms at each setting are on the report page.</p><div class='card'>" + gamma_table(ds) + "</div>")
             if SWEEP[ds]:
-                out.append("<p class='legend'>Equal-budget sweep over anchor weight, group-weight step size and latent width for the full method (per-group encoders + anchors + Regret-DRO), validation-selected (run_sweep.py; earlier protocol, 3 seeds per config). Only validation and test worst-group accuracy were recorded per config, so loss and excess are not available for this sweep without rerunning it.</p><div class='card'>" + sweep_table(SWEEP[ds], "Ours_Regret") + "</div>")
+                out.append("<p class='legend'>Equal-budget sweep over anchor weight, group-weight step size and latent width for the full method (per-group encoders + anchors + Regret-DRO), validation-selected (run_sweep.py; earlier protocol, 3 seeds per config; the highlighted row is the configuration validation picked in that sweep). Only validation and test worst-group accuracy were recorded per config, so loss and excess are not available for this sweep without rerunning it.</p><div class='card'>" + sweep_table(SWEEP[ds], "Ours_Regret") + "</div>")
             else:
                 out.append("<p class='legend'>EMBED: anchor weight swept over 0.1 / 1 / 10, uniform vs proportional weight start, training vs held-out weight signal, original vs eq. 13 floors; the full tables are on the report page.</p>")
             gl = "".join(f"<li><b>{html.escape(k)}</b> {html.escape(v)}</li>" for k, v in d["groups"].items())

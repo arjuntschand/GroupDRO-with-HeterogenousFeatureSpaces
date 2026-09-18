@@ -11,8 +11,16 @@ Three methods, requested as additional comparisons:
             stands in for whatever that group is missing, so every sample presents a full
             modality set to a shared fusion block. Fusion here is a Soft MoE.
 
-  REMIND    their method: the same Soft MoE fusion plus a distributionally robust outer
-            loop, with the group weights lambda refreshed every N steps from per-group loss.
+  REMIND    their method: Soft MoE fusion, group-specific residual routing matrices
+            Phi = Phi_shared + Phi_k with entropy gating (their eq. 7-8, threshold 0.8 x max
+            entropy, residuals trained in a second stage), and a distributionally robust outer
+            loop with lambda_k <- lambda_k exp(gamma R_k) refreshed every N steps (their eq. 4,
+            gamma = 0.02 in their main experiments).
+
+  History: until 2026-09-18 this file's "REMIND" had the Soft MoE and the DRO loop but no
+  residual routing, and used lambda = softmax(EMA loss) (gamma = 1, no memory) at each refresh.
+  That is the paper's own "Soft MoE + GroupDRO" baseline, not REMIND. Runs from before that
+  date carry the old definition; see runs/baselines_*_softmoe_gdro for them.
 
 PROVENANCE, read before quoting any of these numbers.
 
@@ -38,9 +46,10 @@ likeliest place to diverge. Report it as a reimplementation, and treat it as the
 lowest-confidence number in the comparison.
 
 Reweigh is not a separate architecture. The paper states: "we combine multi-modal MoE with
-group robustness strategies", listing it alongside GroupDRO, FairBatch and FairMixup. Ours is
-therefore the Soft MoE backbone plus fixed inverse-frequency group weighting, which matches
-that description.
+group robustness strategies", and the "Reweigh" column in its tables is Distribution
+Adjustment, i.e. logit adjustment (Menon et al. 2020, their ref. [24]). Ours is the Soft MoE
+backbone plus FIXED inverse-frequency group weighting, the classical reweighting baseline. It
+is reported as "inverse-frequency reweighting", not as a reproduction of their column.
 
 Adapting the modality framing to tabular data
 ---------------------------------------------
@@ -128,9 +137,19 @@ class SoftMoE(nn.Module):
     """
 
     def __init__(self, dim: int, n_experts: int = 4, expert_hidden: int = 64,
-                 n_slots: int = 1):
+                 n_slots: int = 1, n_groups: int = 0, entropy_frac: float = 0.8):
         super().__init__()
         self.phi = nn.Parameter(torch.randn(dim, n_experts * n_slots) * 0.02)
+        # REMIND eq. 7: Phi = Phi_shared + Phi_k, one zero-initialised residual routing matrix
+        # per modality-combination group, switched on per sample when the shared router is
+        # uncertain (eq. 8: entropy of the joint softmax over tokens x expert slots above
+        # entropy_frac * its maximum; the paper uses 0.8). n_groups == 0 disables it, which is
+        # plain Soft MoE (Flex-MoE's fusion and the paper's SoftMoE + GroupDRO baseline).
+        self.n_groups = n_groups
+        self.phi_res = (nn.Parameter(torch.zeros(n_groups, dim, n_experts * n_slots))
+                        if n_groups > 0 else None)
+        self.entropy_frac = entropy_frac
+        self.residual_active = False       # stage 2 of REMIND training turns this on
         lin1 = [nn.Linear(dim, expert_hidden) for _ in range(n_experts)]
         lin2 = [nn.Linear(expert_hidden, dim) for _ in range(n_experts)]
         self.w1 = nn.Parameter(torch.stack([l.weight.detach().T.contiguous() for l in lin1]))
@@ -139,9 +158,18 @@ class SoftMoE(nn.Module):
         self.b2 = nn.Parameter(torch.stack([l.bias.detach() for l in lin2]))
         self.n_experts, self.n_slots = n_experts, n_slots
 
-    def forward(self, z: torch.Tensor) -> torch.Tensor:
-        """z: (B, T, D) tokens -> (B, D) fused representation."""
+    def forward(self, z: torch.Tensor, g: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """z: (B, T, D) tokens, g: (B,) group ids (needed only with residual routing)
+        -> (B, D) fused representation."""
         logits = torch.einsum("btd,dk->btk", z, self.phi)        # (B, T, E*S)
+        if self.phi_res is not None and self.residual_active and g is not None:
+            # eq. 8: joint softmax over (token, slot); gate on entropy >= frac * ln(T*K)
+            p = logits.flatten(1).softmax(dim=-1)
+            H = -(p * (p + 1e-12).log()).sum(-1)                # (B,)
+            H_max = torch.log(torch.tensor(float(p.shape[1]), device=z.device))
+            gate = (H >= self.entropy_frac * H_max).to(z.dtype)[:, None, None]
+            res = torch.einsum("btd,bdk->btk", z, self.phi_res[g])
+            logits = logits + gate * res
         dispatch = logits.softmax(dim=1)                          # over tokens
         combine = logits.flatten(1).softmax(dim=-1).view_as(logits)  # over slots
         slots = torch.einsum("btk,btd->bkd", dispatch, z)         # (B, E*S, D)
@@ -163,7 +191,7 @@ class FlexMoEModel(nn.Module):
 
     def __init__(self, block_dims: Sequence[int], group_blocks: Dict[int, List[int]],
                  latent_dim: int = 64, num_classes: int = 2,
-                 n_experts: int = 4, dropout: float = 0.1):
+                 n_experts: int = 4, dropout: float = 0.1, group_routing: bool = False):
         super().__init__()
         self.block_dims = list(block_dims)
         self.group_blocks = {int(k): list(v) for k, v in group_blocks.items()}
@@ -174,7 +202,8 @@ class FlexMoEModel(nn.Module):
             torch.randn(len(self.group_blocks), self.n_blocks, latent_dim) * 0.02)
         self.attn = nn.MultiheadAttention(latent_dim, num_heads=4, batch_first=True,
                                           dropout=dropout)
-        self.moe = SoftMoE(latent_dim, n_experts=n_experts, expert_hidden=latent_dim)
+        self.moe = SoftMoE(latent_dim, n_experts=n_experts, expert_hidden=latent_dim,
+                           n_groups=len(self.group_blocks) if group_routing else 0)
         self.norm = nn.LayerNorm(latent_dim)
         self.head = nn.Linear(latent_dim, num_classes)
 
@@ -194,7 +223,7 @@ class FlexMoEModel(nn.Module):
         z = torch.stack(toks, dim=1)                        # (B, T, D)
         a, _ = self.attn(z, z, z, need_weights=False)
         z = self.norm(z + a)
-        h = self.moe(z)
+        h = self.moe(z, g)
         return self.head(h), h
 
 
@@ -214,7 +243,8 @@ class FlexMoEEmbed(nn.Module):
 
     def __init__(self, views: Sequence[str], group_views: Dict[str, Sequence[str]],
                  in_dim: int = 768, proj_dim: int = 64, latent_dim: int = 64,
-                 num_classes: int = 4, n_experts: int = 4, dropout: float = 0.1):
+                 num_classes: int = 4, n_experts: int = 4, dropout: float = 0.1,
+                 group_routing: bool = False):
         super().__init__()
         self.views = list(views)
         self.groups = list(group_views.keys())
@@ -225,7 +255,8 @@ class FlexMoEEmbed(nn.Module):
         self.attn = nn.MultiheadAttention(proj_dim, num_heads=4, batch_first=True,
                                           dropout=dropout)
         self.norm = nn.LayerNorm(proj_dim)
-        self.moe = SoftMoE(proj_dim, n_experts=n_experts, expert_hidden=latent_dim)
+        self.moe = SoftMoE(proj_dim, n_experts=n_experts, expert_hidden=latent_dim,
+                           n_groups=len(self.groups) if group_routing else 0)
         self.head = nn.Linear(proj_dim, num_classes)
 
     def forward(self, group: str, view_feats: Dict[str, torch.Tensor]):
@@ -241,7 +272,7 @@ class FlexMoEEmbed(nn.Module):
         z = torch.stack(toks, dim=1)                     # (B, 4, proj_dim)
         a, _ = self.attn(z, z, z, need_weights=False)
         z = self.norm(z + a)
-        h = self.moe(z)
+        h = self.moe(z, torch.full((B,), gi, device=z.device, dtype=torch.long))
         return self.head(h), h
 
 

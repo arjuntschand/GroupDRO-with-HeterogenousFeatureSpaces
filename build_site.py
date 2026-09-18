@@ -130,11 +130,11 @@ METHODS = [
     # model/baselines.py: the paper has no code-availability statement and we could not find
     # a public repository, while the spec asks for the authors' released code.
     ("Reweigh",             ["Reweigh"],
-     "Reweigh (REMIND paper)",            "shared",    "fixed 1/n", "—", "ext"),
+     "Reweigh (inverse-frequency group reweighting)",            "shared",    "fixed 1/n", "—", "ext"),
     ("FlexMoE",             ["FlexMoE"],
      "FlexMoE (REMIND paper)",            "soft MoE",  "—",      "—",  "ext"),
     ("REMIND",              ["REMIND"],
-     "REMIND (reimplementation)",         "soft MoE",  "GroupDRO", "—", "ext"),
+     "REMIND (reimplementation, corrected 2026-09-18)",         "soft MoE",  "GroupDRO", "—", "ext"),
 ]
 
 # Baseline runs live in their own directories; merged in at load time so their rows sit in the
@@ -376,7 +376,7 @@ def headline_table(data, tail=None):
             + (f"<td class='dim'>{int(s['n_params']):,}</td>"
                if s.get("n_params") else "<td class='na'>—</td>")
             + f"<td class='dim'>{s['seeds']}</td></tr>")
-    foot = ("<p class='legend'>Tinted rows are our arms (anchors + DRO). In each column the "
+    foot = ("<p class='legend'>Parameters are inference parameters (anchors are training-only and excluded). Tinted rows are our arms (anchors + DRO). In each column the "
             "<b>bold green</b> cell is the best arm on the mean (controls and external baselines "
             "excluded); <span style='text-decoration:underline dotted'>dotted</span> cells are arms a "
             "paired t-test over shared seeds cannot separate from it (p &ge; 0.05).</p>")
@@ -952,7 +952,7 @@ def vs_baselines_block(loaded, merged_bl):
         sig = p is not None and p < 0.05
         col = ("#1a7f4b" if better else "#b03a3a")
         bg = ("rgba(31,159,110,.16)" if better else "rgba(176,58,58,.14)") if sig else ("rgba(31,159,110,.06)" if better else "rgba(176,58,58,.05)")
-        ptxt = "n.s." if (p is None or p >= 0.05) else f"p={p:.3f}"
+        ptxt = "n.s." if (p is None or p >= 0.05) else ("p&lt;0.001" if p < 0.001 else f"p={p:.3f}")
         return (f"<td style='background:{bg};color:{col};font-weight:600'>{diff_txt}"
                 f"<span class='hint' style='color:var(--dim);font-weight:400'>{abs_txt} · {ptxt}</span></td>")
     out = ["<h3 id='fr-heat'>Our method against the published baselines, at a glance</h3>",
@@ -972,21 +972,24 @@ def vs_baselines_block(loaded, merged_bl):
         if not full:
             continue
         fa, fl, fe, ff, fp = worst_by_seed(full), worst_loss_by_seed(full), excess_by_seed(full), f1_by_seed(full), n_params(full)
+        fo = per_seed_series(full)["wt_loss"]
         mf = lambda m: sum(m.values()) / len(m)
         out.append(f"<h3 style='margin-top:22px'>{html.escape(d['label'])}</h3>"
                    f"<p class='legend'>Ours: worst-group accuracy {mf(fa):.1f}, worst-group loss {mf(fl):.3f}, regret {mf(fe):.3f}, "
-                   f"{int(fp):,} parameters</p>")
+                   f"overall loss {mf(fo):.3f}, {int(fp):,} parameters</p>")
         rows = {"Worst-group loss": [], "Regret (worst-group excess loss)": [], "Worst-group accuracy": [], "Parameters": []}
         heads = []
         for b in ["Reweigh", "FlexMoE", "REMIND"]:
             bd = mb.get(f"{b}__released")
             if not bd:
                 continue
-            heads.append("Flex-MoE" if b == "FlexMoE" else b)
+            heads.append({"FlexMoE": "Flex-MoE", "Reweigh": "Reweigh (inv.-freq.)"}.get(b, b))
             ba, bl_, be, bf, bp_ = worst_by_seed(bd), worst_loss_by_seed(bd), excess_by_seed(bd), f1_by_seed(bd), n_params(bd)
+            bo = per_seed_series(bd)["wt_loss"]
             seeds = sorted(set(fa) & set(ba))
             m = lambda x: sum(x[k] for k in seeds) / len(seeds)
             dl = (m(bl_) - m(fl)) / m(bl_) * 100; de = (m(be) - m(fe)) / m(be) * 100; da = m(fa) - m(ba); df = m(ff) - m(bf)
+            do = (m(bo) - m(fo)) / m(bo) * 100
             for key, diff, better, txt, abs_txt, p in [
                 ("Worst-group loss", dl, dl > 0, f"{abs(dl):.1f}% {'lower' if dl > 0 else 'higher'}", f"{m(fl):.3f} vs {m(bl_):.3f}", paired_p(fl, bl_)),
                 ("Regret (worst-group excess loss)", de, de > 0, f"{abs(de):.1f}% {'lower' if de > 0 else 'higher'}", f"{m(fe):.3f} vs {m(be):.3f}", paired_p(fe, be)),
@@ -1137,14 +1140,14 @@ def final_results_page(loaded=None, merged_bl=None):
             out.append("<h3>3. Per-group loss against epoch</h3>" + figblock(g1, f"{ds}, GroupDRO: per-group loss (top) with R* dashed, group weight below.") + figblock(g2, f"{ds}, Regret-DRO / full method: per-group loss (top), group weight below."))
             out.append("<h3>4. Per-group group weight against epoch</h3><p class='legend'>The lower row of each panel above is the weight trajectory; the summary of where the weights end is the first figure on the Plots tab (lambda against R*).</p>")
             out.append("<h3>5. Latent-space alignment scatter, anchors on and off</h3>" + "".join(figblock(st, cap) for st, cap in SCAT[ds]))
-            out.append("<h3>6. Hyperparameter sweep</h3><p class='legend'>Group-weight step size and refresh cadence (the sweep that fixed the protocol; 10 seeds).</p><div class='card'>" + gamma_table(ds) + "</div>")
+            out.append("<h3>6. Hyperparameter sweep, full method (per-group encoders + anchors + Regret-DRO)</h3><p class='legend'>Group-weight step size and refresh cadence for the full method (the sweep that fixed the protocol; 10 seeds). The other DRO arms at each setting are on the report page.</p><div class='card'>" + gamma_table(ds) + "</div>")
             if SWEEP[ds]:
-                out.append("<p class='legend'>Equal-budget sweep over anchor weight, group-weight step size and latent width for the full method, validation-selected (run_sweep.py; earlier protocol, 3 seeds per config). Only validation and test worst-group accuracy were recorded per config, so loss and excess are not available for this sweep without rerunning it.</p><div class='card'>" + sweep_table(SWEEP[ds], "Ours_Regret") + "</div>")
+                out.append("<p class='legend'>Equal-budget sweep over anchor weight, group-weight step size and latent width for the full method (per-group encoders + anchors + Regret-DRO), validation-selected (run_sweep.py; earlier protocol, 3 seeds per config). Only validation and test worst-group accuracy were recorded per config, so loss and excess are not available for this sweep without rerunning it.</p><div class='card'>" + sweep_table(SWEEP[ds], "Ours_Regret") + "</div>")
             else:
                 out.append("<p class='legend'>EMBED: anchor weight swept over 0.1 / 1 / 10, uniform vs proportional weight start, training vs held-out weight signal, original vs eq. 13 floors; the full tables are on the report page.</p>")
             gl = "".join(f"<li><b>{html.escape(k)}</b> {html.escape(v)}</li>" for k, v in d["groups"].items())
             out.append(f"<h3>7. Dataset description and feature table</h3><div class='card' style='padding:16px 20px'><p class='blurb' style='margin:0 0 10px'>{html.escape(d['blurb'])}</p><ul style='margin:0'>{gl}</ul></div>")
-    out.append("<h3 id='fr-gamma'>Group-weight step size, the sweep behind the protocol (all three datasets)</h3>")
+    out.append("<h3 id='fr-gamma'>Group-weight step size, the sweep behind the protocol (all three datasets; full method = per-group encoders + anchors + Regret-DRO)</h3>")
     out.append("<div class='card'><table class='data'><thead><tr><th class='it'>dataset</th><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>worst-group excess</th><th>weights moved (L1)</th><th class='it'>vs frozen-weight setting</th></tr></thead><tbody>"
                + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{ds if i == 0 else ''}</td><td class='it'>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for ds in ["Fed-Heart", "NHANES", "EMBED"] for i, r in enumerate(GAMMA[ds]))
                + "</tbody></table></div>")
@@ -1412,8 +1415,14 @@ def build(outdir=SITE):
           "router pair. REMIND has no released code. Its paper contains one URL, its own arXiv "
           "link, the abstract page lists no repository, and the corresponding author's homepage "
           "gives REMIND a PDF link while five other papers there carry GitHub links. Our REMIND "
-          "is therefore a reimplementation from the paper's description and is labelled as one. "
-          "Reweigh is standard inverse-frequency group weighting.</div>"]
+          "is therefore a reimplementation from the paper's description and is labelled as one; "
+          "it includes the paper's group-specific residual routing matrices with entropy gating and "
+          "its exponentiated group-weight update (gamma 0.02, refreshed every 50 steps). An earlier "
+          "version here lacked the residual routing and used a softmax weight rule; those runs are "
+          "kept under runs/baselines_*_softmoe_gdro. Reweigh is standard inverse-frequency group "
+          "weighting on the same Soft MoE backbone; the column of that name in the REMIND paper is "
+          "logit adjustment, so ours is labelled as what it is. Parameter counts are inference "
+          "parameters (our anchors, training-only, are excluded).</div>"]
     BL = [("fedheart", "Fed-Heart", "runs/baselines_fedheart_uncapped/metrics_long.csv",
            "runs/baselines_fedheart_uncapped_matched/metrics_long.csv"),
           ("nhnested", "NHANES", "runs/baselines_nhanes/metrics_long.csv",

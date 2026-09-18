@@ -57,7 +57,7 @@ def evaluate(model, data, masks, split, device, rstar):
 
 
 def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5e-5,
-              batch=32, n_experts=128, capacity_matched=False, verbose=True):
+              batch=32, n_experts=128, capacity_matched=False, verbose=True, dro_gamma=0.02):
     torch.manual_seed(seed); np.random.seed(seed)
     groups = [g for g in GROUPS if g in data]
     gv = {g: GROUP_VIEWS[g] for g in groups}
@@ -72,7 +72,10 @@ def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5
         # slot per expert, embedding size 768, num of heads 8". Table 16 sweeps E in
         # {32, 64, 128} and reports 128 as best (80.7 average).
         ne_ = 8 if capacity_matched else n_experts
-        model = FlexMoEEmbed(VIEWS, gv, num_classes=NUM_CLASSES, n_experts=ne_).to(device)
+        # REMIND gets the group-specific residual routing (paper eq. 7-8); Reweigh is the
+        # paper's Soft MoE backbone with fixed inverse-frequency group weights.
+        model = FlexMoEEmbed(VIEWS, gv, num_classes=NUM_CLASSES, n_experts=ne_,
+                             group_routing=(method == "REMIND")).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
     sched = torch.optim.lr_scheduler.StepLR(opt, step_size=5, gamma=0.1)
 
@@ -92,6 +95,10 @@ def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5
 
     for ep in range(epochs):
         model.train()
+        # REMIND is trained in two stages: shared routing first, residual matrices in the
+        # second half (paper Sec. 7.7: "modality-specific routing matrices in the second stage").
+        if method == "REMIND" and hasattr(model, "moe") and model.moe.phi_res is not None:
+            model.moe.residual_active = ep >= epochs // 2
         for _ in range(steps):
             opt.zero_grad()
             per = torch.zeros(K, device=device)
@@ -114,8 +121,9 @@ def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5
             if method == "REMIND":
                 with torch.no_grad():
                     ema = 0.9 * ema + 0.1 * per
-                    if gstep % 50 == 0:                 # refresh lambda every N steps
-                        lam = torch.softmax(ema, 0)
+                    if gstep % 50 == 0:                 # paper eq. 4, refreshed every N steps
+                        lam = lam * torch.exp(dro_gamma * ema)
+                        lam = lam / lam.sum()
         sched.step()
         val = evaluate(model, data, masks, "val", device, rstar)
         sel_metric = float(np.mean([v["loss"] for v in val.values()]))
@@ -140,6 +148,9 @@ def main():
     ap.add_argument("--split-seed", type=int, default=0)
     ap.add_argument("--rstar-folds", type=int, default=5)
     ap.add_argument("--capacity-matched", action="store_true")
+    ap.add_argument("--dro-gamma", type=float, default=0.02,
+                    help="REMIND's sharpness gamma in lambda_k <- lambda_k exp(gamma R_k); the paper "
+                         "sweeps {0.5, 0.1, 0.02} on EMBED and uses 0.02")
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
@@ -164,7 +175,7 @@ def main():
     rows = []
     for method in args.methods:
         for seed in args.seeds:
-            model = train_one(method, data, masks, device, rstar, seed, epochs=args.epochs,
+            model = train_one(method, data, masks, device, rstar, seed, epochs=args.epochs, dro_gamma=args.dro_gamma,
                               capacity_matched=args.capacity_matched)
             n_params = sum(p.numel() for p in model.parameters())
             test = evaluate(model, data, masks, "test", device, rstar)

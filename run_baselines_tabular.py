@@ -100,6 +100,8 @@ def main():
     # to 4 experts at d=64 (35,722 params) so the comparison isolates the architecture. Both
     # settings get reported; neither is hidden.
     ap.add_argument("--capacity-matched", action="store_true")
+    ap.add_argument("--dro-gamma", type=float, default=0.02,
+                    help="REMIND sharpness gamma (paper: 0.02 on EMBED, swept over {0.5, 0.1, 0.02})")
     # Fed-Heart's own arms are evaluated with 5-fold CV over all 925 patients, so a single
     # split here would compare them against baselines measured on 185. Switzerland in
     # particular drops from 125 evaluated patients to 25, which is where most of the apparent
@@ -202,7 +204,8 @@ def main():
                 model = FlexMoEModel(
                     [len(b) for b in blocks], group_blocks,
                     latent_dim=cfg.get("latent_dim", 64), num_classes=nc,
-                    n_experts=2 if args.capacity_matched else 4).to(device)
+                    n_experts=2 if args.capacity_matched else 4,
+                    group_routing=(method == "REMIND")).to(device)
             opt = torch.optim.Adam(model.parameters(), lr=cfg.get("lr", 1e-3),
                                    weight_decay=cfg.get("weight_decay", 1e-4))
             reweigh = (ReweighLoss(ng, counts, device, class_weight=cls_w)
@@ -214,6 +217,10 @@ def main():
 
             for ep in range(args.epochs):
                 model.train()
+                if method == "REMIND" and getattr(model, "moe", None) is not None \
+                        and model.moe.phi_res is not None:
+                    model.moe.residual_active = ep >= args.epochs // 2   # stage 2
+
                 for x, y, g in tr:
                     x, y, g = x.to(device), y.to(device), g.to(device)
                     xb = [x[:, idx] for idx in blocks]
@@ -238,8 +245,9 @@ def main():
                             with torch.no_grad():
                                 ema = 0.9 * ema + 0.1 * per.detach()
                                 step += 1
-                                if step % 50 == 0:          # refresh lambda every N steps
-                                    lam = torch.softmax(ema, 0)
+                                if step % 50 == 0:          # paper eq. 4, every N steps
+                                    lam = lam * torch.exp(args.dro_gamma * ema)
+                                    lam = lam / lam.sum()
                         else:                                # FlexMoE: plain mean
                             loss = per[present].mean()
                     opt.zero_grad(); loss.backward()

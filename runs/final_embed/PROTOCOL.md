@@ -1,1 +1,3 @@
 Frozen protocol (2026-09-18): EMBED six view-availability groups, 10 seeds, one patient split, frozen ViT-Base features. DRO arms: lambda init 1/G, running training-loss signal refreshed every 50 steps (draft Algorithm 1), gamma 2.0, original 5-fold optimal-loss floors (rstar.json; eq. 13 floors hurt here, see runs/embed_final10). Source runs: runs/embed_final10 jobs base and g2.0.
+
+Parameter counts are inference parameters: the 512 anchor parameters (training-only) are excluded, matching the tabular convention. 2026-09-18.

@@ -23,7 +23,7 @@ DATASETS = {
                  ["runs/baselines_embed/metrics_long.csv",
                   "runs/baselines_embed_remind128/metrics_long.csv",
                   "runs/baselines_embed_matched/metrics_long.csv"],
-                 "runs/embed_xenia_production/rstar.json"),
+                 "runs/final_embed/rstar.json"),
 }
 
 

@@ -50,7 +50,7 @@ BASE = [
      {"erm": "erm", "dro": "groupdro", "regret": "regret_only",
       "anc_dro": "align_only", "full": "ours"}),
 ]
-BASELINES = ["Reweigh", "FlexMoE", "REMIND"]
+BASELINES = ["Reweigh", "FlexMoE", "REMIND"]   # Reweigh = inverse-frequency group reweighting; REMIND = corrected reimplementation (2026-09-18)
 
 
 def read(p):

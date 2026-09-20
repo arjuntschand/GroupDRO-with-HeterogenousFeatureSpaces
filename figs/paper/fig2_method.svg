@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 600" width="1240" height="600" role="img"
+     aria-label="Per-group encoders map heterogeneous feature spaces into one shared latent space, where class anchors pull every group onto common targets so a single head serves all groups; the group weights are updated from regret, each group's loss above its own estimated floor, rather than from raw loss."
+     font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#141413">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#141413"/>
+    </marker>
+    <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b6b6b"/>
+    </marker>
+    <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b03a3a"/>
+    </marker>
+  </defs>
+
+  <!-- ===== column 1: groups and their feature spaces ===== -->
+  <text x="20" y="34" font-size="14" font-weight="700">Groups with different feature spaces</text>
+  <text x="20" y="52" fill="#6b6b6b" font-size="12">S_g ⊆ [V]: which measurements a group carries</text>
+
+  <!-- measurement catalogue header -->
+  <g font-size="10.5" fill="#6b6b6b" text-anchor="middle">
+    <text x="84" y="80">survey</text><text x="128" y="80">exam</text><text x="172" y="80">labs</text><text x="216" y="80">imaging</text>
+  </g>
+
+  <!-- group 1: survey only -->
+  <g>
+    <rect x="20" y="92" width="24" height="24" rx="4" fill="#2a78d6"/>
+    <text x="32" y="109" font-size="11" fill="#fff" text-anchor="middle" font-weight="700">1</text>
+    <rect x="62" y="96" width="44" height="16" rx="3" fill="#2a78d6"/>
+    <rect x="106" y="96" width="44" height="16" rx="3" fill="none" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+    <rect x="150" y="96" width="44" height="16" rx="3" fill="none" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+    <rect x="194" y="96" width="44" height="16" rx="3" fill="none" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+  </g>
+  <!-- group 2: survey + exam + labs -->
+  <g>
+    <rect x="20" y="142" width="24" height="24" rx="4" fill="#eb6834"/>
+    <text x="32" y="159" font-size="11" fill="#fff" text-anchor="middle" font-weight="700">2</text>
+    <rect x="62" y="146" width="44" height="16" rx="3" fill="#eb6834"/>
+    <rect x="106" y="146" width="44" height="16" rx="3" fill="#eb6834"/>
+    <rect x="150" y="146" width="44" height="16" rx="3" fill="#eb6834"/>
+    <rect x="194" y="146" width="44" height="16" rx="3" fill="none" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+  </g>
+  <!-- group 3: imaging only, shares nothing with group 1 -->
+  <g>
+    <rect x="20" y="192" width="24" height="24" rx="4" fill="#1baf7a"/>
+    <text x="32" y="209" font-size="11" fill="#fff" text-anchor="middle" font-weight="700">3</text>
+    <rect x="62" y="196" width="44" height="16" rx="3" fill="none" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+    <rect x="106" y="196" width="44" height="16" rx="3" fill="none" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+    <rect x="150" y="196" width="44" height="16" rx="3" fill="none" stroke="#c9c9c9" stroke-dasharray="3 3"/>
+    <rect x="194" y="196" width="44" height="16" rx="3" fill="#1baf7a"/>
+  </g>
+  <text x="20" y="242" font-size="11" fill="#6b6b6b">dashed = not measured for that group</text>
+  <text x="20" y="258" font-size="11" fill="#6b6b6b">groups 1 and 3 share no measurement</text>
+
+  <!-- ===== column 2: encoders ===== -->
+  <text x="300" y="34" font-size="14" font-weight="700">Encoders</text>
+  <text x="300" y="52" fill="#6b6b6b" font-size="12">φ_g : X_g → Z</text>
+
+  <!-- feature rows -> encoder trapezoids -->
+  <g stroke="#141413" stroke-width="1.2" fill="#fff">
+    <path d="M300,88 L300,120 L350,112 L350,96 Z" fill="#dfeafa"/>
+    <path d="M300,132 L300,176 L350,164 L350,144 Z" fill="#fde5d9"/>
+    <path d="M300,190 L300,218 L350,211 L350,197 Z" fill="#d9f3e8"/>
+  </g>
+  <g font-size="12" text-anchor="middle" font-style="italic">
+    <text x="325" y="108">φ₁</text><text x="325" y="158">φ₂</text><text x="325" y="208">φ₃</text>
+  </g>
+  <!-- arrows from feature rows to encoders -->
+  <g stroke="#141413" stroke-width="1.2" marker-end="url(#arr)">
+    <line x1="242" y1="104" x2="296" y2="104"/>
+    <line x1="242" y1="154" x2="296" y2="154"/>
+    <line x1="242" y1="204" x2="296" y2="204"/>
+  </g>
+  <!-- arrows from encoders into Z -->
+  <g stroke="#141413" stroke-width="1.2" marker-end="url(#arr)" fill="none">
+    <path d="M352,104 C410,104 410,150 468,150"/>
+    <path d="M352,154 L468,154"/>
+    <path d="M352,204 C410,204 410,158 468,158"/>
+  </g>
+
+  <!-- ===== column 3: shared latent space with anchors ===== -->
+  <text x="472" y="34" font-size="14" font-weight="700">Shared latent space Z</text>
+  <text x="472" y="52" fill="#6b6b6b" font-size="12">every group is pulled onto the same class anchors</text>
+  <rect x="472" y="66" width="330" height="200" rx="14" fill="#f7f7f5" stroke="#c9c9c9"/>
+
+  <!-- anchor 0 (negative class): grey ellipse + star -->
+  <ellipse cx="560" cy="170" rx="52" ry="34" fill="#9a9a9a" fill-opacity="0.15" stroke="#7a7a7a" stroke-dasharray="4 3"/>
+  <ellipse cx="712" cy="150" rx="52" ry="34" fill="#e87ba4" fill-opacity="0.15" stroke="#d0597f" stroke-dasharray="4 3"/>
+  <!-- points from three groups clustering on each anchor -->
+  <g>
+    <circle cx="540" cy="160" r="4" fill="#2a78d6"/><circle cx="570" cy="185" r="4" fill="#2a78d6"/><circle cx="552" cy="178" r="4" fill="#eb6834"/>
+    <circle cx="578" cy="162" r="4" fill="#eb6834"/><circle cx="545" cy="186" r="4" fill="#1baf7a"/><circle cx="585" cy="176" r="4" fill="#1baf7a"/>
+    <circle cx="695" cy="140" r="4" fill="#2a78d6"/><circle cx="728" cy="162" r="4" fill="#2a78d6"/><circle cx="708" cy="166" r="4" fill="#eb6834"/>
+    <circle cx="732" cy="140" r="4" fill="#eb6834"/><circle cx="700" cy="156" r="4" fill="#1baf7a"/><circle cx="740" cy="152" r="4" fill="#1baf7a"/>
+  </g>
+  <!-- stars for anchor means -->
+  <g stroke="#141413" stroke-width="0.9">
+    <polygon points="560,158 563.5,166 572,166.5 565.5,172 567.5,180.5 560,176 552.5,180.5 554.5,172 548,166.5 556.5,166" fill="#9a9a9a"/>
+    <polygon points="712,138 715.5,146 724,146.5 717.5,152 719.5,160.5 712,156 704.5,160.5 706.5,152 700,146.5 708.5,146" fill="#e87ba4"/>
+  </g>
+  <text x="560" y="222" font-size="12" text-anchor="middle" font-style="italic">μ₀ = N(m₀, Σ₀)</text>
+  <text x="712" y="204" font-size="12" text-anchor="middle" font-style="italic">μ₁ = N(m₁, Σ₁)</text>
+  <!-- alignment pull arrows: from stray points toward the anchor -->
+  <g stroke="#6b6b6b" stroke-width="1" marker-end="url(#arrA)" fill="none">
+    <path d="M502,100 C520,120 535,140 545,152"/>
+    <path d="M775,92 C760,110 740,125 730,136"/>
+  </g>
+  <circle cx="500" cy="98" r="4" fill="#1baf7a"/><circle cx="777" cy="90" r="4" fill="#2a78d6"/>
+  <text x="480" y="250" font-size="11" fill="#6b6b6b">L^align_g = W₂²(ν_g^c, μ_c): pulls each group's class-c cloud onto μ_c</text>
+  <!-- separation double arrow between anchors -->
+  <line x1="616" y1="160" x2="656" y2="156" stroke="#6b6b6b" stroke-width="1" marker-start="url(#arrA)" marker-end="url(#arrA)"/>
+  <text x="636" y="145" font-size="11" fill="#6b6b6b" text-anchor="middle">L_sep</text>
+
+  <!-- ===== column 4: shared head ===== -->
+  <text x="840" y="34" font-size="14" font-weight="700">One head</text>
+  <text x="840" y="52" fill="#6b6b6b" font-size="12">ψ : Z → Y, serves every group</text>
+  <line x1="804" y1="154" x2="838" y2="154" stroke="#141413" stroke-width="1.2" marker-end="url(#arr)"/>
+  <rect x="840" y="130" width="70" height="48" rx="8" fill="#fff" stroke="#141413" stroke-width="1.2"/>
+  <text x="875" y="160" font-size="14" text-anchor="middle" font-style="italic">ψ</text>
+  <line x1="912" y1="154" x2="946" y2="154" stroke="#141413" stroke-width="1.2" marker-end="url(#arr)"/>
+  <text x="954" y="159" font-size="14" font-style="italic">ŷ</text>
+  <text x="840" y="205" font-size="11" fill="#6b6b6b">f_g = ψ ∘ φ_g for every g,</text>
+  <text x="840" y="221" font-size="11" fill="#6b6b6b">including groups that share</text>
+  <text x="840" y="237" font-size="11" fill="#6b6b6b">no measurement (1 and 3)</text>
+
+  <!-- ===== bottom: the max player on regret ===== -->
+  <line x1="20" y1="290" x2="1160" y2="290" stroke="#e0e0e0"/>
+  <text x="20" y="318" font-size="14" font-weight="700">Which group gets weight: regret, not loss</text>
+  <text x="20" y="336" fill="#6b6b6b" font-size="12">every N steps: λ_g ← λ_g · exp( γ [ L̄_g − R̃_g ]₊ ), then renormalise</text>
+
+  <!-- bar chart: three groups, loss bars with floors -->
+  <g font-size="11">
+    <!-- axis -->
+    <line x1="60" y1="540" x2="440" y2="540" stroke="#141413"/>
+    <line x1="60" y1="360" x2="60" y2="540" stroke="#141413"/>
+    <text x="52" y="365" text-anchor="end" fill="#6b6b6b">loss</text>
+    <!-- group 1: loss 0.6, floor 0.3 -> regret 0.3 (largest) -->
+    <rect x="100" y="432" width="60" height="108" fill="#2a78d6" fill-opacity="0.35" stroke="#2a78d6"/>
+    <line x1="92" y1="486" x2="168" y2="486" stroke="#141413" stroke-width="1.6" stroke-dasharray="5 3"/>
+    <text x="130" y="558" text-anchor="middle">group 1</text>
+    <text x="130" y="424" text-anchor="middle" fill="#2a78d6">L₁ = 0.6</text>
+    <text x="172" y="490" fill="#141413" font-size="10.5">R̃₁ = 0.3</text>
+    <!-- regret bracket for group 1 -->
+    <line x1="88" y1="432" x2="88" y2="486" stroke="#b03a3a" stroke-width="2"/>
+    <text x="84" y="463" text-anchor="end" fill="#b03a3a" font-size="11" font-weight="700">Δ₁ = 0.3</text>
+    <!-- group 2: loss 0.9, floor 0.85 -> regret 0.05 -->
+    <rect x="230" y="378" width="60" height="162" fill="#eb6834" fill-opacity="0.35" stroke="#eb6834"/>
+    <line x1="222" y1="387" x2="298" y2="387" stroke="#141413" stroke-width="1.6" stroke-dasharray="5 3"/>
+    <text x="260" y="558" text-anchor="middle">group 2</text>
+    <text x="260" y="370" text-anchor="middle" fill="#eb6834">L₂ = 0.9</text>
+    <text x="302" y="391" font-size="10.5">R̃₂ = 0.85</text>
+    <line x1="218" y1="378" x2="218" y2="387" stroke="#b03a3a" stroke-width="2"/>
+    <text x="214" y="384" text-anchor="end" fill="#b03a3a" font-size="11">Δ₂ = 0.05</text>
+    <!-- group 3: loss 0.5, floor 0.45 -> regret 0.05 -->
+    <rect x="360" y="450" width="60" height="90" fill="#1baf7a" fill-opacity="0.35" stroke="#1baf7a"/>
+    <line x1="352" y1="459" x2="428" y2="459" stroke="#141413" stroke-width="1.6" stroke-dasharray="5 3"/>
+    <text x="390" y="558" text-anchor="middle">group 3</text>
+    <text x="390" y="442" text-anchor="middle" fill="#1baf7a">L₃ = 0.5</text>
+    <text x="432" y="463" font-size="10.5">R̃₃ = 0.45</text>
+    <line x1="348" y1="450" x2="348" y2="459" stroke="#b03a3a" stroke-width="2"/>
+    <text x="344" y="456" text-anchor="end" fill="#b03a3a" font-size="11">Δ₃ = 0.05</text>
+    <text x="60" y="582" fill="#6b6b6b" font-size="11">dashed = estimated floor R̃_g (eq. 13);  red = regret Δ_g = L_g − R̃_g, the part a model can still remove</text>
+  </g>
+
+  <!-- the two choices -->
+  <g font-size="12">
+    <rect x="500" y="368" width="300" height="76" rx="8" fill="#fff" stroke="#c9c9c9"/>
+    <text x="514" y="392" fill="#6b6b6b">group DRO on raw loss picks</text>
+    <text x="514" y="412" font-weight="700" fill="#eb6834">group 2  (highest loss, already at its floor)</text>
+    <text x="514" y="432" fill="#6b6b6b">— capacity spent where nothing is left to gain</text>
+
+    <rect x="500" y="462" width="300" height="76" rx="8" fill="#fff" stroke="#b03a3a" stroke-width="1.6"/>
+    <text x="514" y="486" fill="#6b6b6b">regret DRO (ours) picks</text>
+    <text x="514" y="506" font-weight="700" fill="#2a78d6">group 1  (largest gap above its floor)</text>
+    <text x="514" y="526" fill="#6b6b6b">— the group the model is actually underserving</text>
+  </g>
+  <line x1="88" y1="440" x2="500" y2="500" stroke="#b03a3a" stroke-width="1.2" marker-end="url(#arrR)" fill="none" stroke-dasharray="6 4"/>
+
+  <!-- lambda feeds back into the min player -->
+  <rect x="860" y="392" width="360" height="130" rx="8" fill="#f7f7f5" stroke="#c9c9c9"/>
+  <text x="874" y="416" font-size="12" font-weight="700">min player (every step)</text>
+  <text x="874" y="440" font-size="12">θ ← θ − η ∇_θ Σ_g λ_g [ (L_g − R̃_g) + α_align L^align_g ]</text><text x="874" y="458" font-size="12">          + α_sep L_sep</text>
+  <text x="874" y="484" font-size="11" fill="#6b6b6b">θ = encoders φ_g, head ψ, anchors (m_c, Σ_c)</text>
+  <text x="874" y="504" font-size="11" fill="#6b6b6b">R̃_g is a constant: it moves λ, not the gradient</text>
+  <path d="M800,500 C830,500 830,450 858,450" stroke="#b03a3a" stroke-width="1.4" fill="none" marker-end="url(#arrR)"/>
+  <text x="812" y="470" font-size="11" fill="#b03a3a">λ</text>
+</svg>

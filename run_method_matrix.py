@@ -30,7 +30,8 @@ import yaml
 MODULES = {"fedheart": "dro_hetero_anchors.src.train_fedheart",
            "nhanes": "dro_hetero_anchors.src.train_nhanes"}
 SEEDS = [42, 1337, 7, 2024, 31337, 11, 22, 33, 44, 55]
-ANCHOR_ON, ANCHOR_OFF = 0.1, 0.001
+# ANCHOR_OFF is exactly 0: the trainer then skips the anchor terms (it was 0.001 before 2026-09-20)
+ANCHOR_ON, ANCHOR_OFF = 0.1, 0.0
 
 # (label, common_encoder, groupdro, use_regret, anchor_weight)
 #

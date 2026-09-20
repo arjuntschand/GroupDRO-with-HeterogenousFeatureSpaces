@@ -297,15 +297,17 @@ def _assign_groups(df: pd.DataFrame, mode: str = "nested") -> pd.Series:
 
 def _extract_basic_survey(df, features, offset=0):
     """Extract 10 basic survey features starting at `offset`."""
-    features[:, offset + 0] = df["RIDAGEYR"].fillna(df["RIDAGEYR"].median()).values
+    # age, education and income-to-poverty are left as NaN here and filled further down with the
+    # median of the TRAINING rows, once the split is known (they used the all-rows median before)
+    features[:, offset + 0] = df["RIDAGEYR"].values
     features[:, offset + 1] = (df["RIAGENDR"].fillna(1.0).values == 2).astype(np.float32)
     race = df["RIDRETH3"].fillna(df["RIDRETH3"].mode().iloc[0] if len(df["RIDRETH3"].mode()) > 0 else 3.0)
     for i, cat in enumerate([2, 3, 4, 6, 7]):
         features[:, offset + 2 + i] = (race.values == cat).astype(np.float32)
     edu = df["DMDEDUC2"].copy()
     edu = edu.where(edu.isin([1, 2, 3, 4, 5]), np.nan)
-    features[:, offset + 7] = edu.fillna(edu.median() if edu.notna().any() else 3.0).values
-    features[:, offset + 8] = df["INDFMPIR"].fillna(df["INDFMPIR"].median() if df["INDFMPIR"].notna().any() else 1.5).values
+    features[:, offset + 7] = edu.values
+    features[:, offset + 8] = df["INDFMPIR"].values
     smk = df["SMQ020"].map({1.0: 1.0, 2.0: 0.0})
     features[:, offset + 9] = smk.fillna(0.0).values
 
@@ -510,6 +512,14 @@ def _load_and_preprocess_nhanes(
         splits[tr2_idx] = "train"
         splits[val_idx] = "val"
         train_idx = tr2_idx
+
+    # Median imputation fitted on TRAINING rows only (see _extract_basic_survey)
+    _tr_rows = np.where(splits == "train")[0]
+    for _j in range(features.shape[1]):
+        _col = features[:, _j]
+        if np.isnan(_col).any():
+            _med = np.nanmedian(_col[_tr_rows]) if np.isfinite(_col[_tr_rows]).any() else 0.0
+            _col[np.isnan(_col)] = _med
 
     # Per-group normalization using TRAIN stats only
     for g in sorted(feat_indices.keys()):

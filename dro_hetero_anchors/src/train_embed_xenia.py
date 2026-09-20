@@ -326,7 +326,7 @@ def _group_val_excess(model, data, masks, rstar_t, groups, anchors_on, lam_fit, 
 def train_one(method, data, masks, device, rstar, seed,
               epochs=20, lr=5e-5, wd=5e-5, batch=32,
               gamma=0.02, decay=0.9, lam_fit=1.0, lam_sep=1.0, dro_signal="train",
-              uniform_lambda_init=False, verbose=True, anchor_lr=None):
+              uniform_lambda_init=False, verbose=True, anchor_lr=None, signed_excess=True):
     flags = METHOD_FLAGS[method]
     groups = [g for g in GROUPS if g in data]
     torch.manual_seed(seed); np.random.seed(seed)
@@ -407,9 +407,16 @@ def train_one(method, data, masks, device, rstar, seed,
                     if raw[gi] is not None:
                         ema[gi] = decay * ema[gi] + (1 - decay) * raw[gi]
                 if gstep % N == 0:
-                    excess = torch.clamp(ema - rstar_t, min=0.0)   # clamp: R* is an estimate
-                    lam = lam * torch.exp(gamma * excess)
-                    lam = torch.clamp(lam, min=1e-8); lam = lam / lam.sum()
+                    # signed excess (review of 2026-09-20): the exponentiated update is invariant
+                    # to a constant shift of the payoffs, the [.]_+ clamp is not, and it froze
+                    # the weights whenever every group sat below its reference. Subtracting the
+                    # max is a constant shift (it cancels on renormalisation) and guards overflow.
+                    excess = ema - rstar_t
+                    if not signed_excess:
+                        excess = torch.clamp(excess, min=0.0)
+                    scaled = gamma * excess
+                    lam = lam * torch.exp(scaled - scaled.max())
+                    lam = torch.clamp(lam, min=1e-12); lam = lam / lam.sum()
         # lambda update (max player) — validation-loss signal, once per epoch
         if flags["dro"] and dro_signal == "val":
             ex = _group_val_excess(model, data, masks, rstar_t, groups,
@@ -513,6 +520,8 @@ def main():
                     help="initialise lambda uniformly instead of at group proportions. With "
                          "proportional init the four tail groups share only 1.5%% of the "
                          "gradient weight on EMBED.")
+    ap.add_argument("--clamp-excess", action="store_true",
+                    help="pre-2026-09-20 weight update, [L_g - R_g]_+ (default is the signed excess)")
     ap.add_argument("--anchor-lr", type=float, default=None,
                     help="separate learning rate for the anchor parameters (default: same as --lr)")
     ap.add_argument("--rstar-eq13", action="store_true",
@@ -563,7 +572,8 @@ def main():
                                     lam_fit=args.lam_fit, lam_sep=args.lam_sep,
                                     dro_signal=args.dro_signal,
                                     uniform_lambda_init=args.uniform_lambda_init,
-                                    anchor_lr=args.anchor_lr)
+                                    anchor_lr=args.anchor_lr,
+                                    signed_excess=not args.clamp_excess)
             ov, pg = evaluate(model, data, masks, "test", device, rstar)
             if args.save_latents:
                 os.makedirs(args.save_latents, exist_ok=True)

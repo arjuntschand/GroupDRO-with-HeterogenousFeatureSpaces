@@ -1182,6 +1182,21 @@ def updated_baselines_page():
               "(74.9 worst-group accuracy, significantly above all three baselines at published settings, and 27-76% lower worst-group excess). "
               "The full method (green) beats common-features ERM by +4.3 but not its own ablations: the anchors cost worst-group loss on this dataset, "
               "and regret ties GroupDRO. Against the baselines the full method ties on accuracy and loss and is lower on excess (significant vs Reweigh and Flex-MoE, not vs REMIND).")]
+    ROWS_NH = [("Ours_Regret", "Per-group + anchors + Regret-DRO", "full"),
+               ("Ours_GDRO", "Per-group + anchors + GroupDRO", "abl"),
+               ("RegretDRO", "Per-group encoders + Regret-DRO", "base"),
+               ("GroupDRO", "Per-group encoders + GroupDRO", "base"),
+               ("PerGroupOnly", "Per-group encoders + ERM", "base"),
+               ("Shared_Anchors_GDRO", "Anchors + GroupDRO, common features", "base"),
+               ("Shared_GDRO", "GroupDRO, common features", "base"),
+               ("ERM", "ERM, common features", "base")]
+    SPECS.append(("NHANES", "runs/nhanes_v3/metrics_long.csv", "runs/baselines_v3/nhanes_released/metrics_long.csv",
+                  "runs/baselines_v3/nhanes_matched/metrics_long.csv", ROWS_NH,
+                  "10 seeds, fixed split. The anchors are what helps the per-group model here: +3.0 worst-group accuracy over Regret-DRO without them (p = 0.003) "
+                  "and +2.7 over GroupDRO (p = 0.002). The full method (green) beats common-features ERM by +3.3 (p = 0.001) and has 18-20% lower worst-group loss and "
+                  "27-33% lower worst-group excess than all three baselines (all significant), with accuracy tied. "
+                  "But on nested NHANES the ten shared survey features already carry most of the signal: GroupDRO on the common features, with or without anchors, "
+                  "has lower worst-group loss (0.46-0.48) than any per-group arm (0.50-0.54), at a third of the parameters. Regret ties GroupDRO."))
     for label, op, relp, matp, rows, note in SPECS:
         if not (os.path.exists(op) and os.path.exists(relp)):
             continue

@@ -97,9 +97,48 @@ has lower worst-group loss than every baseline on Fed-Heart" does not hold under
 pipeline; "per-group encoders with GroupDRO beat all three baselines on worst-group accuracy and
 excess" does.
 
-## 4. Status of the other datasets
+## 4. NHANES, corrected
 
-- NHANES: affected by findings 2-6 and 8 (fixed split, so not finding 1). Re-run pending.
+Loader: age, education and income were imputed with all-rows medians; now training rows only.
+References (`runs/rstar_v3/nhanes/nested.json`, train split only, nested): 0.279 / 0.242 / 0.252
+(earlier 0.279 / 0.239 / 0.250). Selection bias 0.000 for every group; ordering certificate
+holds; 44% of candidate fits hit the 1,500-step cap (every selected family was linear).
+
+η sweep (`runs/v3_eta_sweep_nh`, 3 seeds, validation worst-group excess): GroupDRO 20, Regret-DRO
+20, Ours(GroupDRO) 1, full method per-step 0.1. Weights move 0.01-0.06 at η = 0.1, fully from η = 5.
+
+Matrix (`runs/nhanes_v3`, 10 seeds), worst-group acc | loss | excess | AUROC | class-balanced acc:
+
+| arm | corrected | earlier (acc \| loss) |
+|---|---|---|
+| ERM, common features | 68.80 \| 0.504 \| 0.242 \| 0.796 \| 71.7 | 69.28 \| 0.496 |
+| shared + GroupDRO | 73.32 \| 0.479 \| 0.207 \| 0.780 \| 69.9 | 73.08 \| 0.460 |
+| shared + anchors | 70.89 \| 0.487 \| 0.221 \| 0.795 \| 70.9 | 72.87 \| 0.463 |
+| shared + anchors + GroupDRO | 73.23 \| 0.461 \| 0.188 \| 0.790 \| 69.7 | 77.43 \| 0.441 |
+| per-group ERM | 65.54 \| 0.576 \| 0.312 \| 0.793 \| 69.6 | 66.88 \| 0.547 |
+| per-group + GroupDRO | 69.05 \| 0.504 \| 0.249 \| 0.797 \| 70.2 | 71.35 \| 0.507 |
+| per-group + Regret-DRO | 69.10 \| 0.497 \| 0.242 \| 0.799 \| 70.3 | 70.84 \| 0.527 |
+| per-group + anchors | 68.36 \| 0.560 \| 0.289 \| 0.796 \| 69.4 | 68.34 \| 0.548 |
+| per-group + anchors + GroupDRO | 71.78 \| 0.536 \| 0.275 \| 0.789 \| 66.8 | 74.30 \| 0.524 |
+| full method | 72.06 \| 0.532 \| 0.277 \| 0.792 \| 67.2 | 74.67 \| 0.522 |
+
+Paired: full method vs ERM +3.26 acc (p = 0.001), loss +0.028 (n.s.). Anchors: +2.95 over
+Regret-DRO (p = 0.003), +2.73 over GroupDRO (p = 0.002), with loss +0.03 (n.s.) and lower AUROC
+and class-balanced accuracy, i.e. partly an operating-point effect, as before. Regret vs
+GroupDRO: tie. Per-group ERM vs common-features ERM: −3.26 acc (p = 0.001), loss +0.072.
+Full method vs shared + anchors + GroupDRO: acc −1.17 (n.s.), loss +0.071 (p = 0.001).
+
+Baselines (`runs/baselines_v3/nhanes_{released,matched}`): Reweigh 72.24 | 0.667 | 0.413;
+Flex-MoE 72.50 | 0.644 | 0.377; REMIND 72.25 | 0.665 | 0.393. Full method vs each: accuracy tie
+(±0.5), loss 20.2% / 17.5% / 20.0% lower (all p ≤ 0.005), excess 32.9% / 26.6% / 29.5% lower (all
+p ≤ 0.013).
+
+Reading: the comparison against the published baselines survives on NHANES (loss and excess
+lower than all three, accuracy tied). The full method's accuracy is 2.6 lower than the earlier
+pipeline reported, and the common-features GroupDRO arms remain the strongest rows on loss.
+
+## 5. Status of the other datasets
+
 - EMBED: already had diagonal anchors, validation-only selection and train+val references; the
   weight update clamps at zero there too (finding 5). Re-run with signed excess pending.
 - Until both are redone, the abstract's numbers, `FINAL_PROTOCOL.md`, the site's other tabs and

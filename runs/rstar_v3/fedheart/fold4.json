@@ -1,0 +1,61 @@
+{
+  "rstar": {
+    "0": 0.38043,
+    "1": 0.325729,
+    "2": 0.08744,
+    "3": 0.341179
+  },
+  "rstar_before_margin": {
+    "0": 0.452985,
+    "1": 0.452062,
+    "2": 0.257545,
+    "3": 0.565876
+  },
+  "rstar_nested_raw": {
+    "0": 0.452985,
+    "1": 0.452062,
+    "2": 0.258024,
+    "3": 0.664
+  },
+  "rstar_naive_min": {
+    "0": 0.449123,
+    "1": 0.452062,
+    "2": 0.258024,
+    "3": 0.566012
+  },
+  "margin_c_g": {
+    "0": 0.072555,
+    "1": 0.126333,
+    "2": 0.170105,
+    "3": 0.224697
+  },
+  "constant_predictor_bound": {
+    "0": 0.692035,
+    "1": 0.652994,
+    "2": 0.257545,
+    "3": 0.565876
+  },
+  "selected_per_fold": {
+    "0": {
+      "pooled/linear/w": 5
+    },
+    "1": {
+      "group/linear/unw": 5
+    },
+    "2": {
+      "constant": 5
+    },
+    "3": {
+      "group/linear/unw": 1,
+      "constant": 4
+    }
+  },
+  "outer_fold": {
+    "n_folds": 5,
+    "fold": 4
+  },
+  "train_rows_sha1": "3ecdded1856ce8172db4b70d6765a599bc55d5f5",
+  "n_rows": 704,
+  "joint_head_hidden": 32,
+  "method": "nested CV (inner selects, outer scores); train split only; per-sample bootstrap margin; truncated at the constant predictor"
+}

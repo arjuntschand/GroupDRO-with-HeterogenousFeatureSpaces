@@ -107,6 +107,9 @@ def main():
     # particular drops from 125 evaluated patients to 25, which is where most of the apparent
     # variance in the Fed-Heart baseline columns was coming from.
     ap.add_argument("--folds", type=int, default=1)
+    ap.add_argument("--legacy-holdouts", action="store_true",
+                    help="pre-2026-09-20 Fed-Heart splits (K independent holdouts)")
+    ap.add_argument("--rstar", default=None, help="reference file for the R_star / excess columns")
     # Our arms carve val_frac out of train to drive the DRO lambda signal. Baselines do not use
     # that signal, but they must lose the same rows, otherwise they train on 522 patients against
     # our 449 on Fed-Heart and the comparison measures sample size as much as method.
@@ -136,6 +139,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     device = torch.device("cpu")
     blocks, group_blocks = build_blocks(args.dataset, base)
+    rstar_path = args.rstar or rstar_path
     rs = json.load(open(rstar_path))["rstar"]
     rstar = [rs[str(i)] if str(i) in rs else rs.get(i, 0.0) for i in range(len(rs))]
     print(f"blocks: {[len(b) for b in blocks]}   group->blocks: {group_blocks}", flush=True)
@@ -167,13 +171,18 @@ def main():
                                      group_max_train_samples=cfg.get("group_max_train_samples"),
                                      subsample_seed=seed if cfg.get("data_split_seed") is not None else None)
             else:
+                # Fed-Heart under K > 1: the SAME fixed stratified K-fold partition per site that
+                # run_fedheart_cv uses (every patient tested once; identical for every method and
+                # seed). --legacy-holdouts reproduces the old 1000+fold independent holdouts.
+                _kf = (args.folds > 1 and not args.legacy_holdouts)
                 tr, te, info = build(batch_size=cfg.get("batch_size", 64),
-                                     seed=split_seed,
+                                     seed=(0 if _kf else split_seed),
                                      stratified=cfg.get("stratified_batching", True),
                                      train_frac=frac, val_frac=_VF,
                                      feature_mask=cfg.get("feature_mask"),
                                      group_max_train_samples=cfg.get("group_max_train_samples"),
-                                     impute_missing=True)
+                                     impute_missing=True,
+                                     n_folds=(args.folds if _kf else 0), fold_index=fold)
             # build_fedheart_loaders and build_nhanes_loaders both call torch.manual_seed with
             # the SPLIT seed internally. Under K-fold that split seed is 1000+fold, identical for
             # every experiment seed, so seeding before the loader leaves every seed with the same

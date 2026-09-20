@@ -1,0 +1,9 @@
+{
+ "rstar": {
+  "0": 0.381841,
+  "1": 0.375674,
+  "2": 0.075761,
+  "3": 0.421121
+ },
+ "note": "mean over the 5 outer folds of the per-fold references (runs/rstar_v3/fedheart/fold<k>.json); used ONLY for the reported R_star / excess columns, never for training"
+}

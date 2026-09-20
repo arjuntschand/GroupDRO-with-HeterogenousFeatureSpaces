@@ -840,7 +840,7 @@ t-test cannot separate from the best are marked tied rather than ranked. Nothing
 selected for looking good.</div>"""
 
 
-def baseline_table(data, tail=None):
+def baseline_table(data, tail=None, rows=None):
     """Our arms and the external baselines side by side, with the Step 6 metric set.
 
     Parameter counts are included because Step 5 requires them on every row: these are
@@ -873,7 +873,7 @@ def baseline_table(data, tail=None):
         seen.add(label)
         entries.append((key, label + suffix, kind, summarize(data[key], tail=tail),
                         per_seed_series(data[key], tail=tail)))
-    for k, l, kind in ROWS:
+    for k, l, kind in (rows or ROWS):
         collect(k, l, kind)
     for tag, lbl in [("released", " (published defaults)"), ("matched", " (capacity-matched)")]:
         for m in ["Reweigh", "FlexMoE", "REMIND"]:
@@ -1144,6 +1144,84 @@ def final_results_page(loaded=None, merged_bl=None):
     out.append("<div class='card'><table class='data'><thead><tr><th class='it'>dataset</th><th class='it'>setting</th><th>full method worst-group acc</th><th>worst-group loss</th><th>worst-group excess</th><th>weights moved (L1)</th><th class='it'>vs frozen-weight setting</th></tr></thead><tbody>"
                + "".join(f"<tr{' class=best' if 'frozen' in r[0] else ''}><td class='it'>{ds if i == 0 else ''}</td><td class='it'>{r[0].replace(' (frozen)', '')}{" <span class='tag best'>selected</span>" if 'frozen' in r[0] else ''}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td class='it'>{r[5]}</td></tr>" for ds in ["Fed-Heart", "NHANES", "EMBED"] for i, r in enumerate(GAMMA[ds]))
                + "</tbody></table></div>")
+    return "".join(out)
+
+
+def updated_baselines_page():
+    """'Updated baselines' tab: results under the corrected pipeline (review of 2026-09-20).
+    Same table format as the Baselines tab. A dataset appears only once its corrected runs exist,
+    so nothing from the earlier pipeline is mixed in."""
+    out = ["<h2>Updated baselines (corrected pipeline)</h2>",
+           "<p class='sub'>Re-runs after the code review of 2026-09-20. Every other tab still shows the earlier pipeline until all three datasets are redone.</p>",
+           "<div class='note'><b>What was corrected.</b> "
+           "(1) <b>Folds:</b> Fed-Heart now uses one fixed stratified 5-fold partition per site, so every patient is tested exactly once; "
+           "the earlier 'folds' were five independent 80/20 holdouts (about a third of patients never tested, a quarter tested twice or more). "
+           "(2) <b>No test-set decisions:</b> checkpointing, early stopping and the scheduler read the validation split only; they read test worst-group accuracy before. "
+           "(3) <b>Wasserstein distance:</b> the matrix square root was a Cholesky factor rather than the principal root, so the full-covariance alignment loss was not the Bures term; "
+           "anchors are now diagonal with the closed-form distance, and the anchor samples and covariance come from one parameter. "
+           "(4) <b>Signed excess:</b> the group weights are driven by L_g - R_g without clamping at zero. "
+           "(5) <b>References:</b> estimated per outer fold from that fold's training rows only, by nested cross-fitting (estimate_rstar_v3.py); the earlier file used test rows and one global estimate. "
+           "(6) Imputation medians fitted on training rows only; 'anchors off' means weight exactly 0; alignment per (group, class). "
+           "(7) <b>Step size:</b> eta chosen per DRO arm on validation worst-group excess from {0.1, 0.5, 1, 2, 5, 10, 20} plus the previous per-step setting, the same budget for every arm. "
+           "Baselines run on the same folds, seeds and features.</div>"]
+    STATUS = [("Fed-Heart", os.path.exists("runs/fedheart_v3/metrics_long.csv") and os.path.exists("runs/baselines_v3/fedheart_released/metrics_long.csv")),
+              ("NHANES", os.path.exists("runs/nhanes_v3/metrics_long.csv") and os.path.exists("runs/baselines_v3/nhanes_released/metrics_long.csv")),
+              ("EMBED", os.path.exists("runs/embed_v3/metrics_long.csv"))]
+    out.append("<div class='grid'>" + "".join(
+        f"<div class='stat'><div class='k'>{n}</div><div class='v' style='font-size:20px'>{'corrected' if ok else 'pending'}</div>"
+        f"<div class='d'>{'shown below' if ok else 're-run not finished; see the other tabs for the earlier pipeline'}</div></div>" for n, ok in STATUS) + "</div>")
+    ROWS_FH = [("Ours_Regret", "Per-group + anchors + Regret-DRO", "full"),
+               ("Ours", "Per-group + anchors + GroupDRO", "abl"),
+               ("RegretDRO", "Per-group encoders + Regret-DRO", "base"),
+               ("GroupDRO", "Per-group encoders + GroupDRO", "base"),
+               ("PerGroupOnly", "Per-group encoders + ERM", "base"),
+               ("ERM", "ERM, common features", "base")]
+    SPECS = [("Fed-Heart", "runs/fedheart_v3/metrics_long.csv", "runs/baselines_v3/fedheart_released/metrics_long.csv",
+              "runs/baselines_v3/fedheart_matched/metrics_long.csv", ROWS_FH,
+              "10 seeds x 5 real folds, 920 patients each tested once. Per-group encoders are what helps here: per-group + GroupDRO is the best arm "
+              "(74.9 worst-group accuracy, significantly above all three baselines at published settings, and 27-76% lower worst-group excess). "
+              "The full method (green) beats common-features ERM by +4.3 but not its own ablations: the anchors cost worst-group loss on this dataset, "
+              "and regret ties GroupDRO. Against the baselines the full method ties on accuracy and loss and is lower on excess (significant vs Reweigh and Flex-MoE, not vs REMIND).")]
+    for label, op, relp, matp, rows, note in SPECS:
+        if not (os.path.exists(op) and os.path.exists(relp)):
+            continue
+        merged = dict(load(op))
+        for tag, path in [("released", relp), ("matched", matp)]:
+            if os.path.exists(path):
+                for m, v in load(path).items():
+                    merged[f"{m}__{tag}"] = v
+        out.append(f"<h3>{label}</h3><p class='legend'>{html.escape(note)}</p>")
+        out.append(f"<div class='card'>{baseline_table(merged, None, rows=rows)}</div>")
+        # paired comparison block: full method and best per-group arm against each baseline
+        def ws(bs): return worst_by_seed(bs), worst_loss_by_seed(bs), {sd: max(g['excess'] for g in gr.values()) for sd, gr in bs.items() if gr}
+        blk = ["<div class='card'><table class='data'><thead><tr><th class='it'>our arm</th><th class='it'>metric</th>"
+               "<th>vs Reweigh</th><th>vs Flex-MoE</th><th>vs REMIND</th></tr></thead><tbody>"]
+        for arm_key, arm_lab in [("Ours_Regret", "full method"), ("GroupDRO", "per-group + GroupDRO")]:
+            if arm_key not in merged:
+                continue
+            fa, fl, fe = ws(merged[arm_key])
+            for mi, (mname, fser, higher, pct) in enumerate([("worst-group acc", fa, True, False), ("worst-group loss", fl, False, True), ("worst-group excess", fe, False, True)]):
+                cells = []
+                for b in ["Reweigh", "FlexMoE", "REMIND"]:
+                    bd = merged.get(f"{b}__released")
+                    if not bd:
+                        cells.append("<td class='na'>-</td>"); continue
+                    bser = ws(bd)[mi]
+                    seeds = sorted(set(fser) & set(bser)); mm = lambda x: sum(x[k] for k in seeds) / len(seeds)
+                    p_ = paired_p(fser, bser); sig = p_ is not None and p_ < 0.05
+                    if pct:
+                        d_ = (mm(bser) - mm(fser)) / mm(bser) * 100; better = d_ > 0; txt = f"{abs(d_):.1f}% {'lower' if better else 'higher'}"
+                        sub = f"{mm(fser):.3f} vs {mm(bser):.3f}"
+                    else:
+                        d_ = mm(fser) - mm(bser); better = d_ > 0; txt = f"{d_:+.1f} pts"; sub = f"{mm(fser):.1f} vs {mm(bser):.1f}"
+                    col = "#1a7f4b" if better else "#b03a3a"
+                    bg = ("rgba(31,159,110,.16)" if better else "rgba(176,58,58,.14)") if sig else ("rgba(31,159,110,.06)" if better else "rgba(176,58,58,.05)")
+                    ptxt = "n.s." if not sig else ("p&lt;0.001" if p_ < 0.001 else f"p={p_:.3f}")
+                    cells.append(f"<td style='background:{bg};color:{col};font-weight:600'>{txt}<span class='hint' style='color:var(--dim);font-weight:400'>{sub} · {ptxt}</span></td>")
+                blk.append(f"<tr><td class='it'>{arm_lab if mi == 0 else ''}</td><td class='it'>{mname}</td>{''.join(cells)}</tr>")
+        blk.append("</tbody></table></div><p class='legend'>Paired over 10 seeds against each baseline at its published configuration. Strong shading = p &lt; 0.05, pale = not separable.</p>")
+        out.append("".join(blk))
+    out.append("<p class='legend'>Record of the review, every fix and every run: documentation/REVIEW_FIXES_2026-09-20.md in the repository.</p>")
     return "".join(out)
 
 
@@ -1450,6 +1528,7 @@ def build(outdir=SITE):
             bl.append("<p class='legend'>Capacity-matched runs still in progress.</p>")
     tabs.append(("Baselines", "sec-baselines")); secs.append(("sec-baselines", "".join(bl)))
 
+    tabs.append(("Updated baselines", "sec-updated")); secs.append(("sec-updated", updated_baselines_page()))
     tabs.append(("Methods", "sec-methods")); secs.append(("sec-methods", methods_page()))
     tabs.insert(0, ("Final results", "sec-plan")); secs.insert(0, ("sec-plan", final_results_page(loaded, merged_bl)))
 

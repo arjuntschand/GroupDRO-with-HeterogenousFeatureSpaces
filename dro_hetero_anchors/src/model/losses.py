@@ -2,7 +2,7 @@ from typing import Dict, Tuple, Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .wasserstein import gaussian_w2
+from .wasserstein import gaussian_w2, diagonal_gaussian_w2_squared
 
 
 class FocalLoss(nn.Module):
@@ -98,7 +98,12 @@ def per_class_batch_moments(z: torch.Tensor, y: torch.Tensor, num_classes: int, 
         out[c] = (m_hat, S_hat)
     return out
 
-def anchor_fit_loss(anchors_m: torch.Tensor, anchors_S: torch.Tensor, batch_moments: Dict[int, Tuple[torch.Tensor, torch.Tensor]], eps: float) -> torch.Tensor:
+def anchor_fit_loss(anchors_m: torch.Tensor, anchors_S: torch.Tensor, batch_moments: Dict[int, Tuple[torch.Tensor, torch.Tensor]], eps: float,
+                    diagonal: bool = False) -> torch.Tensor:
+    """Mean over the classes PRESENT in batch_moments of W2^2(N(m_hat, S_hat), anchor_c).
+
+    diagonal=True uses the closed form on the variances (eq. 6 of the paper, diagonal Sigma_c);
+    otherwise the full Bures-Wasserstein distance."""
     losses = []
     for c, (m_hat, S_hat) in batch_moments.items():
         # Validate inputs to W2 distance
@@ -109,7 +114,10 @@ def anchor_fit_loss(anchors_m: torch.Tensor, anchors_S: torch.Tensor, batch_mome
         
         m_c = anchors_m[c]
         S_c = anchors_S[c]
-        w2 = gaussian_w2(m_hat, S_hat, m_c, S_c, eps)
+        if diagonal:
+            w2 = diagonal_gaussian_w2_squared(m_hat, torch.diagonal(S_hat), m_c, torch.diagonal(S_c))
+        else:
+            w2 = gaussian_w2(m_hat, S_hat, m_c, S_c, eps)
         
         # Validate W2 output
         if not torch.isfinite(w2):
@@ -206,9 +214,7 @@ def group_alignment_losses(encoders, anchors, loader, device, num_groups: int, n
         if not zs[gid]:
             out.append(0.0); continue
         mom = per_class_batch_moments(torch.cat(zs[gid]), torch.cat(ys[gid]), num_classes, eps)
-        if diagonal and mom:
-            mom = {c: (m, torch.diag(torch.diagonal(S))) for c, (m, S) in mom.items()}
-        out.append(float(anchor_fit_loss(m_anc, S_anc, mom, eps)) if mom else 0.0)
+        out.append(float(anchor_fit_loss(m_anc, S_anc, mom, eps, diagonal=diagonal)) if mom else 0.0)
     return out
 
 

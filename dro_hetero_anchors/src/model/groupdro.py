@@ -54,7 +54,8 @@ class GroupDRO:
                  use_regret: bool = False,
                  optimal_losses: Optional[List[float]] = None,
                  ema_decay: float = 0.0,
-                 update_every: int = 1):
+                 update_every: int = 1,
+                 regret_clamp: bool = False):
         self.num_groups = num_groups
         self.eta = eta
         self.device = device or torch.device('cpu')
@@ -67,6 +68,14 @@ class GroupDRO:
         # where L*_g is each group's optimal loss (from a per-group "personal" model).
         # Groups at their achievable floor get ~0 regret -> stop being upweighted.
         self.use_regret = use_regret
+        # regret_clamp=True reproduces the pre-2026-09-20 update, [L_g - R_g]_+. The default is
+        # the SIGNED excess: the exponentiated-gradient update is invariant to adding a constant
+        # to every payoff (it cancels on renormalisation), and the clamp breaks that invariance;
+        # it also freezes the weights when every group is below its reference, after which an
+        # excluded group can never return. A negative excess is valid: that group's weight just
+        # grows more slowly than the others'.
+        self.regret_clamp = regret_clamp
+        self.update_log = []          # one dict per weight update, dumped by the trainer
         # EMBED_Experiments_Description.docx, "The training loop":
         #     ema_loss[g] = DECAY * ema_loss[g] + (1 - DECAY) * L[g]        DECAY = 0.9
         #     every N steps:  excess = max(0, ema_loss - R*);  lambda *= exp(gamma * excess)
@@ -197,9 +206,26 @@ class GroupDRO:
             # Regret-DRO: drive the q-update by regret R_g = max(0, L_g - L*_g)
             # instead of raw loss, so groups at their optimum stop being upweighted.
             if self.use_regret and self.optimal is not None:
-                losses_tensor = torch.clamp(losses_tensor - self.optimal, min=0.0)
+                losses_tensor = losses_tensor - self.optimal
+                if self.regret_clamp:
+                    losses_tensor = torch.clamp(losses_tensor, min=0.0)
+            # a group absent from this update gets the mean payoff of the present ones, which
+            # leaves its weight unchanged relative to them (a payoff of 0 would not be neutral
+            # once payoffs can be negative)
+            if (~active_mask_t).any() and active_mask_t.any():
+                losses_tensor = torch.where(active_mask_t, losses_tensor,
+                                            losses_tensor[active_mask_t].mean())
+            _q_before = self.q.detach().clone()
+            _payoff = losses_tensor.detach().clone()
 
-            if self.update_mode == 'exp':
+            if self.update_mode == 'exp' and not self.regret_clamp:
+                # numerically stable exponentiated gradient: subtracting the max payoff is a
+                # constant shift, which cancels on renormalisation, so it changes nothing and
+                # replaces the old exponent clamp as the overflow guard
+                scaled = self.eta * losses_tensor
+                scaled = scaled - scaled.max()
+                q_new = (self.q * torch.exp(scaled)).clamp_min(1e-12)
+            elif self.update_mode == 'exp':
                 # MWU on all entries; absent groups keep neutral multiplier (exp(eta*0)=1).
                 #
                 # The exponent is clamped for the reason train_embed_xenia documents at its
@@ -234,6 +260,16 @@ class GroupDRO:
                 q_new = q_new / q_new.sum()
 
             self.q.copy_(q_new)
+            # per-update telemetry: lets "the groups really are similar" be told apart from
+            # "eta was too small", which no summary number reveals
+            _qn = q_new.detach()
+            self.update_log.append({
+                "update": len(self.update_log) + 1,
+                "weights": [round(float(v), 6) for v in _qn],
+                "payoff": [round(float(v), 6) for v in _payoff],       # signed excess under regret
+                "l1_change": round(float((_qn - _q_before).abs().sum()), 6),
+                "entropy": round(float(-(_qn.clamp_min(1e-12) * _qn.clamp_min(1e-12).log()).sum()), 6),
+            })
     
     def forward(self, logits: torch.Tensor, y: torch.Tensor,
                 g: torch.Tensor, num_classes: Optional[int] = None,

@@ -107,6 +107,7 @@ def build_models(cfg, group_counts: List[int], device: torch.device,
             uniform_init=cfg.get("groupdro_uniform_init", False),
             use_regret=cfg.get("use_regret", False),
             optimal_losses=cfg.get("optimal_losses"),
+            regret_clamp=cfg.get("regret_clamp", False),       # True = pre-2026-09-20 [.]_+ update
         )
 
     return encoders, head, anchors, groupdro
@@ -614,6 +615,7 @@ def train(cfg):
     best_worst_group_acc = 0.0
     best_balanced_acc = 0.0
     best_epoch = 0
+    selected_test_metrics = None
     epochs_without_improvement = 0
     early_stopping_patience = cfg.get("early_stopping_patience", 0)
     global_step = 0
@@ -700,6 +702,7 @@ def train(cfg):
                     y_anchor = torch.randint(0, num_classes, y.shape, device=y.device)
                 else:
                     y_anchor = y[torch.randperm(y.shape[0], device=y.device)]
+            _anchors_on = (lambda_fit > 0) or (lambda_sep > 0)
             m_anc, S_anc, L_norm = anchors.forward()
             # Two versions of the fit loss appear in the write-up and they are NOT equivalent.
             #   pooled  (eq. 11-13, the centralized section): class moments pooled over every
@@ -712,7 +715,11 @@ def train(cfg):
             #           to land on top of g2's class c, i.e. the alignment the paper claims.
             # Only the pergroup form makes the class-conditional structure load-bearing, so it
             # is also the only form under which the random-target control is a real test.
-            if cfg.get("per_group_fit", False):
+            if not _anchors_on:
+                # anchors off means exactly off: no anchor term is computed at all (the arms
+                # without anchors used to carry a weight of 0.001, i.e. they still trained them)
+                l_fit = z.new_zeros(()); l_sep = z.new_zeros(())
+            elif cfg.get("per_group_fit", False):
                 l_fit = z.new_zeros(())
                 n_gr = 0
                 for gid in encoders.keys():
@@ -724,7 +731,7 @@ def train(cfg):
                         mom_g = diagonalize_moments(mom_g)
                     if not mom_g:
                         continue
-                    l_fit = l_fit + anchor_fit_loss(m_anc, S_anc, mom_g, eps)
+                    l_fit = l_fit + anchor_fit_loss(m_anc, S_anc, mom_g, eps, diagonal=cfg.get("anchor_diagonal", False))
                     n_gr += 1
                 if n_gr:
                     l_fit = l_fit / n_gr
@@ -732,9 +739,10 @@ def train(cfg):
                 moments = per_class_batch_moments(z, y_anchor, num_classes, eps)
                 if cfg.get("anchor_diagonal", False) and moments:
                     moments = diagonalize_moments(moments)
-                l_fit = anchor_fit_loss(m_anc, S_anc, moments, eps)
-            l_sep = anchor_sep_loss(m_anc, S_anc, L_norm, head, num_classes, J, device,
-                                    sep_method=sep_method, margin=sep_margin, eps=eps)
+                l_fit = anchor_fit_loss(m_anc, S_anc, moments, eps, diagonal=cfg.get("anchor_diagonal", False))
+            if _anchors_on:
+                l_sep = anchor_sep_loss(m_anc, S_anc, L_norm, head, num_classes, J, device,
+                                        sep_method=sep_method, margin=sep_margin, eps=eps)
 
             # MECHANISM CONTROL (b): a generic L2 penalty on the latent, standing in
             # for 'any regularizer would have helped'.
@@ -872,18 +880,31 @@ def train(cfg):
                 "config": groupdro.get_config(),
             }
 
-        wg_metric = test_metrics["worst_group_acc"]
+        # Every training-time decision (checkpoint, early stopping, plateau scheduler) reads the
+        # VALIDATION split. The test split is evaluated each epoch only so that per-epoch curves
+        # can be plotted afterwards; nothing below may branch on it. (Before 2026-09-20 the best
+        # checkpoint, early stopping and the plateau scheduler all read test worst-group accuracy.)
+        if val_metrics is None:
+            if not cfg.get("allow_test_selection", False):
+                raise RuntimeError("no validation split: set val_frac > 0. Selecting on the test "
+                                   "split is not allowed (allow_test_selection: true reproduces "
+                                   "the old behaviour and must not be used for reported results).")
+            _sel = test_metrics
+        else:
+            _sel = val_metrics
+        wg_metric = _sel["worst_group_acc"]
         if wg_metric > best_worst_group_acc:
             best_worst_group_acc = wg_metric
             best_epoch = epoch
+            selected_test_metrics = test_metrics
             epochs_without_improvement = 0
             torch.save(save_dict, Path(cfg["run_dir"]) / "best_worst_group.ckpt")
-            console.log(f"[green]New best worst-group acc: {best_worst_group_acc:.4f} (epoch {epoch})[/green]")
+            console.log(f"[green]New best VALIDATION worst-group acc: {best_worst_group_acc:.4f} (epoch {epoch})[/green]")
         else:
             epochs_without_improvement += 1
 
-        if test_metrics["balanced_acc"] > best_balanced_acc:
-            best_balanced_acc = test_metrics["balanced_acc"]
+        if _sel["balanced_acc"] > best_balanced_acc:
+            best_balanced_acc = _sel["balanced_acc"]
             torch.save(save_dict, Path(cfg["run_dir"]) / "best_balanced.ckpt")
             console.log(f"[green]New best balanced acc: {best_balanced_acc:.4f}[/green]")
 
@@ -904,12 +925,20 @@ def train(cfg):
             break
 
     console.rule("Training Complete")
-    console.log(f"Best worst-group accuracy: {best_worst_group_acc:.4f}")
+    console.log(f"Best validation worst-group accuracy: {best_worst_group_acc:.4f}")
     console.log(f"Best balanced accuracy: {best_balanced_acc:.4f}")
     console.log(f"Results saved to: {cfg['run_dir']}")
     writer.close()
+    if groupdro is not None and getattr(groupdro, "update_log", None):
+        with open(Path(cfg["run_dir"]) / "lambda_updates.jsonl", "w") as _f:
+            for _r in groupdro.update_log:
+                _f.write(json.dumps(_r) + "\n")
 
     out = {
+        "selected_epoch": best_epoch,
+        "validation_score_at_selected_epoch": best_worst_group_acc,
+        "test_metrics_at_selected_epoch": selected_test_metrics,
+        # deprecated aliases: both are VALIDATION scores now
         "best_worst_group_acc": best_worst_group_acc,
         "best_balanced_acc": best_balanced_acc,
         "final_test_metrics": test_metrics,

@@ -24,17 +24,19 @@ import numpy as np
 import yaml
 
 BASE = "experiments/fedheart_exp_paper_hetagg_gdro.yaml"
+# Anchor weight 0.0 means the anchor terms are not computed at all (the trainer skips them). These
+# arms carried 0.001 before 2026-09-20, i.e. "anchors off" still trained anchors.
 METHODS = [   # (label, common_encoder, groupdro, anchor_weight, use_regret)
     # Same 2x2x2 grid as the tabular matrix (encoder x DRO x anchors). The cross-validated
     # protocol previously ran only the per-group half, so the encoder axis was never varied
     # here even though this is the protocol we actually trust for Fed-Heart.
-    ("ERM",                 True,  False, 0.001, False),
-    ("PerGroupOnly",        False, False, 0.001, False),
-    ("Shared_GDRO",         True,  True,  0.001, False),
+    ("ERM",                 True,  False, 0.0,   False),
+    ("PerGroupOnly",        False, False, 0.0,   False),
+    ("Shared_GDRO",         True,  True,  0.0,   False),
     ("Shared_Anchors",      True,  False, 0.1,   False),
     ("Shared_Anchors_GDRO", True,  True,  0.1,   False),
-    ("GroupDRO",    False, True,  0.001, False),
-    ("RegretDRO",   False, True,  0.001, True),
+    ("GroupDRO",    False, True,  0.0,   False),
+    ("RegretDRO",   False, True,  0.0,   True),
     ("AnchorsOnly", False, False, 0.1,   False),
     ("Ours",        False, True,  0.1,   False),
     ("Ours_Regret", False, True,  0.1,   True),
@@ -92,6 +94,15 @@ def main():
     ap.add_argument("--rstar", default=None,
                     help="path to the R* json; default runs/rstar_fedheart.json")
     ap.add_argument("--no-impute", action="store_true")
+    ap.add_argument("--rstar-dir", default=None,
+                    help="directory of per-fold reference files fold<k>.json (estimate_rstar_v3.py "
+                         "--n-folds K --fold k). Each fold loads ITS OWN file, built from that "
+                         "fold's training rows only; a regret arm with no file is an error, never a "
+                         "silent fall-back to GroupDRO.")
+    ap.add_argument("--methods", nargs="+", default=None, help="restrict to these arms (sharding)")
+    ap.add_argument("--legacy-holdouts", action="store_true",
+                    help="reproduce the pre-2026-09-20 protocol: K independent 80/20 holdouts "
+                         "(data_split_seed 1000+k) instead of a fixed stratified K-fold partition")
     ap.add_argument("--anchor-weight", type=float, default=0.1,
                     help="lambda_fit/lambda_sep for the anchors-on arms")
     args = ap.parse_args()
@@ -109,10 +120,11 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     results = {}
 
-    # Each fold uses a different data_split_seed, so a different 1/K is held out. Over K
-    # folds every patient lands in the test set exactly once.
+    # Folds: see --legacy-holdouts. The comment that used to sit here claimed the 1000+k
+    # holdouts tested every patient exactly once; they did not (about a third were never tested).
     METHODS_RUN = [(l, sh, gd, (args.anchor_weight if a > 0.01 else a), rg)
-                   for (l, sh, gd, a, rg) in METHODS]
+                   for (l, sh, gd, a, rg) in METHODS
+                   if (not args.methods or l in args.methods)]
     for label, shared, gdro, anch, regret in METHODS_RUN:
         results[label] = {}
         for seed in args.seeds:
@@ -124,11 +136,28 @@ def main():
                 cfg["lambda_fit"] = anch
                 cfg["lambda_sep"] = anch
                 cfg["use_regret"] = regret
-                if regret and rstar_list:
+                if regret and args.rstar_dir:
+                    _rp = os.path.join(args.rstar_dir, f"fold{k}.json")
+                    if not os.path.exists(_rp):
+                        raise FileNotFoundError(
+                            f"{label}: no reference file for fold {k} at {_rp}. Refusing to run a "
+                            f"regret arm without references (it would silently be GroupDRO).")
+                    _rs = json.load(open(_rp))["rstar"]
+                    cfg["optimal_losses"] = [_rs[str(i)] for i in range(len(_rs))]
+                elif regret and rstar_list:
                     cfg["optimal_losses"] = rstar_list
+                elif regret:
+                    raise FileNotFoundError(f"{label}: regret arm requested but no references given")
                 cfg["seed"] = seed
-                cfg["data_split_seed"] = 1000 + k          # fold identity
-                cfg["train_frac"] = 1.0 - 1.0 / args.folds  # K-fold sized split
+                if args.legacy_holdouts:
+                    cfg["data_split_seed"] = 1000 + k          # K independent holdouts (old)
+                    cfg["train_frac"] = 1.0 - 1.0 / args.folds
+                else:
+                    # one fixed stratified K-fold partition per site: every patient is tested
+                    # exactly once, and the assignment does not depend on the model seed
+                    cfg["data_split_seed"] = 0
+                    cfg["n_folds"] = args.folds
+                    cfg["fold_index"] = k
                 cfg["run_dir"] = f"{args.out}/{label}_s{seed}_f{k}"
                 m = read_best(cfg["run_dir"])
                 if not (m and m["worst"] == m["worst"]):

@@ -50,6 +50,15 @@ def _download_fedheart_uci(data_dir: str) -> str:
 _standalone_cache: Dict[tuple, tuple] = {}
 
 
+# K-fold specification, set by build_fedheart_loaders(n_folds=..., fold_index=...). When set, the
+# test set of fold k is one block of a FIXED stratified K-fold partition of each site (random
+# state 0, independent of every experiment seed), so across k every patient is tested exactly
+# once and the same patient-to-fold assignment is used by every method and every model seed.
+# The earlier protocol drew K independent 80/20 holdouts (seed 1000+k): about a third of the
+# patients were never tested and a quarter were tested more than once.
+_FOLD_SPEC = {"n_folds": 0, "fold_index": 0}
+
+
 def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, seed: int = 43,
                                        impute_missing: bool = False, val_frac: float = 0.0):
     """
@@ -59,7 +68,9 @@ def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, 
     """
     # val_frac belongs in the key: a cached split built without a validation set must not be
     # handed back when one is asked for.
-    cache_key = (os.path.abspath(data_dir), train_frac, seed, impute_missing, val_frac)
+    n_folds, fold_index = int(_FOLD_SPEC["n_folds"]), int(_FOLD_SPEC["fold_index"])
+    cache_key = (os.path.abspath(data_dir), train_frac, seed, impute_missing, val_frac,
+                 n_folds, fold_index)
     if cache_key in _standalone_cache:
         return _standalone_cache[cache_key]
     data_dir = _download_fedheart_uci(data_dir)
@@ -80,13 +91,11 @@ def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, 
         df = df.replace("?", np.nan).drop([10, 11, 12], axis=1)
         df = df.apply(pd.to_numeric, errors="coerce")
         if impute_missing:
-            # Keep every patient and fill missing values with that SITE's median (the label
-            # column is never missing, so it is untouched). Dropping rows instead discards
-            # 63% of Switzerland, which is missing cholesterol on most records, leaving only
-            # ~10 test samples for that group. FLamby's own benchmark imputes rather than drops.
-            feat = df.columns[:-1]
-            df[feat] = df[feat].fillna(df[feat].median())
-            df = df.dropna(axis=0)          # drops only rows with a missing LABEL
+            # Keep every patient; missing FEATURE values are filled further down, with that
+            # site's median computed on its TRAINING rows only, once the split is known (the
+            # earlier version took the median over all rows, test included). Dropping rows
+            # instead discards most of Switzerland. Rows with a missing LABEL are dropped.
+            df = df.dropna(axis=0, subset=[df.columns[-1]])
         else:
             df = df.dropna(axis=0)
 
@@ -100,14 +109,25 @@ def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, 
             stratify = current_labels
         else:
             stratify = None
-        indices_train, indices_test = train_test_split(
-            np.arange(nb),
-            test_size=1.0 - train_frac,
-            train_size=train_frac,
-            random_state=seed,
-            shuffle=True,
-            stratify=stratify,
-        )
+        if n_folds and n_folds > 1:
+            from sklearn.model_selection import StratifiedKFold, KFold
+            if stratify is not None:
+                splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=0)
+                folds = list(splitter.split(np.arange(nb), current_labels.values))
+            else:
+                folds = list(KFold(n_splits=n_folds, shuffle=True, random_state=0).split(np.arange(nb)))
+            indices_train, indices_test = folds[fold_index]
+        else:
+            indices_train, indices_test = train_test_split(
+                np.arange(nb),
+                test_size=1.0 - train_frac,
+                train_size=train_frac,
+                random_state=seed,
+                shuffle=True,
+                stratify=stratify,
+            )
+        # under K-fold the validation carve-out is fixed too (it must not move with the model seed)
+        _val_seed = 0 if (n_folds and n_folds > 1) else seed
 
         # Carve the validation set out of TRAIN, per centre, so every group is represented in
         # it. The test fold is never touched.
@@ -116,12 +136,17 @@ def _load_and_preprocess_heart_disease(data_dir: str, train_frac: float = 0.66, 
             strat_tr = current_labels.values[indices_train]
             try:
                 indices_train, indices_val = train_test_split(
-                    indices_train, test_size=val_frac, random_state=seed, shuffle=True,
+                    indices_train, test_size=val_frac, random_state=_val_seed, shuffle=True,
                     stratify=strat_tr)
             except ValueError:      # a class too small to stratify at this centre
                 indices_train, indices_val = train_test_split(
-                    indices_train, test_size=val_frac, random_state=seed, shuffle=True)
+                    indices_train, test_size=val_frac, random_state=_val_seed, shuffle=True)
         train_set, val_set = set(indices_train.tolist()), set(indices_val.tolist())
+        if impute_missing:
+            med = center_X.iloc[np.asarray(indices_train)].median()
+            # a column with no observed training value at this site has no median; 0 is a
+            # placeholder only, since such a column must not be in that site's feature mask
+            center_X = center_X.fillna(med).fillna(0.0)
 
         for i in range(nb):
             x_row = center_X.iloc[i : i + 1]
@@ -579,6 +604,8 @@ def build_fedheart_loaders(
     subsample_seed: Optional[int] = None,
     impute_missing: bool = False,
     val_frac: float = 0.0,
+    n_folds: int = 0,
+    fold_index: int = 0,
 ) -> Tuple[DataLoader, DataLoader, Dict]:
     """Build train and test DataLoaders for Fed-Heart Disease.
     
@@ -609,6 +636,7 @@ def build_fedheart_loaders(
     """
     np.random.seed(seed)
     torch.manual_seed(seed)
+    _FOLD_SPEC["n_folds"], _FOLD_SPEC["fold_index"] = int(n_folds or 0), int(fold_index or 0)
     
     if data_root is None and not _use_flamby():
         data_root = os.path.join(os.path.dirname(__file__), "..", "..", "datasets", "fed_heart_disease")

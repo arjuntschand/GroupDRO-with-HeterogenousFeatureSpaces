@@ -71,6 +71,8 @@ import yaml
 from sklearn.model_selection import StratifiedKFold
 
 OUTER_FOLDS, INNER_FOLDS = 5, 3
+JOINT_HEAD_HIDDEN = 0   # [ADD b] 0 = linear head (as written); set by --joint-head-hidden to match
+                        # the deployed model (head_hidden: 32 on the tabular datasets)
 MAX_STEPS, PATIENCE, LR, WD = 1500, 60, 1e-2, 1e-4     # [FIX 4]
 LATENT = 64
 _CONVERGENCE = {"hit_cap": 0, "total": 0}               # [FIX 4] undertraining telemetry
@@ -148,7 +150,9 @@ class Joint(nn.Module):
         self.enc = nn.ModuleList([
             nn.Sequential(nn.Linear(d, latent), nn.LayerNorm(latent), nn.ReLU(),
                           nn.Linear(latent, latent), nn.ReLU()) for d in dims])
-        self.head = nn.Linear(latent, nc)
+        self.head = (nn.Linear(latent, nc) if not JOINT_HEAD_HIDDEN else
+                     nn.Sequential(nn.Linear(latent, JOINT_HEAD_HIDDEN), nn.ReLU(),
+                                   nn.Linear(JOINT_HEAD_HIDDEN, nc)))
 
     def forward(self, x, gid):
         return self.head(self.enc[gid](x))
@@ -337,7 +341,7 @@ def bootstrap_margin(ps, folds=None, n_groups=1, n_boot=4000, alpha=0.05, seed=0
 
 
 # ---------------------------------------------------------------- data
-def load(dataset, base=None, include_test=False):
+def load(dataset, base=None, include_test=False, n_folds=0, fold_index=0):
     """[FIX 1] Training split only by default.
 
     v2 did `for loader in (tr, te)`, so R~_g depended on test rows and then entered training
@@ -348,14 +352,20 @@ def load(dataset, base=None, include_test=False):
         cfg = yaml.safe_load(open(base or "experiments/fedheart_exp_paper_hetagg_gdro.yaml"))
         # group_max_train_samples deliberately NOT passed: R*_g is a property of the
         # distribution, not of the training budget we imposed on ourselves.
+        # [ADD a] (2026-09-20, item 7 of the review) with --n-folds the references are built
+        # from the NON-TEST rows of outer fold k only, using the same fixed per-site stratified
+        # K-fold assignment the trainer uses, so no row of a test fold ever reaches a reference.
+        # The loader now fits the imputation medians on those training rows too, which is the
+        # fix [FIX 6] asked for.
         tr, te, info = build_fedheart_loaders(batch_size=64, seed=0, train_frac=0.8,
-                                              impute_missing=True, feature_mask=None)
+                                              impute_missing=True, feature_mask=None,
+                                              n_folds=n_folds, fold_index=fold_index)
         masks = [m if m is not None else list(range(13)) for m in cfg["feature_mask"]]
         nc = 2
         # [FIX 6]
-        warnings.warn("impute_missing=True is applied inside the loader, before folds are "
-                      "drawn. If the imputer uses global column statistics this leaks across "
-                      "folds; fit it on training folds only.")
+        if not n_folds:
+            warnings.warn("no --n-folds: references come from one 80/20 training split, not "
+                          "from the outer fold they will be used in.")
     else:
         from dro_hetero_anchors.src.datasets_nhanes import build_nhanes_loaders
         cfg = yaml.safe_load(open(base or "experiments/nhanes_pergroup_gdro.yaml"))
@@ -403,12 +413,18 @@ def main():
     ap.add_argument("--naive", action="store_true",
                     help="[FIX 2] also report the v2 min-over-candidates estimate")
     ap.add_argument("--cluster-bootstrap", action="store_true", help="[FIX 7]")
+    ap.add_argument("--n-folds", type=int, default=0, help="[ADD a] outer K of the experiment")
+    ap.add_argument("--fold", type=int, default=0, help="[ADD a] which outer fold's training rows to use")
+    ap.add_argument("--joint-head-hidden", type=int, default=0,
+                    help="[ADD b] hidden width of the joint candidate's head; 0 = linear")
     ap.add_argument("--group-cap", nargs="+", type=int, default=None,
                     help="per-group cap on rows used to fit R*, to show how the estimate "
                          "depends on n. Default: no cap, which is the correct estimator.")
     args = ap.parse_args()
 
-    X, y, g, masks, nc = load(args.dataset, args.base, args.include_test)
+    global JOINT_HEAD_HIDDEN
+    JOINT_HEAD_HIDDEN = args.joint_head_hidden
+    X, y, g, masks, nc = load(args.dataset, args.base, args.include_test, args.n_folds, args.fold)
     if args.group_cap:
         keep, rng = [], np.random.default_rng(0)
         for gi_, cap in enumerate(args.group_cap):
@@ -473,6 +489,10 @@ def main():
                "margin_c_g": margin,
                "constant_predictor_bound": {str(k): round(v, 6) for k, v in const_bound.items()},
                "selected_per_fold": detail,
+               "outer_fold": ({"n_folds": args.n_folds, "fold": args.fold} if args.n_folds else None),
+               "train_rows_sha1": __import__("hashlib").sha1(X.numpy().tobytes() + y.numpy().tobytes()).hexdigest(),
+               "n_rows": int(len(y)),
+               "joint_head_hidden": JOINT_HEAD_HIDDEN,
                "method": "nested CV (inner selects, outer scores); train split only; "
                          "per-sample bootstrap margin; truncated at the constant predictor"},
               open(path, "w"), indent=2)

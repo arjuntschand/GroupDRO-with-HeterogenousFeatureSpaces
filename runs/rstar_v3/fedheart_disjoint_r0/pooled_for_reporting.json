@@ -1,0 +1,9 @@
+{
+ "rstar": {
+  "0": 0.570368,
+  "1": 0.349396,
+  "2": 0.026832,
+  "3": 0.468417
+ },
+ "note": "mean over the 5 outer folds; used ONLY for the reported excess columns, never for training"
+}

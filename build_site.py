@@ -799,9 +799,13 @@ assigned anchors do not do it (0.69). Fed-Heart is already aligned without ancho
 0.42), which is consistent with the anchors adding nothing there.</li>
 <li><b>Per-group encoders pay off only when feature spaces genuinely diverge.</b> In a
 controlled sweep, dialling feature overlap between groups from complete to none moves the
-benefit from +0.15 to +23.9. When NHANES is re-partitioned so the groups share no columns, the
-published baselines (Reweigh, Flex-MoE, REMIND) and shared-encoder ERM collapse to predicting
-the majority class (AUROC 0.50) while the per-group arms keep AUROC 0.55 to 0.71.</li>
+benefit from +0.15 to +23.9. <b>Retracted 2026-09-21:</b> an
+earlier version of this page said that on NHANES with no shared columns the published baselines
+and shared-encoder ERM collapse to the majority class. That came from two errors in the comparison
+(the "common features" model had no inputs there, and the baselines were read from the wrong
+columns). With both fixed, REMIND and Reweigh tie the full method; see the Updated baselines tab.
+The sweep figure above compares against a shared encoder restricted to the common features, which
+has less and less input as overlap falls, so its no-overlap end should be read the same way.</li>
 </ul>
 <h3>The datasets</h3>
 <div class='grid'>
@@ -1157,7 +1161,8 @@ def updated_baselines_page():
             "<a href='#ub-Fed-Heart' data-t='ub-Fed-Heart'>Fed-Heart</a>"
             "<a href='#ub-NHANES' data-t='ub-NHANES'>NHANES</a>"
             "<a href='#ub-EMBED' data-t='ub-EMBED'>EMBED</a>"
-            "<a href='#ub-nocommon' data-t='ub-nocommon'>No common information</a></aside>")
+            "<a href='#ub-nocommon' data-t='ub-nocommon'>No common info: NHANES</a>"
+            "<a href='#ub-nocommon-fh' data-t='ub-nocommon-fh'>No common info: Fed-Heart</a></aside>")
     out = [side, "<h2 id='ub-what'>Updated baselines (corrected pipeline)</h2>",
            "<p class='sub'>Re-runs after the code review of 2026-09-20. This tab is the current set of results. Every other tab (Final results, Overview, the dataset pages, Plots, Baselines) still shows the earlier pipeline and is kept for comparison until its figures are regenerated.</p>",
            "<div class='note'><b>What was corrected.</b> "
@@ -1209,15 +1214,40 @@ def updated_baselines_page():
                   "27-33% lower worst-group excess than all three baselines (all significant), with accuracy tied. "
                   "But on nested NHANES the ten shared survey features already carry most of the signal: GroupDRO on the common features, with or without anchors, "
                   "has lower worst-group loss (0.46-0.48) than any per-group arm (0.50-0.54), at a third of the parameters. Regret ties GroupDRO."))
-    SPECS.append(("NHANES with no common information (groups share no column)", "runs/nhanes_partition_v3/metrics_long.csv",
-                  "runs/baselines_v3/nhanes_partition/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_NH,
-                  "NHANES re-partitioned so the three groups share no feature (G0 survey, G1 body measures + HbA1c + HDL, G2 blood pressure + other lipids). "
-                  "Read the accuracy column with care: the dataset is about 90% negative, so a model that predicts 'no CVD' for everyone scores 88-90%. "
-                  "That is what happens to everything without per-group encoders. Common-features ERM and GroupDRO have AUROC 0.500 on every group. "
-                  "Reweigh, Flex-MoE and REMIND sit at exactly the base rate on G1 and G2 (90.0 / 89.7 on every seed), i.e. they predict the majority class there; "
-                  "their 'worst group' is G0, the only group they model. Our per-group arms keep a real predictor on all three groups "
-                  "(overall AUROC 0.69-0.71; per group 0.77 / 0.57 / 0.70) and have the lowest worst-group loss (0.588 for the full method vs 0.63-0.68 for the baselines). "
-                  "Here the anchors and regret both help: 66.2 (per-group ERM) to 74.7 (full method) worst-group accuracy at lower loss."))
+    # No-overlap experiments, corrected 2026-09-21. Only arms that are valid when no feature is
+    # shared: the "common features" arms have an empty input there and are not shown; the shared
+    # encoder is given the zero-filled union instead. Flex-MoE is not applicable as published (its
+    # first stage trains on samples with every modality, and no such sample exists).
+    ROWS_NO = [("Ours_Regret", "Per-group + anchors + Regret-DRO", "full"),
+               ("Ours_GDRO", "Per-group + anchors + GroupDRO", "abl"),
+               ("Ours", "Per-group + anchors + GroupDRO", "abl"),
+               ("RegretDRO", "Per-group encoders + Regret-DRO", "base"),
+               ("GroupDRO", "Per-group encoders + GroupDRO", "base"),
+               ("PerGroupOnly", "Per-group encoders + ERM (shared head)", "base"),
+               ("Independent", "Independent model per group (nothing shared)", "base"),
+               ("SharedPad_Anchors_GDRO", "One shared encoder on zero-filled inputs + anchors + GroupDRO", "base"),
+               ("SharedPad_GDRO", "One shared encoder on zero-filled inputs + GroupDRO", "base"),
+               ("SharedPad_ERM", "One shared encoder on zero-filled inputs + ERM", "base")]
+    _FIXNOTE = ("Corrected 2026-09-21. The earlier version of this table was wrong in two ways: it listed 'common features' models, which have no input at all "
+                "when nothing is common (they could only predict a constant), and the baseline script read the nested column layout, so Reweigh, Flex-MoE and REMIND "
+                "received no real inputs for two of the three groups. Both are fixed. Flex-MoE is not shown: as published its first stage trains on patients who have "
+                "every modality, and no such patient exists when groups share nothing. ")
+    SPECS.append(("NHANES with no common information (groups share no column)", "runs/nhanes_nooverlap_v3/metrics_long.csv",
+                  "runs/baselines_v3/nhanes_nooverlap/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_NO,
+                  _FIXNOTE +
+                  "NHANES re-partitioned so the three groups share no feature (G0 survey, G1 body measures + HbA1c + HDL, G2 blood pressure + other lipids); 10 seeds. "
+                  "What holds: coupling groups that share nothing helps. The full method reaches 74.7 worst-group accuracy against 65.6 for an independent model per group "
+                  "and 66.2 for per-group encoders with a shared head and plain ERM (both p < 0.001); the anchors and the robust objective are what deliver the gain. "
+                  "What does not hold: that the baselines cannot do this. With the right inputs REMIND (72.1 | 0.563) and Reweigh (71.6 | 0.567) tie the full method on accuracy and loss. "
+                  "And a single shared encoder on the zero-filled union of all features, with anchors and GroupDRO, ties on accuracy (74.2) with significantly lower "
+                  "worst-group loss (0.521 vs 0.588, p = 0.01), so on this dataset per-group encoders are not what matters."))
+    SPECS.append(("Fed-Heart with no common information (each hospital keeps one feature block)", "runs/fedheart_nooverlap_v3/metrics_long.csv",
+                  "runs/baselines_v3/fedheart_nooverlap/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_NO,
+                  "The 13 Fed-Heart features split into four clinical blocks fixed before any run (demographics + resting blood pressure; exercise test; chest-pain type; "
+                  "bloods + resting ECG), one block per hospital: Cleveland, Hungarian, Switzerland, VA in that order. 10 seeds x 5 real folds, per-fold references, step sizes "
+                  "carried over from the main Fed-Heart runs (not re-tuned). Here sharing does not help: an independent model per hospital (63.4 | 0.636), per-group encoders "
+                  "with ERM or GroupDRO (64.1-64.6 | 0.632) and the baselines (63.8-63.9 | 0.641) are all level, and the full method is significantly worse on worst-group loss "
+                  "(0.708). The anchors cost loss on Fed-Heart, as in the main table. One block-to-hospital assignment is shown; the other three rotations are running."))
     ROWS_EM = [("ours", "Per-group + anchors + Regret-DRO", "full"),
                ("align_only", "Per-group + anchors + GroupDRO", "abl"),
                ("regret_only", "Per-group encoders + Regret-DRO", "base"),
@@ -1255,7 +1285,7 @@ def updated_baselines_page():
             if os.path.exists(path):
                 for m, v in load(path).items():
                     merged[f"{m}__{tag}"] = v
-        _aid = "ub-nocommon" if "no common" in label else "ub-" + label
+        _aid = ("ub-nocommon" if label.startswith("NHANES with no") else "ub-nocommon-fh" if label.startswith("Fed-Heart with no") else "ub-" + label)
         out.append(f"<h3 id='{_aid}' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>{label}</h3>"
                    f"<p class='legend'>{html.escape(note)}</p>")
         out.append(f"<div class='card'>{baseline_table(merged, None, rows=rows)}</div>")

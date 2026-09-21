@@ -1197,6 +1197,15 @@ def updated_baselines_page():
                   "27-33% lower worst-group excess than all three baselines (all significant), with accuracy tied. "
                   "But on nested NHANES the ten shared survey features already carry most of the signal: GroupDRO on the common features, with or without anchors, "
                   "has lower worst-group loss (0.46-0.48) than any per-group arm (0.50-0.54), at a third of the parameters. Regret ties GroupDRO."))
+    SPECS.append(("NHANES with no common information (groups share no column)", "runs/nhanes_partition_v3/metrics_long.csv",
+                  "runs/baselines_v3/nhanes_partition/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_NH,
+                  "NHANES re-partitioned so the three groups share no feature (G0 survey, G1 body measures + HbA1c + HDL, G2 blood pressure + other lipids). "
+                  "Read the accuracy column with care: the dataset is about 90% negative, so a model that predicts 'no CVD' for everyone scores 88-90%. "
+                  "That is what happens to everything without per-group encoders. Common-features ERM and GroupDRO have AUROC 0.500 on every group. "
+                  "Reweigh, Flex-MoE and REMIND sit at exactly the base rate on G1 and G2 (90.0 / 89.7 on every seed), i.e. they predict the majority class there; "
+                  "their 'worst group' is G0, the only group they model. Our per-group arms keep a real predictor on all three groups "
+                  "(overall AUROC 0.69-0.71; per group 0.77 / 0.57 / 0.70) and have the lowest worst-group loss (0.588 for the full method vs 0.63-0.68 for the baselines). "
+                  "Here the anchors and regret both help: 66.2 (per-group ERM) to 74.7 (full method) worst-group accuracy at lower loss."))
     for label, op, relp, matp, rows, note in SPECS:
         if not (os.path.exists(op) and os.path.exists(relp)):
             continue

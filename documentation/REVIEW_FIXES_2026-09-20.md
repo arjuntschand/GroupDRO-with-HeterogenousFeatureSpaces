@@ -137,7 +137,34 @@ Reading: the comparison against the published baselines survives on NHANES (loss
 lower than all three, accuracy tied). The full method's accuracy is 2.6 lower than the earlier
 pipeline reported, and the common-features GroupDRO arms remain the strongest rows on loss.
 
-## 5. Status of the other datasets
+## 5. NHANES with no common information, corrected
+
+`experiments/nhanes_partition_v3.yaml`, references `runs/rstar_v3/nhanes/partition.json` (0.277 /
+0.291 / 0.289; the ordering certificate prints VIOLATED, which is expected: these groups are not
+nested, so the check does not apply). η as selected on nested NHANES. 10 seeds
+(`runs/nhanes_partition_v3`, `runs/baselines_v3/nhanes_partition`).
+
+| arm | per-group acc G0 / G1 / G2 | worst-group acc | worst-group loss | AUROC overall (per group) |
+|---|---|---|---|---|
+| ERM, common features | 88.0 / 90.0 / 89.7 | 88.0 | 0.681 | 0.500 (0.50 / 0.50 / 0.50) |
+| common features + GroupDRO | 88.0 / 90.0 / 89.7 | 88.0 | 0.651 | 0.500 |
+| per-group ERM | 66.4 / 72.7 / 72.6 | 66.2 | 0.618 | 0.709 (0.78 / 0.59 / 0.71) |
+| per-group + GroupDRO | 70.3 / 81.0 / 71.9 | 69.5 | 0.611 | 0.703 |
+| per-group + Regret-DRO | 69.2 / 84.1 / 72.6 | 68.9 | 0.597 | 0.706 |
+| per-group + anchors | 70.5 / 79.2 / 71.5 | 69.1 | 0.593 | 0.705 |
+| per-group + anchors + GroupDRO | 75.2 / 83.9 / 76.2 | 73.4 | 0.600 | 0.689 |
+| full method | 76.9 / 85.2 / 77.4 | 74.7 | 0.588 | 0.687 (0.77 / 0.57 / 0.69) |
+| Reweigh | 73.4 / 90.0 / 89.7 | 73.4 | 0.646 | not logged |
+| Flex-MoE | 77.2 / 90.0 / 89.7 | 77.2 | 0.683 | not logged |
+| REMIND | 71.2 / 90.0 / 89.7 | 71.2 | 0.630 | not logged |
+
+The 88-90% accuracies are the base rate: those models predict the majority class. The shared-
+encoder arms collapse on every group (AUROC 0.500); the three baselines collapse on G1 and G2
+(exactly 90.0 / 89.7 on every seed) and model only G0. The per-group arms keep a predictor on all
+three groups, and here the anchors and regret both help (66.2 → 74.7 worst-group accuracy, loss
+0.618 → 0.588). The earlier conclusion survives the corrections.
+
+## 6. Status of the other datasets
 
 - EMBED: already had diagonal anchors, validation-only selection and train+val references; the
   weight update clamps at zero there too (finding 5). Re-run with signed excess pending.

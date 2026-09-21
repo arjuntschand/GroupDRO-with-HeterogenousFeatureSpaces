@@ -1,0 +1,352 @@
+"""Hand-laid-out SVG diagrams for the paper (no data involved).
+
+  figs/paper/fig_intro_problem.svg        introduction: why no common model fits clinical data
+  figs/paper/fig_setup_architecture.svg   setup: components of the method and how they connect
+
+  python make_diagram_figures.py          writes both SVGs and, if rsvg-convert is installed, PNG + PDF
+
+Every shape and label stays an editable object when the SVG is imported into Figma.
+Style: flat pastel fills, thin dark outlines, short noun labels; sentences belong in the caption.
+"""
+import os, random, shutil, subprocess
+
+OUT = "figs/paper"
+INK, DIM, LINE, PANEL = "#141413", "#6b6b6b", "#c9c8c3", "#f7f6f2"
+GROUPS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]           # same slots as the results figures
+PASTEL = ["#d9e8fa", "#fbe1d5", "#d3f0e5", "#fbedc8"]
+NEG, POS, RED = "#9a9a94", "#e87ba4", "#b03a3a"
+
+
+class Svg:
+    def __init__(self, w, h, label):
+        self.w, self.h, self.b = w, h, []
+        self.head = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}" xml:space="preserve" role="img" '
+                     f'aria-label="{label}" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="{INK}">'
+                     '<defs>' + "".join(
+                         f'<marker id="a{k}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
+                         f'<path d="M0,0 L10,5 L0,10 z" fill="{c}"/></marker>' for k, c in [("k", INK), ("g", DIM), ("r", RED)])
+                     + f'<pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">'
+                       f'<rect width="6" height="6" fill="#ffffff"/><line x1="0" y1="0" x2="0" y2="6" stroke="{RED}" stroke-width="1.6"/></pattern>'
+                     + '</defs>' + f'<rect width="{w}" height="{h}" fill="#ffffff"/>')
+
+    def add(self, s): self.b.append(s)
+
+    def rect(self, x, y, w, h, fill="#ffffff", stroke=INK, rx=4, dash=None, sw=1.1):
+        d = f' stroke-dasharray="{dash}"' if dash else ""
+        self.add(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{d}/>')
+
+    def text(self, x, y, s, size=13, anchor="start", weight="400", fill=INK, italic=False):
+        it = ' font-style="italic"' if italic else ""
+        self.add(f'<text x="{x}" y="{y}" font-size="{size}" text-anchor="{anchor}" font-weight="{weight}" fill="{fill}"{it}>{s}</text>')
+
+    def line(self, x1, y1, x2, y2, col=INK, arrow=True, dash=None, sw=1.2):
+        k = {INK: "k", DIM: "g", RED: "r"}.get(col, "k")
+        m = f' marker-end="url(#a{k})"' if arrow else ""
+        d = f' stroke-dasharray="{dash}"' if dash else ""
+        self.add(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{col}" stroke-width="{sw}"{m}{d}/>')
+
+    def path(self, d, col=INK, arrow=True, dash=None, sw=1.2, fill="none"):
+        k = {INK: "k", DIM: "g", RED: "r"}.get(col, "k")
+        m = f' marker-end="url(#a{k})"' if arrow else ""
+        ds = f' stroke-dasharray="{dash}"' if dash else ""
+        self.add(f'<path d="{d}" fill="{fill}" stroke="{col}" stroke-width="{sw}"{m}{ds}/>')
+
+    def poly(self, pts, fill, stroke=INK, sw=1.1):
+        self.add(f'<polygon points="{" ".join(f"{x},{y}" for x, y in pts)}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"/>')
+
+    def circle(self, x, y, r, fill, stroke="none", sw=1, op=1.0):
+        self.add(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}" fill-opacity="{op}"/>')
+
+    def ellipse(self, x, y, rx, ry, fill="none", stroke=INK, dash=None, op=1.0):
+        d = f' stroke-dasharray="{dash}"' if dash else ""
+        self.add(f'<ellipse cx="{x}" cy="{y}" rx="{rx}" ry="{ry}" fill="{fill}" fill-opacity="{op}" stroke="{stroke}" stroke-width="1.2"{d}/>')
+
+    def star(self, x, y, r, fill):
+        import math
+        pts = [(x + (r if i % 2 == 0 else r * 0.42) * math.sin(i * math.pi / 5), y - (r if i % 2 == 0 else r * 0.42) * math.cos(i * math.pi / 5)) for i in range(10)]
+        self.poly([(round(a, 1), round(b, 1)) for a, b in pts], fill, INK, 1.2)
+
+    def cross(self, x, y, r=9):
+        self.circle(x, y, r, "#ffffff", RED, 1.4)
+        self.line(x - 4, y - 4, x + 4, y + 4, RED, False, sw=1.8); self.line(x - 4, y + 4, x + 4, y - 4, RED, False, sw=1.8)
+
+    def tick(self, x, y, r=9):
+        self.circle(x, y, r, "#ffffff", "#1a7f4b", 1.4)
+        self.add(f'<path d="M{x-4},{y} L{x-1},{y+4} L{x+5},{y-4}" fill="none" stroke="#1a7f4b" stroke-width="1.9"/>')
+
+    def save(self, stem):
+        os.makedirs(OUT, exist_ok=True)
+        p = f"{OUT}/{stem}.svg"
+        open(p, "w").write(self.head + "".join(self.b) + "</svg>")
+        if shutil.which("rsvg-convert"):
+            subprocess.run(["rsvg-convert", "-w", str(self.w * 2), p, "-o", f"{OUT}/{stem}.png"], check=True)
+            subprocess.run(["rsvg-convert", "-f", "pdf", p, "-o", f"{OUT}/{stem}.pdf"], check=True)
+        print("wrote", p)
+
+
+def sub(base, s, size=13, italic=True):
+    """base with a real subscript (tspan dy), which survives rsvg, browsers and Figma import."""
+    it = ' font-style="italic"' if italic else ""
+    return f'<tspan{it}>{base}</tspan><tspan dy="{size*0.3:.1f}" font-size="{size*0.72:.1f}">{s}</tspan><tspan dy="-{size*0.3:.1f}">\u200b</tspan>'
+
+
+# which measurement blocks each clinical group carries (columns: questionnaire, body, blood pressure, labs, imaging)
+COLS = ["Questionnaire", "Body measures", "Blood pressure", "Lab panel", "Imaging"]
+SITES = [("Community survey", [1, 0, 0, 0, 0], 9), ("Clinic visit", [1, 1, 0, 0, 0], 6),
+         ("Hospital work-up", [1, 1, 1, 1, 0], 4), ("Imaging centre", [0, 0, 0, 0, 1], 2)]
+
+
+def mini_table(S, x, y, cw, ch, mode):
+    """Small copy of the group x measurement table. mode: 'common' | 'impute'."""
+    for r, (_, have, _) in enumerate(SITES):
+        for c in range(5):
+            xx, yy = x + c * cw, y + r * ch
+            if mode == "common":
+                S.rect(xx, yy, cw - 3, ch - 3, "#ecebe6" if have[c] else "#ffffff", LINE, 2, None if have[c] else "3 2", 0.9)
+            else:
+                if have[c]:
+                    S.rect(xx, yy, cw - 3, ch - 3, PASTEL[r], GROUPS[r], 2, None, 0.9)
+                else:
+                    S.rect(xx, yy, cw - 3, ch - 3, "url(#hatch)", RED, 2, None, 0.9)
+
+
+def intro():
+    S = Svg(1240, 700, "Clinical groups record different measurements, so no single input space exists; keeping only common columns, imputing, "
+                       "or training one model per group each fail; this paper gives each group its own encoder into one shared space with "
+                       "one predictor and protects the group furthest from its own achievable loss.")
+    # ---------------- (a) the clinical reality ----------------
+    S.rect(14, 14, 596, 330, PANEL, LINE, 8)
+    S.text(30, 40, "(a)  Patients arrive with different measurements", 15, weight="700")
+    x0, y0, cw, ch = 222, 92, 74, 46
+    for c, name in enumerate(COLS):
+        S.text(x0 + c * cw + (cw - 6) / 2, y0 - 12, name, 9.5, "middle", fill=DIM)
+    for r, (name, have, n) in enumerate(SITES):
+        yy = y0 + r * ch
+        S.circle(40, yy + 19, 7, GROUPS[r])
+        S.text(54, yy + 17, name, 12.5, weight="600")
+        for i in range(n):                                   # patient count, drawn as dots
+            S.circle(57 + i * 9, yy + 29, 2.6, GROUPS[r], op=0.75)
+        for c in range(5):
+            if have[c]:
+                S.rect(x0 + c * cw, yy, cw - 6, ch - 8, PASTEL[r], GROUPS[r], 4)
+            else:
+                S.rect(x0 + c * cw, yy, cw - 6, ch - 8, "#ffffff", LINE, 4, "4 3")
+    # bracket: two groups with nothing in common
+    bx = x0 + 5 * cw + 2
+    S.path(f"M{bx},{y0+19} h10 v{3*ch} h-10", RED, False, sw=1.4)
+    S.text(bx - 2, y0 + 4 * ch + 12, "no test in common", 11, "end", fill=RED, weight="600")
+    # key
+    ky = 306
+    S.rect(30, ky, 22, 14, PASTEL[0], GROUPS[0], 3); S.text(58, ky + 11, "measured", 11, fill=DIM)
+    S.rect(130, ky, 22, 14, "#ffffff", LINE, 3, "4 3"); S.text(158, ky + 11, "never ordered", 11, fill=DIM)
+    S.circle(262, ky + 7, 2.6, GROUPS[0]); S.circle(271, ky + 7, 2.6, GROUPS[0]); S.text(280, ky + 11, "patients in the group", 11, fill=DIM)
+
+    # ---------------- (b) three standard options ----------------
+    S.rect(626, 14, 600, 330, PANEL, LINE, 8)
+    S.text(642, 40, "(b)  One common model needs one input space", 15, weight="700")
+    cards = [("Keep shared columns", "common"), ("Impute the rest", "impute"), ("One model per group", "separate")]
+    for i, (title, mode) in enumerate(cards):
+        cx = 642 + i * 194
+        S.rect(cx, 58, 182, 272, "#ffffff", LINE, 6)
+        S.text(cx + 12, 82, title, 12.5, weight="700")
+        S.cross(cx + 164, 77)
+        if mode in ("common", "impute"):
+            mini_table(S, cx + 14, 100, 31, 24, mode)
+        if mode == "common":
+            for c in range(5):                                # no column survives the intersection
+                S.line(cx + 14 + c * 31 + 14, 96, cx + 14 + c * 31 + 14, 198, RED, False, sw=1.3)
+            S.line(cx + 91, 204, cx + 91, 226, DIM)
+            S.rect(cx + 50, 230, 82, 30, "#ffffff", RED, 4, "4 3")
+            S.text(cx + 91, 250, "∅", 16, "middle", fill=RED, weight="700")
+            S.text(cx + 91, 284, "no column is shared by all;", 10.5, "middle", fill=DIM)
+            S.text(cx + 91, 299, "labs and imaging discarded", 10.5, "middle", fill=DIM)
+        elif mode == "impute":
+            S.line(cx + 91, 204, cx + 91, 226, DIM)
+            S.rect(cx + 40, 230, 102, 30, "#ecebe6", INK, 4); S.text(cx + 91, 250, "one model", 11.5, "middle")
+            S.rect(cx + 14, 274, 16, 11, "url(#hatch)", RED, 2, None, 0.9)
+            S.text(cx + 36, 284, "invented values: 12 of 20", 10.5, fill=DIM)
+            S.text(cx + 36, 299, "blocks were never measured", 10.5, fill=DIM)
+        else:
+            for r, (_, have, n) in enumerate(SITES):
+                yy = 100 + r * 26
+                for k in range(n):
+                    S.circle(cx + 18 + k * 7, yy + 9, 2.4, GROUPS[r], op=0.8)
+                S.line(cx + 90, yy + 9, cx + 112, yy + 9, DIM)
+                S.rect(cx + 116, yy, 52, 18, PASTEL[r], GROUPS[r], 3); S.text(cx + 142, yy + 13, f"model {r+1}", 10, "middle")
+            S.path(f"M{cx+34},{100+3*26+24} v14", RED, False, sw=1.3)
+            S.text(cx + 14, 232, "few patients", 11, fill=RED, weight="600")
+            S.text(cx + 91, 284, "small groups cannot support", 10.5, "middle", fill=DIM)
+            S.text(cx + 91, 299, "a model; nothing is shared", 10.5, "middle", fill=DIM)
+
+    # ---------------- (c) this paper ----------------
+    S.rect(14, 360, 800, 326, PANEL, LINE, 8)
+    S.text(30, 386, "(c)  This paper: separate inputs, one shared space, one predictor", 15, weight="700")
+    S.tick(792, 381)
+    ys = [424, 484, 544, 604]
+    widths = [26, 52, 104, 26]
+    for r, (name, have, n) in enumerate(SITES):
+        y = ys[r]
+        S.text(30, y - 6, name, 11, fill=DIM)
+        for k in range(widths[r] // 26 * 1):
+            pass
+        ncell = sum(have)
+        for k in range(ncell):
+            S.rect(30 + k * 28, y, 24, 24, PASTEL[r], GROUPS[r], 3)
+        S.line(30 + 4 * 28 + 6, y + 12, 196, y + 12, DIM)
+        hin = 10 + ncell * 7                                     # encoder: input side scales with the group's feature count
+        S.poly([(200, y + 12 - hin / 2 - 4), (270, y + 2), (270, y + 22), (200, y + 12 + hin / 2 + 4)], PASTEL[r], GROUPS[r])
+        S.text(236, y + 16, f"enc. {r+1}", 10, "middle")
+        S.path(f"M272,{y+12} C320,{y+12} 320,{514 + (r-1.5)*16:.0f} 362,{514 + (r-1.5)*16:.0f}", DIM)
+    S.text(235, 660, "one encoder per group", 11.5, "middle", weight="600")
+    # shared space
+    S.ellipse(470, 514, 108, 104, "#ffffff", INK)
+    rnd = random.Random(3)
+    for cx_, cy_, col in [(430, 490, NEG), (512, 540, POS)]:
+        S.ellipse(cx_, cy_, 46, 38, col, col, "5 3", 0.13)
+        for g in range(4):
+            for _ in range(7):
+                S.circle(cx_ + rnd.gauss(0, 17), cy_ + rnd.gauss(0, 14), 3, GROUPS[g], op=0.85)
+        S.star(cx_, cy_, 10, col)
+    S.text(470, 660, "shared space, one target per outcome", 11.5, "middle", weight="600")
+    S.line(580, 514, 622, 514)
+    S.rect(626, 490, 66, 48, "#ecebe6", INK, 5); S.text(659, 511, "one", 11.5, "middle"); S.text(659, 526, "predictor", 11.5, "middle")
+    S.line(694, 514, 730, 514)
+    S.text(736, 510, "risk for", 11, fill=DIM); S.text(736, 524, "every patient", 11, fill=DIM)
+    S.star(610, 596, 7, NEG); S.text(622, 600, "class anchor (learnt)", 10.5, fill=DIM)
+    for g in range(4):
+        S.circle(606 + g * 8, 618, 3, GROUPS[g])
+    S.text(642, 622, "patients, by group", 10.5, fill=DIM)
+
+    # ---------------- (d) loss versus regret ----------------
+    S.rect(828, 360, 398, 326, PANEL, LINE, 8)
+    S.text(844, 386, "(d)  Which group needs the help?", 15, weight="700")
+    base, top, scale = 636, 420, 216                              # loss 0..1 over 216 px
+    S.line(876, base, 876, top + 2, DIM, True); S.text(876, top - 8, "loss", 10.5, "middle", fill=DIM)
+    for v in (0, 0.5, 1.0):
+        S.line(872, base - v * scale, 876, base - v * scale, DIM, False); S.text(868, base - v * scale + 4, f"{v:g}", 10, "end", fill=DIM)
+    S.line(876, base, 1210, base, DIM, False)
+    for i, (lab, loss, floor, col, pas) in enumerate([("Group 1", 0.90, 0.85, GROUPS[0], PASTEL[0]), ("Group 2", 0.60, 0.30, GROUPS[1], PASTEL[1])]):
+        bx = 912 + i * 158
+        S.rect(bx, base - loss * scale, 64, loss * scale, pas, col, 3)
+        S.text(bx + 32, base - loss * scale - 8, f"loss {loss:.2f}", 11, "middle", weight="600")
+        S.line(bx - 12, base - floor * scale, bx + 76, base - floor * scale, INK, False, "5 3", 1.4)
+        S.text(bx + 80, base - floor * scale + 4, f"best {floor:.2f}", 10.5, fill=DIM)
+        S.path(f"M{bx+70},{base - loss*scale} v{(loss-floor)*scale}", RED, False, sw=3)
+        S.text(bx + 80, base - (loss + floor) / 2 * scale + (4 if i else -8), f"gap {loss-floor:.2f}", 10.5, fill=RED, weight="600")
+        S.text(bx + 32, base + 16, lab, 11.5, "middle", weight="600")
+    S.text(944, 672, "highest loss", 11, "middle", fill=DIM)
+    S.text(1102, 672, "furthest from its best", 11, "middle", fill=RED, weight="600")
+    S.save("fig_intro_problem")
+
+
+def architecture():
+    S = Svg(1240, 640, "System view of the method: per-group encoders map group-specific inputs into a shared latent space with learnt class "
+                       "anchors, a single head predicts for all groups, alignment and separation losses shape the latent space, and group "
+                       "weights driven by each group's excess loss over an offline reference feed the weighted training objective.")
+    # lanes
+    S.rect(14, 14, 1212, 372, PANEL, LINE, 8); S.text(30, 38, "MODEL  (min player)", 11.5, weight="700", fill=DIM)
+    S.rect(14, 398, 596, 228, PANEL, LINE, 8); S.text(30, 422, "LATENT-SPACE LOSSES", 11.5, weight="700", fill=DIM)
+    S.rect(622, 398, 604, 228, PANEL, LINE, 8); S.text(638, 422, "GROUP WEIGHTS  (max player)", 11.5, weight="700", fill=DIM)
+
+    # inputs
+    S.text(30, 66, "Group inputs", 13.5, weight="700")
+    ys, ncell, names = [96, 186, 296], [3, 5, 8], ["1", "2", "G"]
+    for r in range(3):
+        y = ys[r]
+        S.add(f'<text x="30" y="{y-8}" font-size="12" fill="{DIM}">group {names[r]}:  <tspan font-style="italic">x</tspan> ∈ {sub("X", names[r], 12)}</text>')
+        for k in range(8):
+            if k < ncell[r]:
+                S.rect(30 + k * 19, y, 16, 22, PASTEL[r], GROUPS[r], 2)
+            else:
+                S.rect(30 + k * 19, y, 16, 22, "#ffffff", LINE, 2, "3 2")
+        S.add(f'<text x="30" y="{y+40}" font-size="11" fill="{DIM}">{sub("S", names[r], 11)}: {ncell[r] if r < 2 else "…"} measurements</text>')
+    S.text(104, 262, "⋮", 16, "middle", fill=DIM)
+
+    # encoders
+    S.text(250, 66, "Per-group encoders", 13.5, weight="700")
+    for r in range(3):
+        y = ys[r] + 11
+        hin = 14 + ncell[r] * 6
+        S.line(186, y, 246, y, DIM)
+        S.poly([(250, y - hin / 2), (340, y - 14), (340, y + 14), (250, y + hin / 2)], PASTEL[r], GROUPS[r])
+        S.add(f'<text x="295" y="{y+5}" font-size="14" text-anchor="middle">{sub("φ", names[r], 14)}</text>')
+        S.path(f"M342,{y} C392,{y} 392,{210 + (r-1)*34} 436,{210 + (r-1)*34}", DIM)
+    S.text(295, 364, "no shared parameters", 11, "middle", fill=DIM)
+
+    # latent space
+    S.text(440, 66, "Shared latent space", 13.5, weight="700")
+    S.add(f'<text x="700" y="66" font-size="12.5" text-anchor="end" fill="{DIM}"><tspan font-style="italic">Z</tspan> = ℝ<tspan dy="-5" font-size="9">d</tspan></text>')
+    S.rect(440, 80, 262, 262, "#ffffff", INK, 6)
+    rnd = random.Random(7)
+    anchors = [(516, 160, NEG, "1"), (626, 262, POS, "2")]
+    for ax, ay, col, c in anchors:
+        S.ellipse(ax, ay, 58, 46, col, col, "5 3", 0.12)
+        for g in range(3):
+            for _ in range(9):
+                S.circle(ax + rnd.gauss(0, 21), ay + rnd.gauss(0, 16), 3.1, GROUPS[g], op=0.85)
+        S.star(ax, ay, 11, col)
+    S.add(f'<text x="452" y="104" font-size="12">{sub("μ", "1", 12)} = N({sub("m", "1", 12)}, {sub("Σ", "1", 12)})</text>')
+    S.add(f'<text x="690" y="330" font-size="12" text-anchor="end">{sub("μ", "2", 12)} = N({sub("m", "2", 12)}, {sub("Σ", "2", 12)})</text>')
+    S.path("M558,196 L586,226", RED, True, sw=1.4); S.path("M586,226 L558,196", RED, True, sw=1.4)
+    S.text(690, 104, "learnt class anchors", 10.5, "end", fill=DIM)
+
+    # head, prediction, losses
+    S.text(752, 66, "Shared head", 13.5, weight="700")
+    S.line(704, 210, 750, 210)
+    S.rect(754, 176, 84, 68, "#ecebe6", INK, 6)
+    S.add(f'<text x="796" y="207" font-size="16" text-anchor="middle" font-style="italic">ψ</text>')
+    S.text(796, 228, "one for all", 10.5, "middle", fill=DIM)
+    S.add(f'<text x="796" y="268" font-size="11.5" text-anchor="middle" fill="{DIM}">{sub("f", "g", 11.5)} = ψ∘{sub("φ", "g", 11.5)}</text>')
+    S.line(840, 210, 884, 210)
+    S.add(f'<text x="902" y="215" font-size="15" text-anchor="middle" font-style="italic">ŷ</text>')
+    S.text(960, 66, "Per-group losses", 13.5, weight="700")
+    for r in range(3):
+        y = [130, 196, 262][r]
+        S.path(f"M916,210 C936,210 936,{y+16} 956,{y+16}", DIM)
+        S.rect(960, y, 120, 32, PASTEL[r], GROUPS[r], 5)
+        S.add(f'<text x="1020" y="{y+21}" font-size="13" text-anchor="middle">{sub("L", names[r], 13)}(θ)</text>')
+    S.text(1020, 320, "cross-entropy, per group", 11, "middle", fill=DIM)
+
+    # ---- latent-space losses lane ----
+    S.rect(34, 440, 270, 86, "#ffffff", INK, 6)
+    S.text(48, 462, "Alignment", 12.5, weight="700")
+    S.add(f'<text x="48" y="488" font-size="13">{sub("L", "align", 13)} = Σ<tspan dy="4" font-size="9">g,c</tspan><tspan dy="-4"> </tspan>{sub("W", "2", 13)}<tspan dy="-5" font-size="9">2</tspan><tspan dy="5">(</tspan>{sub("ν", "g,c", 13)}, {sub("μ", "c", 13)})</text>')
+    S.text(48, 512, "each group's class cloud → its anchor", 10.5, fill=DIM)
+    S.rect(320, 440, 270, 86, "#ffffff", INK, 6)
+    S.text(334, 462, "Separation", 12.5, weight="700")
+    S.add(f'<text x="334" y="488" font-size="13">{sub("L", "sep", 13)}: keeps {sub("μ", "c", 13)} and {sub("μ", "c′", 13)} apart</text>')
+    S.text(334, 512, "anchors of different classes", 10.5, fill=DIM)
+    S.path("M500,342 C500,392 170,392 170,438", DIM, True, "4 3")
+    S.path("M600,342 C600,400 455,400 455,438", DIM, True, "4 3")
+    S.text(60, 560, "Closed form for diagonal Gaussians:", 10.5, fill=DIM)
+    S.add(f'<text x="60" y="580" font-size="12">{sub("W", "2", 12)}<tspan dy="-5" font-size="8.5">2</tspan><tspan dy="5"> = ‖</tspan>{sub("m", "1", 12)} − {sub("m", "2", 12)}‖² + ‖{sub("σ", "1", 12)} − {sub("σ", "2", 12)}‖²</text>')
+
+    # ---- group weights lane ----
+    S.rect(642, 440, 176, 86, "#ffffff", INK, 6, "5 3")
+    S.text(656, 462, "Reference (offline)", 12.5, weight="700")
+    S.add(f'<text x="656" y="488" font-size="13">{sub("R̃", "g", 13)}: best loss group</text>')
+    S.add(f'<text x="656" y="506" font-size="13"><tspan font-style="italic">g</tspan> can reach alone</text>')
+    S.line(820, 483, 850, 483)
+    S.rect(854, 440, 150, 86, "#ffffff", RED, 6)
+    S.text(868, 462, "Excess", 12.5, weight="700", fill=RED)
+    S.add(f'<text x="868" y="492" font-size="13.5">{sub("Δ", "g", 13.5)} = {sub("L", "g", 13.5)} − {sub("R̃", "g", 13.5)}</text>')
+    S.text(868, 514, "signed, per group", 10.5, fill=DIM)
+    S.line(1006, 483, 1036, 483, RED)
+    S.rect(1040, 440, 170, 86, "#ffffff", INK, 6)
+    S.text(1054, 462, "Weight update", 12.5, weight="700")
+    S.add(f'<text x="1054" y="492" font-size="13.5">{sub("λ", "g", 13.5)} ∝ {sub("λ", "g", 13.5)} exp(γ {sub("Δ", "g", 13.5)})</text>')
+    S.text(1054, 514, "on the simplex", 10.5, fill=DIM)
+    S.path("M1086,130 h10 v164 h-10", DIM, False); S.path("M1096,212 H1140 V392 H929 V438", DIM, True, "4 3")
+    # objective and feedback
+    S.rect(642, 548, 568, 58, "#ecebe6", INK, 6)
+    S.text(656, 570, "Training objective", 12.5, weight="700")
+    S.add(f'<text x="656" y="594" font-size="13.5">min<tspan dy="4" font-size="9">θ</tspan><tspan dy="-4">  Σ</tspan><tspan dy="4" font-size="9">g</tspan><tspan dy="-4"> </tspan>{sub("λ", "g", 13.5)} {sub("L", "g", 13.5)}(θ)  +  {sub("λ", "fit", 13.5)} {sub("L", "align", 13.5)}  +  {sub("λ", "sep", 13.5)} {sub("L", "sep", 13.5)}</text>')
+    S.line(1125, 528, 1125, 546)
+    S.path("M170,526 V538 H604", DIM, False); S.path("M455,526 V538", DIM, False); S.path("M604,538 V577 H640", DIM, True)
+    S.path("M1210,577 H1219 V388", INK, True, "6 3", 1.4)
+    S.text(1198, 570, "gradients to encoders, head, anchors  →", 10.5, "end", fill=DIM)
+    S.save("fig_setup_architecture")
+
+
+if __name__ == "__main__":
+    intro(); architecture()

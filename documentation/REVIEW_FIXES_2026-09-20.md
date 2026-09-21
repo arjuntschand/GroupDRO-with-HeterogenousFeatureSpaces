@@ -164,9 +164,52 @@ encoder arms collapse on every group (AUROC 0.500); the three baselines collapse
 three groups, and here the anchors and regret both help (66.2 → 74.7 worst-group accuracy, loss
 0.618 → 0.588). The earlier conclusion survives the corrections.
 
-## 6. Status of the other datasets
+## 6. EMBED, corrected
 
-- EMBED: already had diagonal anchors, validation-only selection and train+val references; the
-  weight update clamps at zero there too (finding 5). Re-run with signed excess pending.
-- Until both are redone, the abstract's numbers, `FINAL_PROTOCOL.md`, the site's other tabs and
-  the draft's Tables 1-2 describe the earlier pipeline.
+EMBED already had diagonal anchors, validation-only selection and train+val references. The one
+finding that applies is the clamp (5), and only to the two regret arms: for ERM, anchors-only,
+GroupDRO and anchors+GroupDRO the reference is 0, so the clamp was never active; those rows are
+unchanged. Signed excess, γ ∈ {0.5, 2.0, 8.0}, 10 seeds (`runs/embed_v3`), γ chosen on validation
+max-excess: Regret-DRO 0.5, full method 2.0.
+
+| arm | worst-group acc | loss | excess | overall acc |
+|---|---|---|---|---|
+| ERM | 62.16 | 1.350 | 0.452 | 75.72 |
+| GroupDRO | 62.70 | 1.051 | 0.179 | 77.44 |
+| Regret-DRO, clamped (earlier) | 61.02 | 1.344 | 0.470 | 75.66 |
+| Regret-DRO, signed | 62.97 | 1.042 | 0.264 | 77.56 |
+| anchors + GroupDRO | 61.62 | 1.134 | 0.324 | 77.02 |
+| full method, clamped (earlier) | 62.74 | 1.066 | 0.280 | 76.47 |
+| full method, signed | 62.20 | 1.067 | 0.273 | 76.19 |
+
+The signed excess repairs Regret-DRO without anchors (loss 1.344 → 1.042, p < 0.001), which under
+the clamp never moved its weights; the full method is unchanged (p = 0.93). The three DRO arms
+are indistinguishable from one another (full method vs Regret-DRO: acc −0.77, loss +0.025, n.s.).
+Against the baselines (Reweigh 59.35 | 2.115; Flex-MoE 62.26 | 1.333; REMIND-128 61.78 | 1.207) the
+full method has 49.6% / 20.0% / 11.7% lower worst-group loss and 79.9% / 56.0% / 39.2% lower excess
+(all p < 0.005), +1.2 to +6.4 overall accuracy (p ≤ 0.026), and ties on worst-group accuracy.
+
+## 7. What the corrected runs support (for the abstract and the results section)
+
+Full method against the three published baselines, published configurations, paired over 10 seeds:
+
+| | worst-group loss lower by | worst-group excess lower by | worst-group acc |
+|---|---|---|---|
+| NHANES | 20.2% / 17.5% / 20.0% (all sig.) | 32.9% / 26.6% / 29.5% (all sig.) | tie |
+| Fed-Heart | 5.2% (n.s.) / 37.8% (sig.) / 0.0% (n.s.) | 30.9% (sig.) / 72.8% (sig.) / 16.3% (n.s.) | tie |
+| EMBED | 49.6% / 20.0% / 11.7% (all sig.) | 79.9% / 56.0% / 39.2% (all sig.) | tie |
+
+- "Lower worst-group loss than every baseline on every dataset" no longer holds: on Fed-Heart the
+  full method ties Reweigh and REMIND on loss. Supported: lower worst-group loss than all three
+  baselines on NHANES and EMBED (12-50%, all significant), and lower worst-group excess on all
+  three datasets (16-80%; 8 of 9 significant, the exception Fed-Heart vs REMIND).
+- Worst-group accuracy matches the baselines everywhere; overall accuracy is significantly higher
+  on EMBED and tied on the tabular datasets.
+- Which component helps depends on the dataset: per-group encoders on Fed-Heart (+5.7 over the
+  common-features model; anchors and DRO add nothing), anchors on NHANES (+3 accuracy over
+  unanchored DRO, partly an operating-point effect), the group weighting on EMBED. Regret ties
+  GroupDRO on accuracy and loss on all three; the signed excess is what makes it work at all on EMBED.
+- The strongest unambiguous result is the no-common-information setting: shared-encoder models
+  and all three baselines fall to the majority class, the per-group arms do not, and there the
+  anchors and regret both help.
+- Parameter counts are unchanged (1.4-17x fewer than the baselines on the tabular datasets).

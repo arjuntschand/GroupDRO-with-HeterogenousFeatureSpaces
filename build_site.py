@@ -1206,6 +1206,19 @@ def updated_baselines_page():
                   "their 'worst group' is G0, the only group they model. Our per-group arms keep a real predictor on all three groups "
                   "(overall AUROC 0.69-0.71; per group 0.77 / 0.57 / 0.70) and have the lowest worst-group loss (0.588 for the full method vs 0.63-0.68 for the baselines). "
                   "Here the anchors and regret both help: 66.2 (per-group ERM) to 74.7 (full method) worst-group accuracy at lower loss."))
+    ROWS_EM = [("ours", "Per-group + anchors + Regret-DRO", "full"),
+               ("align_only", "Per-group + anchors + GroupDRO", "abl"),
+               ("regret_only", "Per-group encoders + Regret-DRO", "base"),
+               ("groupdro", "Per-group encoders + GroupDRO", "base"),
+               ("erm", "Per-group encoders + ERM", "base")]
+    SPECS.insert(2, ("EMBED", "runs/embed_v3/metrics_long.csv", "runs/baselines_embed/metrics_long.csv",
+                     "runs/baselines_embed_matched/metrics_long.csv", ROWS_EM,
+                     "10 seeds. EMBED already had diagonal anchors, validation-only selection and train+val references, so only the regret arms change: "
+                     "the group weights now follow the signed excess, with gamma chosen on validation (0.5 for Regret-DRO, 2.0 for the full method). "
+                     "That repairs Regret-DRO without anchors, which was worse than ERM under the clamp (worst-group loss 1.344) and is now level with GroupDRO (1.042). "
+                     "All three DRO arms sit at worst-group loss 1.04-1.07 against 1.35 for ERM, and 12-51% below every baseline (all significant), with 39-87% lower excess and "
+                     "+1.2 to +7.8 overall accuracy (significant). Worst-group accuracy is a tie throughout: the worst group holds 37 exams. "
+                     "The anchors add nothing over the unanchored DRO arms here."))
     for label, op, relp, matp, rows, note in SPECS:
         if not (os.path.exists(op) and os.path.exists(relp)):
             continue
@@ -1220,7 +1233,7 @@ def updated_baselines_page():
         def ws(bs): return worst_by_seed(bs), worst_loss_by_seed(bs), {sd: max(g['excess'] for g in gr.values()) for sd, gr in bs.items() if gr}
         blk = ["<div class='card'><table class='data'><thead><tr><th class='it'>our arm</th><th class='it'>metric</th>"
                "<th>vs Reweigh</th><th>vs Flex-MoE</th><th>vs REMIND</th></tr></thead><tbody>"]
-        for arm_key, arm_lab in [("Ours_Regret", "full method"), ("GroupDRO", "per-group + GroupDRO")]:
+        for arm_key, arm_lab in [("Ours_Regret", "full method"), ("ours", "full method"), ("GroupDRO", "per-group + GroupDRO"), ("groupdro", "per-group + GroupDRO")]:
             if arm_key not in merged:
                 continue
             fa, fl, fe = ws(merged[arm_key])

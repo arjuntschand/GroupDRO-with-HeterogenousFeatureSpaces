@@ -567,7 +567,7 @@ var h=document.getElementById(a.getAttribute('data-t'));if(h){window.scrollTo({t
    Cells hold things like "73.5", "73.5 +/- 1.2", "0.678", "1,288,580" and "-". num() pulls the
    leading signed number so the +/- spread and any suffix do not affect the ordering; anything
    with no number sorts to the bottom in both directions instead of jumping around. */
-function num(td){var m=(td.textContent||'').replace(/,/g,'').match(/-?\d+(\.\d+)?/);
+function num(td){if(!td) return null; var m=(td.textContent||'').replace(/,/g,'').match(/-?\d+(\.\d+)?/);
   return m?parseFloat(m[0]):null;}
 function sortable(t){
   var tb=t.tBodies[0]; if(!tb) return;
@@ -599,8 +599,8 @@ function sortable(t){
             if(y===null) return -1;
             return x===y ? a.dataset.def-b.dataset.def : sign*(x-y);
           }
-          var s1=(ca.textContent||'').trim().toLowerCase(),
-              s2=(cb.textContent||'').trim().toLowerCase();
+          var s1=((ca&&ca.textContent)||'').trim().toLowerCase(),
+              s2=((cb&&cb.textContent)||'').trim().toLowerCase();
           return s1===s2 ? a.dataset.def-b.dataset.def : sign*(s1<s2?-1:1);
         });
       }

@@ -1158,13 +1158,14 @@ def final_results_page(loaded=None, merged_bl=None):
     return "".join(out)
 
 
-def auroc_block(path):
+def auroc_block(path, note=None, gcols=("G0 survey", "G1 body + HbA1c/HDL", "G2 BP + lipids")):
     """Threshold-free view of a no-overlap table: worst-group and per-group AUROC per method."""
     import csv as _csv, statistics as _st
     from collections import defaultdict
     LAB = [("Ours_Regret", "Per-group + anchors + Regret-DRO (full method)"), ("Ours_GDRO", "Per-group + anchors + GroupDRO"),
            ("RegretDRO", "Per-group encoders + Regret-DRO"), ("GroupDRO", "Per-group encoders + GroupDRO"),
            ("PerGroupOnly", "Per-group encoders + ERM (shared head)"), ("Independent", "Dedicated model per group (nothing shared)"),
+           ("Shared_Anchors_GDRO", "Anchors + GroupDRO, common features"), ("Shared_GDRO", "GroupDRO, common features"), ("ERM", "ERM, common features"),
                       ("Reweigh", "Reweigh"), ("FlexMoE", "Flex-MoE"), ("REMIND", "REMIND"), ("SoftMoE_ERM", "REMIND backbone with plain ERM")]
     d = defaultdict(lambda: defaultdict(dict))
     for r in _csv.DictReader(open(path)):
@@ -1182,12 +1183,13 @@ def auroc_block(path):
         ptxt = "" if p_ is None else ("n.s." if p_ >= 0.05 else f"p={p_:.3f}")
         body.append(f"<tr{' class=best' if key == 'Ours_Regret' else ''}><td class='m'>{html.escape(lab)}</td><td>{_st.mean(w.values()):.3f}</td>"
                     + "".join(f"<td>{v:.3f}</td>" for v in pg) + f"<td>{acc:.1f}</td><td class='it'>{ptxt}</td></tr>")
-    return ("<p class='legend'><b>Read this before the accuracy columns above.</b> The dataset is about 90% negative, so accuracy rewards a model for leaning towards 'no CVD'; "
+    _default = ("<p class='legend'><b>Read this before the accuracy columns above.</b> The dataset is about 90% negative, so accuracy rewards a model for leaning towards 'no CVD'; "
             "AUROC does not depend on the threshold. On AUROC every method is the same: about 0.77 / 0.57-0.61 / 0.70 on the three groups, including a separate model per group, "
             "and no method differs significantly from the full method. So the full method's +9 points of worst-group accuracy over separate models is a shift in operating point, "
             "not better discrimination: the two methods with the highest accuracy (Flex-MoE and the full method) have the lowest AUROC. "
-            "Flex-MoE predicts only the majority class on 2-3 of 10 seeds per group; our anchored arms do so on G1 in 4 of 10 seeds.</p>"
-            "<div class='card'><table class='data'><thead><tr><th class='it'>method</th><th>worst-group AUROC</th><th>G0 survey</th><th>G1 body + HbA1c/HDL</th><th>G2 BP + lipids</th>"
+            "Flex-MoE predicts only the majority class on 2-3 of 10 seeds per group; our anchored arms do so on G1 in 4 of 10 seeds.</p>")
+    return ((note or _default) +
+            "<div class='card'><table class='data'><thead><tr><th class='it'>method</th><th>worst-group AUROC</th>" + "".join(f"<th>{html.escape(c)}</th>" for c in gcols) +
             "<th>worst-group acc (for reference)</th><th class='it'>AUROC vs full method</th></tr></thead><tbody>" + "".join(body) + "</tbody></table></div>")
 
 
@@ -1357,6 +1359,13 @@ def updated_baselines_page():
                 blk.append(f"<tr><td class='it'>{arm_lab if mi == 0 else ''}</td><td class='it'>{mname}</td>{''.join(cells)}</tr>")
         blk.append("</tbody></table></div><p class='legend'>Paired over 10 seeds against each baseline at its published configuration. Strong shading = p &lt; 0.05, pale = not separable.</p>")
         out.append("".join(blk))
+        if label == "NHANES" and os.path.exists("runs/nhanes_v3/auroc_long.csv"):
+            out.append(auroc_block("runs/nhanes_v3/auroc_long.csv", gcols=("G0 survey only", "G1 + exam", "G2 + labs"), note=(
+                "<p class='legend'><b>AUROC check (threshold-free).</b> NHANES is about 90% negative, so accuracy depends on where a model puts its threshold. "
+                "Against the published baselines the result holds on AUROC too: the full method's worst-group AUROC is 0.760 against 0.723 (Flex-MoE), 0.722 (REMIND) and 0.712 (Reweigh), "
+                "all significant (p = 0.04, 0.002, &lt; 0.001). Inside our own ablation it does not: the anchors raise worst-group accuracy by about 3 points but lower worst-group AUROC "
+                "(0.775 for per-group GroupDRO to 0.760 with anchors, p = 0.04), so that accuracy gain is a shift in operating point, not better discrimination. "
+                "The highest AUROC in the table is ERM on the ten common survey features (0.785).</p>")))
         if label.startswith("NHANES with no") and os.path.exists("runs/nhanes_nooverlap_v3/auroc_long.csv"):
             out.append(auroc_block("runs/nhanes_nooverlap_v3/auroc_long.csv"))
         for stem, cap in UBFIGS.get(label, []):

@@ -76,3 +76,19 @@ have the lowest AUROC. Majority-class seeds (macro-F1 < 0.48): Flex-MoE 2-3 of 1
 anchored arms 4 of 10 on G1; REMIND 1; Reweigh 0. Both our arms and the baselines select the
 reported epoch on validation worst-group ACCURACY, which itself favours majority-leaning epochs on
 this data. The same caution applies to the accuracy gains on the main NHANES table.
+
+## AUROC on the MAIN NHANES table (2026-09-21, late)
+Baselines re-run with AUROC logging (`runs/baselines_v3/nhanes_auroc_*`; means reproduce the table
+run: worst-group acc within 0.15, worst-group loss identical to 3 decimals). Our arms' AUROC comes
+from the trainer's own per-group logging at the validation-selected epoch. `runs/nhanes_v3/auroc_long.csv`.
+
+Worst-group AUROC, 10 seeds: ERM common features 0.785; shared anchors + GroupDRO 0.781; per-group
+Regret-DRO 0.776; per-group GroupDRO 0.775; shared GroupDRO 0.772; AnchorsOnly 0.766; per-group ERM
+0.765; per-group + anchors + GroupDRO 0.761; full method 0.760; Flex-MoE 0.723; REMIND 0.722;
+Reweigh 0.712.
+
+- Against the published baselines the result HOLDS on the threshold-free metric: full method vs
+  Flex-MoE p = 0.04, vs REMIND p = 0.002, vs Reweigh p < 0.001.
+- Inside our ablation the anchors' +3 worst-group accuracy does NOT reflect better discrimination:
+  per-group GroupDRO 0.775 vs full method 0.760 (p = 0.04, anchors lower). It is an operating-point
+  effect. ERM on the ten common features has the highest AUROC (better than the full method, p = 0.003).

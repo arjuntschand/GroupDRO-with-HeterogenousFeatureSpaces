@@ -545,17 +545,18 @@ JS = r"""
 function show(id,el){document.querySelectorAll('section').forEach(s=>s.classList.remove('on'));
 document.getElementById(id).classList.add('on');
 document.querySelectorAll('nav a').forEach(a=>a.classList.remove('on'));el.classList.add('on');
-document.body.classList.toggle('plan',id==='sec-plan');
+document.body.classList.toggle('plan',!!document.getElementById(id).querySelector('.toc'));
 window.scrollTo(0,0);spy();}
-document.addEventListener('DOMContentLoaded',function(){document.body.classList.toggle('plan',!!document.querySelector('#sec-plan.on'))});
+document.addEventListener('DOMContentLoaded',function(){document.body.classList.toggle('plan',!!document.querySelector('section.on .toc'))});
 
-/* Final-results sidebar: the entry whose heading was passed most recently glows. */
-function spy(){var toc=document.getElementById('fr-toc');if(!toc||!document.getElementById('sec-plan').classList.contains('on'))return;
+/* Sidebars (.toc): the entry whose heading was passed most recently glows. Works for whichever
+   tab is open; a tab without a .toc is untouched. */
+function spy(){var sec=document.querySelector('section.on');if(!sec)return;var toc=sec.querySelector('.toc');if(!toc)return;
 var ids=[].map.call(toc.querySelectorAll('a'),function(a){return a.getAttribute('data-t')});var cur=ids[0];
 ids.forEach(function(id){var h=document.getElementById(id);if(h&&h.getBoundingClientRect().top<140)cur=id;});
 toc.querySelectorAll('a').forEach(function(a){a.classList.toggle('on',a.getAttribute('data-t')===cur)});}
 window.addEventListener('scroll',spy,{passive:true});window.addEventListener('load',spy);
-document.addEventListener('click',function(e){var a=e.target.closest('#fr-toc a');if(!a)return;e.preventDefault();
+document.addEventListener('click',function(e){var a=e.target.closest('.toc a');if(!a)return;e.preventDefault();
 var h=document.getElementById(a.getAttribute('data-t'));if(h){window.scrollTo({top:h.getBoundingClientRect().top+window.scrollY-100,behavior:'smooth'});}});
 
 /* Sortable tables.
@@ -1151,7 +1152,13 @@ def updated_baselines_page():
     """'Updated baselines' tab: results under the corrected pipeline (review of 2026-09-20).
     Same table format as the Baselines tab. A dataset appears only once its corrected runs exist,
     so nothing from the earlier pipeline is mixed in."""
-    out = ["<h2>Updated baselines (corrected pipeline)</h2>",
+    side = ("<aside class='toc' id='ub-toc'><div class='toc-t'>On this page</div>"
+            "<a href='#ub-what' data-t='ub-what'>What was corrected</a>"
+            "<a href='#ub-Fed-Heart' data-t='ub-Fed-Heart'>Fed-Heart</a>"
+            "<a href='#ub-NHANES' data-t='ub-NHANES'>NHANES</a>"
+            "<a href='#ub-EMBED' data-t='ub-EMBED'>EMBED</a>"
+            "<a href='#ub-nocommon' data-t='ub-nocommon'>No common information</a></aside>")
+    out = [side, "<h2 id='ub-what'>Updated baselines (corrected pipeline)</h2>",
            "<p class='sub'>Re-runs after the code review of 2026-09-20. This tab is the current set of results. Every other tab (Final results, Overview, the dataset pages, Plots, Baselines) still shows the earlier pipeline and is kept for comparison until its figures are regenerated.</p>",
            "<div class='note'><b>What was corrected.</b> "
            "(1) <b>Folds:</b> Fed-Heart now uses one fixed stratified 5-fold partition per site, so every patient is tested exactly once; "
@@ -1232,7 +1239,9 @@ def updated_baselines_page():
             if os.path.exists(path):
                 for m, v in load(path).items():
                     merged[f"{m}__{tag}"] = v
-        out.append(f"<h3>{label}</h3><p class='legend'>{html.escape(note)}</p>")
+        _aid = "ub-nocommon" if "no common" in label else "ub-" + label
+        out.append(f"<h3 id='{_aid}' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>{label}</h3>"
+                   f"<p class='legend'>{html.escape(note)}</p>")
         out.append(f"<div class='card'>{baseline_table(merged, None, rows=rows)}</div>")
         # paired comparison block: full method and best per-group arm against each baseline
         def ws(bs): return worst_by_seed(bs), worst_loss_by_seed(bs), {sd: max(g['excess'] for g in gr.values()) for sd, gr in bs.items() if gr}

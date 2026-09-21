@@ -1227,10 +1227,9 @@ def updated_baselines_page():
                ("RegretDRO", "Per-group encoders + Regret-DRO", "base"),
                ("GroupDRO", "Per-group encoders + GroupDRO", "base"),
                ("PerGroupOnly", "Per-group encoders + ERM (shared head)", "base"),
-               ("Independent", "Independent model per group (nothing shared)", "base"),
-               ("SharedPad_Anchors_GDRO", "One shared encoder on zero-filled inputs + anchors + GroupDRO", "base"),
-               ("SharedPad_GDRO", "One shared encoder on zero-filled inputs + GroupDRO", "base"),
-               ("SharedPad_ERM", "One shared encoder on zero-filled inputs + ERM", "base")]
+               ("Independent", "Separate model per group (nothing shared)", "base"),
+               ("SharedPad_ERM", "Imputation baseline: fill missing features, one model, ERM", "base"),
+               ("SharedPad_Anchors_GDRO", "Imputation baseline + our anchors + GroupDRO", "base")]
     _FIXNOTE = ("Corrected 2026-09-21. The earlier version of this table was wrong in two ways: it listed 'common features' models, which have no input at all "
                 "when nothing is common (they could only predict a constant), and the baseline script read the nested column layout, so Reweigh, Flex-MoE and REMIND "
                 "received no real inputs for two of the three groups. Both are fixed. Flex-MoE carries a caveat: as published its first stage trains on patients who have "
@@ -1246,7 +1245,7 @@ def updated_baselines_page():
                   "But REMIND's architecture contributes nothing in this setting: its backbone trained with plain ERM gets 67.2, level with an independent model per group (65.6) "
                   "and per-group ERM (66.2); REMIND's gain over that comes from its group reweighting, and plain inverse-frequency reweighting (Reweigh) matches it. "
                   "Our anchors add +3.9 over per-group GroupDRO (69.5 to 73.4, p = 0.02), and that alignment term is the part the baselines have no counterpart for. "
-                  "And a single shared encoder on the zero-filled union of all features, with anchors and GroupDRO, ties on accuracy (74.2) with significantly lower "
+                  "And the imputation baseline (missing features filled with the mean, one model for everyone), once given our anchors and GroupDRO, ties on accuracy (74.2) with significantly lower "
                   "worst-group loss (0.521 vs 0.588, p = 0.01), so on this dataset per-group encoders are not what matters."))
     SPECS.append(("Fed-Heart with no common information (each hospital keeps one feature block)", "runs/fedheart_nooverlap_v3/metrics_long.csv",
                   "runs/baselines_v3/fedheart_nooverlap/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_NO,
@@ -1296,11 +1295,11 @@ def updated_baselines_page():
         out.append(f"<h3 id='{_aid}' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>{label}</h3>"
                    f"<p class='legend'>{html.escape(note)}</p>")
         out.append(f"<div class='card'>{baseline_table(merged, None, rows=rows)}</div>")
-        # paired comparison block: full method and best per-group arm against each baseline
+        # paired comparison block: the full method against each baseline (ablation arms live in the table above)
         def ws(bs): return worst_by_seed(bs), worst_loss_by_seed(bs), {sd: max(g['excess'] for g in gr.values()) for sd, gr in bs.items() if gr}
         blk = ["<div class='card'><table class='data'><thead><tr><th class='it'>our arm</th><th class='it'>metric</th>"
                "<th>vs Reweigh</th><th>vs Flex-MoE</th><th>vs REMIND</th></tr></thead><tbody>"]
-        for arm_key, arm_lab in [("Ours_Regret", "full method"), ("ours", "full method"), ("GroupDRO", "per-group + GroupDRO"), ("groupdro", "per-group + GroupDRO")]:
+        for arm_key, arm_lab in [("Ours_Regret", "full method"), ("ours", "full method")]:
             if arm_key not in merged:
                 continue
             fa, fl, fe = ws(merged[arm_key])

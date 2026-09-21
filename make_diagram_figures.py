@@ -153,7 +153,7 @@ def pict(S, x, y, kind):
 
 
 def intro():
-    S = Svg(792, 598, "Patients carry different sets of tests, so no single input space exists. Dropping to shared columns, imputing, one model "
+    S = Svg(792, 612, "Patients carry different sets of tests, so no single input space exists. Dropping to shared columns, imputing, one model "
                       "per group and modality fusion each give up a property; the proposed method keeps all measured data, imputes nothing and "
                       "couples groups even when they share no test, by giving each group its own encoder into one shared latent space with "
                       "class anchors. ERM and GroupDRO each miss a property of the objective; the proposed objective protects the group "
@@ -185,10 +185,10 @@ def intro():
     S.rect(310, 6, 476, 258, PANEL, LINE, 8)
     S.text(322, 30, "(b)  How to share: one model for everyone", T, weight="700")
     cx0, cwid = 524, 64
-    heads = [("keeps", "all data"), ("imputes", "nothing"), ("groups", "share"), ("no overlap", "needed")]
+    heads = [("keeps", "all data"), ("no", "imputation"), ("one", "model"), ("aligns", "groups")]
     for c, (h1, h2) in enumerate(heads):
         S.text(cx0 + c * cwid + cwid / 2, 54, h1, SM, "middle", fill=DIM); S.text(cx0 + c * cwid + cwid / 2, 69, h2, SM, "middle", fill=DIM)
-    rows = [("Shared columns only", "drop", [0, 1, 1, 0]), ("Imputation", "impute", [1, 0, 1, 1]),
+    rows = [("Shared columns only", "drop", [0, 1, 1, 0]), ("Imputation", "impute", [1, 0, 1, 0]),
             ("One model per group", "separate", [1, 1, 0, 0]), ("Modality fusion (MoE)", "fusion", [1, 1, 1, 0]),
             ("Ours", "ours", [1, 1, 1, 1])]
     for r, (name, kind, props) in enumerate(rows):
@@ -201,10 +201,10 @@ def intro():
             mark(S, cx0 + c * cwid + cwid / 2, yy + 16, ok)
 
     # ---------------- (c) ----------------
-    S.rect(6, 272, 396, 320, PANEL, LINE, 8)
+    S.rect(6, 272, 396, 334, PANEL, LINE, 8)
     S.text(18, 296, "(c)  Ours: share in a latent space", T, weight="700")
-    ys = [334, 382, 430, 478]
-    cyc = 414
+    ys = [344, 392, 440, 488]
+    cyc = 424
     for r in range(4):
         y = ys[r]; n = sum(HAVE[r])
         for k in range(n):
@@ -222,27 +222,29 @@ def intro():
             for _ in range(5):
                 S.circle(ax + rnd.gauss(0, 11), ay + rnd.gauss(0, 9), 2.8, GROUPS[g], op=0.9)
         S.star(ax, ay, 9, col)
+    S.line(232, cyc - 86, 238, cyc - 36, DIM, False, sw=0.9); S.text(262, cyc - 90, "outcome: no disease", SM, "middle", fill=DIM, weight="600")
+    S.line(292, cyc + 86, 288, cyc + 36, "#b8487a", False, sw=0.9); S.text(262, cyc + 98, "outcome: disease", SM, "middle", fill="#b8487a", weight="600")
     S.line(330, cyc, 344, cyc)
     S.rect(348, cyc - 20, 40, 40, "#ecebe6", INK, 5)
     S.add(f'<text x="368" y="{cyc+6}" font-size="17" text-anchor="middle" font-style="italic">ψ</text>')
-    S.text(124, 524, "one encoder", SM, "middle", fill=DIM); S.text(124, 539, "per group", SM, "middle", fill=DIM)
-    S.text(262, 524, "one shared", SM, "middle", fill=DIM); S.text(262, 539, "space", SM, "middle", fill=DIM)
-    S.text(368, 524, "one head", SM, "middle", fill=DIM); S.text(368, 539, "for all", SM, "middle", fill=DIM)
-    S.star(98, 569, 6.5, NEG); S.text(109, 574, "class anchor", SM, fill=DIM)
+    S.text(124, 548, "one encoder", SM, "middle", fill=DIM); S.text(124, 563, "per group", SM, "middle", fill=DIM)
+    S.text(262, 548, "one shared", SM, "middle", fill=DIM); S.text(262, 563, "space", SM, "middle", fill=DIM)
+    S.text(368, 548, "one head", SM, "middle", fill=DIM); S.text(368, 563, "for all", SM, "middle", fill=DIM)
+    S.star(26, 589, 6.5, NEG); S.text(37, 594, "class anchor, one per outcome", SM, fill=DIM)
     for g in range(4):
-        S.circle(222 + g * 7, 569, 2.8, GROUPS[g])
-    S.text(252, 574, "patients, by group", SM, fill=DIM)
+        S.circle(252 + g * 7, 589, 2.8, GROUPS[g])
+    S.text(282, 594, "patients, by group", SM, fill=DIM)
 
     # ---------------- (d) what to optimise ----------------
-    S.rect(410, 272, 376, 320, PANEL, LINE, 8)
+    S.rect(410, 272, 376, 334, PANEL, LINE, 8)
     S.text(422, 296, "(d)  What to optimise: the largest gap", T, weight="700")
-    base, scale, ax = 436, 104, 462
+    base, scale, ax = 430, 100, 462
     S.line(ax, base, ax, base - scale - 12, DIM, True); S.text(ax - 7, base - scale - 14, "loss", SM, "end", fill=DIM)
     for v in (0, 0.5, 1.0):
         S.line(ax - 4, base - v * scale, ax, base - v * scale, DIM, False); S.text(ax - 7, base - v * scale + 4.5, f"{v:g}", SM, "end", fill=DIM)
     S.line(ax, base, 776, base, DIM, False)
-    for i, (lab, loss, floor, who, col, pas) in enumerate([("Group A", 0.90, 0.85, "GroupDRO targets", GROUPS[0], PASTEL[0]),
-                                                           ("Group B", 0.60, 0.30, "we target", GROUPS[1], PASTEL[1])]):
+    for i, (lab, loss, floor, who, why, col, pas) in enumerate([("Group A", 0.90, 0.85, "GroupDRO picks A", "highest loss", GROUPS[0], PASTEL[0]),
+                                                                ("Group B", 0.60, 0.30, "Ours picks B", "largest gap", GROUPS[1], PASTEL[1])]):
         bx = 486 + i * 156
         S.rect(bx, base - loss * scale, 66, loss * scale, pas, col, 3)
         S.text(bx + 33, base - loss * scale - 6, f"loss {loss:.2f}", B, "middle", weight="600")
@@ -252,18 +254,20 @@ def intro():
         gy = base - (loss + floor) / 2 * scale
         S.text(bx + 80, gy + 4.5, f"gap {loss-floor:.2f}", SM, fill=RED, weight="700")
         S.text(bx + 33, base + 16, lab, B, "middle", weight="600")
-        S.text(bx + 33, base + 32, who, SM, "middle", fill=(RED if i else DIM), weight=("700" if i else "400"))
+        S.rect(bx + 33 - 68, base + 23, 136, 19, ("#f6dada" if i else "#e3e2dc"), (RED if i else DIM), 9.5, None, 1.1)
+        S.text(bx + 33, base + 37, who, SM, "middle", fill=(RED if i else INK), weight="700")
+        S.text(bx + 33, base + 57, why, SM, "middle", fill=DIM)
     # objective checklist, same visual language as (b)
     ox0, owid = 560, 74
     for c, (h1, h2) in enumerate([("robust to", "group mix"), ("protects", "worst group"), ("fair to", "hard groups")]):
-        S.text(ox0 + c * owid + owid / 2, 490, h1, SM, "middle", fill=DIM); S.text(ox0 + c * owid + owid / 2, 505, h2, SM, "middle", fill=DIM)
+        S.text(ox0 + c * owid + owid / 2, 512, h1, SM, "middle", fill=DIM); S.text(ox0 + c * owid + owid / 2, 526, h2, SM, "middle", fill=DIM)
     for r, (name, props) in enumerate([("ERM", [0, 0, 0]), ("GroupDRO", [1, 1, 0]), ("Ours: regret", [1, 1, 1])]):
-        yy = 512 + r * 26
+        yy = 531 + r * 24
         ours = r == 2
-        S.rect(418, yy, 360, 23, "#e2f3ea" if ours else "#ffffff", GREEN if ours else LINE, 5, None, 1.4 if ours else 0.9)
-        S.text(430, yy + 16.5, name, B, weight="700" if ours else "400")
+        S.rect(418, yy, 360, 21, "#e2f3ea" if ours else "#ffffff", GREEN if ours else LINE, 5, None, 1.4 if ours else 0.9)
+        S.text(430, yy + 15.5, name, B, weight="700" if ours else "400")
         for c, ok in enumerate(props):
-            mark(S, ox0 + c * owid + owid / 2, yy + 11.5, ok)
+            mark(S, ox0 + c * owid + owid / 2, yy + 10.5, ok)
     S.save("fig_intro_problem")
 
 

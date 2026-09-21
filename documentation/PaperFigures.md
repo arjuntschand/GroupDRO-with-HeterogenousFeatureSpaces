@@ -133,3 +133,15 @@ Re-render after editing the SVG:
   each group its own encoder into one latent space, where learnt class anchors align the groups
   under a single head. (d) Groups differ in the loss their measurements permit (dashed), so we
   train against the largest gap to that level rather than the largest loss."
+- 2026-09-21 (v4 of Figure 1): panel (b) columns are now keeps all data / no imputation / one model /
+  aligns groups. "No overlap needed" was dropped because our own no-overlap experiment shows
+  REMIND-style fusion runs fine without overlap; what it lacks is an alignment mechanism. "One model"
+  is the axis on which dedicated per-group models lose (the intro's maintenance argument). Panel (c)
+  labels the two anchors by outcome and the legend says "one per outcome". Panel (d) uses badges
+  ("GroupDRO picks A" / "Ours picks B") with the reason under each. Every tick is a design property,
+  not a performance claim; the caption should stay that way (the no-overlap results do not show a
+  performance win for latent sharing over dedicated models).
+  Caption, updated sentence for (b): "...separate models share nothing and multiply what has to be
+  deployed; modality-fusion mixtures of experts (e.g. Flex-MoE, REMIND) keep one model but have no
+  mechanism that aligns groups."
+

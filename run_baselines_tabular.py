@@ -263,6 +263,10 @@ def main():
                         logits, _ = model(xb, g)
                     if method == "Reweigh":
                         loss = reweigh(logits, y, g)
+                    elif method == "SoftMoE_ERM":
+                        # REMIND's backbone (Soft MoE, shared routing, no residuals) under plain
+                        # ERM: the reference for "does REMIND fall back to ERM?"
+                        loss = nn.functional.cross_entropy(logits, y, weight=cls_w)
                     else:
                         per = torch.zeros(ng, device=device)
                         present = torch.zeros(ng, dtype=torch.bool, device=device)

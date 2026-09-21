@@ -845,7 +845,7 @@ t-test cannot separate from the best are marked tied rather than ranked. Nothing
 selected for looking good.</div>"""
 
 
-def baseline_table(data, tail=None, rows=None):
+def baseline_table(data, tail=None, rows=None, na_rows=None):
     """Our arms and the external baselines side by side, with the Step 6 metric set.
 
     Parameter counts are included because Step 5 requires them on every row: these are
@@ -918,6 +918,9 @@ def baseline_table(data, tail=None, rows=None):
             f"{fcell(label, s_, 'wt_f1')}{fcell(label, s_, 'wt_loss', 3)}{fcell(label, s_, 'worst_loss', 3)}{fcell(label, s_, 'max_excess', 3)}"
             + (f"<td class='dim'>{int(npar):,}</td>" if npar else "<td class='na'>—</td>")
             + f"<td class='dim'>{s_['seeds']}</td></tr>")
+    for na_label, na_why in (na_rows or []):
+        rows.append(f"<tr><td class='m'>{html.escape(na_label)}<span class='tag ctrl'>external</span></td>"
+                    f"<td class='na' colspan='9' style='text-align:left'>n/a: {html.escape(na_why)}</td></tr>")
     foot = ("<p class='legend'>The green row is our method (per-group encoders + anchors + Regret-DRO); the anchors + GroupDRO row is its R* = 0 variant. Mean ± sd over 10 seeds; "
             "paired tests against each baseline are in the heatmaps at the top of the Final results tab.</p>")
     return ("<table class='data'><thead><tr><th>method</th>"
@@ -1163,7 +1166,7 @@ def auroc_block(path):
            ("RegretDRO", "Per-group encoders + Regret-DRO"), ("GroupDRO", "Per-group encoders + GroupDRO"),
            ("PerGroupOnly", "Per-group encoders + ERM (shared head)"), ("Independent", "Separate model per group (nothing shared)"),
            ("Imputation_ERM", "Imputation baseline, ERM"), ("Imputation_Anchors_GDRO", "Imputation baseline + our anchors + GroupDRO"),
-           ("Reweigh", "Reweigh"), ("FlexMoE", "Flex-MoE"), ("REMIND", "REMIND"), ("SoftMoE_ERM", "REMIND backbone with plain ERM")]
+           ("Reweigh", "Reweigh"), ("REMIND", "REMIND"), ("SoftMoE_ERM", "REMIND backbone with plain ERM")]
     d = defaultdict(lambda: defaultdict(dict))
     for r in _csv.DictReader(open(path)):
         d[r["method"]][int(r["seed"])][r["group"]] = (float(r["auroc"]), float(r["accuracy"]))
@@ -1183,8 +1186,8 @@ def auroc_block(path):
     return ("<p class='legend'><b>Read this before the accuracy columns above.</b> The dataset is about 90% negative, so accuracy rewards a model for leaning towards 'no CVD'; "
             "AUROC does not depend on the threshold. On AUROC every method is the same: about 0.77 / 0.57-0.61 / 0.70 on the three groups, including a separate model per group, "
             "and no method differs significantly from the full method. So the full method's +9 points of worst-group accuracy over separate models is a shift in operating point, "
-            "not better discrimination, and the two methods with the highest accuracy (Flex-MoE and the full method) have the lowest AUROC. Flex-MoE predicts only the majority class "
-            "on 2-3 of 10 seeds per group; our anchored arms do so on G1 in 4 of 10 seeds.</p>"
+            "not better discrimination: the full method has the highest accuracy in this table and the lowest AUROC. "
+            "Our anchored arms predict only the majority class on G1 in 4 of 10 seeds. Flex-MoE is not applicable in this setting (see the table above).</p>"
             "<div class='card'><table class='data'><thead><tr><th class='it'>method</th><th>worst-group AUROC</th><th>G0 survey</th><th>G1 body + HbA1c/HDL</th><th>G2 BP + lipids</th>"
             "<th>worst-group acc (for reference)</th><th class='it'>AUROC vs full method</th></tr></thead><tbody>" + "".join(body) + "</tbody></table></div>")
 
@@ -1266,9 +1269,8 @@ def updated_baselines_page():
                ("SharedPad_Anchors_GDRO", "Imputation baseline + our anchors + GroupDRO", "base")]
     _FIXNOTE = ("Corrected 2026-09-21. The earlier version of this table was wrong in two ways: it listed 'common features' models, which have no input at all "
                 "when nothing is common (they could only predict a constant), and the baseline script read the nested column layout, so Reweigh, Flex-MoE and REMIND "
-                "received no real inputs for two of the three groups. Both are fixed. Flex-MoE carries a caveat: as published its first stage trains on patients who have "
-                "every modality, and no such patient exists when groups share nothing; our implementation runs that warm-up on all patients (as it does in every other table), "
-                "so read its row as an approximation. ")
+                "received no real inputs for two of the three groups. Both are fixed. Flex-MoE is marked n/a: as published its first stage trains on patients who have "
+                "every modality, and no such patient exists when groups share nothing, so the method is not defined in this setting. ")
     SPECS.append(("NHANES with no common information (groups share no column)", "runs/nhanes_nooverlap_v3/metrics_long.csv",
                   "runs/baselines_v3/nhanes_nooverlap/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_NO,
                   _FIXNOTE +
@@ -1328,7 +1330,11 @@ def updated_baselines_page():
         _aid = ("ub-nocommon" if label.startswith("NHANES with no") else "ub-nocommon-fh" if label.startswith("Fed-Heart with no") else "ub-" + label)
         out.append(f"<h3 id='{_aid}' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>{label}</h3>"
                    f"<p class='legend'>{html.escape(note)}</p>")
-        out.append(f"<div class='card'>{baseline_table(merged, None, rows=rows)}</div>")
+        _na = ([("Flex-MoE", "not applicable when groups share nothing. As published, its first stage trains the experts on patients who have every modality, and no such patient exists here.")]
+               if "with no common" in label else None)
+        if _na:
+            merged = {k: v for k, v in merged.items() if not k.startswith("FlexMoE")}
+        out.append(f"<div class='card'>{baseline_table(merged, None, rows=rows, na_rows=_na)}</div>")
         # paired comparison block: the full method against each baseline (ablation arms live in the table above)
         def ws(bs): return worst_by_seed(bs), worst_loss_by_seed(bs), {sd: max(g['excess'] for g in gr.values()) for sd, gr in bs.items() if gr}
         blk = ["<div class='card'><table class='data'><thead><tr><th class='it'>our arm</th><th class='it'>metric</th>"
@@ -1342,7 +1348,7 @@ def updated_baselines_page():
                 for b in ["Reweigh", "FlexMoE", "REMIND"]:
                     bd = merged.get(f"{b}__released")
                     if not bd:
-                        cells.append("<td class='na'>-</td>"); continue
+                        cells.append("<td class='na'>n/a</td>"); continue
                     bser = ws(bd)[mi]
                     seeds = sorted(set(fser) & set(bser)); mm = lambda x: sum(x[k] for k in seeds) / len(seeds)
                     p_ = paired_p(fser, bser); sig = p_ is not None and p_ < 0.05

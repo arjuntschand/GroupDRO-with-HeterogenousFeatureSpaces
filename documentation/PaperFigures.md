@@ -118,3 +118,18 @@ Re-render after editing the SVG:
   with the Section 3.2 numbers. Figure 2 = system architecture in three lanes. The weight update is
   drawn with the signed excess (no clamp), matching the corrected code; the draft's eq. still has
   the [.]+ clamp and needs the same change.
+- 2026-09-21 (later): Figure 1 v2. Redrawn at print scale (canvas 792 px = 2x the 5.5 in text
+  width; smallest label 13 px = 6.5 pt). Groups are measurement patterns within one institution,
+  not sites, as in the intro. Panel (b) is now a properties checklist that includes modality
+  fusion / MoE (the family Flex-MoE and REMIND belong to) and an "Ours" row. Panel (d) says who
+  targets which group. To confirm with Xenia: the "invents nothing" tick for modality fusion
+  (Flex-MoE uses a learnt missing-modality embedding, which is a placeholder, not an imputed value).
+
+  Proposed caption: "Figure 1: (a) Patients receive different sets of tests, so groups of patients
+  occupy different feature spaces, and some groups share no test with any other. (b) Existing ways
+  of serving all of them with one model each give something up: restricting to shared columns
+  discards data and fails without overlap; imputation invents measurements that were never ordered;
+  separate models share nothing; modality fusion shares only through common modalities. (c) We give
+  each group its own encoder into one latent space, where learnt class anchors align the groups
+  under a single head. (d) Groups differ in the loss their measurements permit (dashed), so we
+  train against the largest gap to that level rather than the largest loss."

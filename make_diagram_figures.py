@@ -110,132 +110,152 @@ def mini_table(S, x, y, cw, ch, mode):
                     S.rect(xx, yy, cw - 3, ch - 3, "url(#hatch)", RED, 2, None, 0.9)
 
 
-def intro():
-    S = Svg(1240, 700, "Clinical groups record different measurements, so no single input space exists; keeping only common columns, imputing, "
-                       "or training one model per group each fail; this paper gives each group its own encoder into one shared space with "
-                       "one predictor and protects the group furthest from its own achievable loss.")
-    # ---------------- (a) the clinical reality ----------------
-    S.rect(14, 14, 596, 330, PANEL, LINE, 8)
-    S.text(30, 40, "(a)  Patients arrive with different measurements", 15, weight="700")
-    x0, y0, cw, ch = 222, 92, 74, 46
-    for c, name in enumerate(COLS):
-        S.text(x0 + c * cw + (cw - 6) / 2, y0 - 12, name, 9.5, "middle", fill=DIM)
-    for r, (name, have, n) in enumerate(SITES):
-        yy = y0 + r * ch
-        S.circle(40, yy + 19, 7, GROUPS[r])
-        S.text(54, yy + 17, name, 12.5, weight="600")
-        for i in range(n):                                   # patient count, drawn as dots
-            S.circle(57 + i * 9, yy + 29, 2.6, GROUPS[r], op=0.75)
-        for c in range(5):
-            if have[c]:
-                S.rect(x0 + c * cw, yy, cw - 6, ch - 8, PASTEL[r], GROUPS[r], 4)
+def intro_v1_unused():
+    pass
+
+# ---------------------------------------------------------------------------------------------
+# Figure 1 (introduction), v2. Canvas is 792 px = 2x the ICLR text width (5.5 in = 396 pt), so a
+# 14 px label prints at 7 pt. Nothing in the drawing is smaller than 13 px.
+# ---------------------------------------------------------------------------------------------
+TESTS = ["Survey", "Exam", "Labs", "Imaging"]
+HAVE = [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 0], [0, 0, 0, 1]]      # nested groups 1-3, group 4 shares nothing
+NPAT = [8, 5, 3, 2]
+GREEN = "#1a7f4b"
+
+
+def mark(S, x, y, ok):
+    if ok:
+        S.add(f'<path d="M{x-6},{y} L{x-2},{y+5} L{x+7},{y-6}" fill="none" stroke="{GREEN}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>')
+    else:
+        S.add(f'<path d="M{x-5},{y-5} L{x+5},{y+5} M{x-5},{y+5} L{x+5},{y-5}" fill="none" stroke="{RED}" stroke-width="2.4" stroke-linecap="round"/>')
+
+
+def pict(S, x, y, kind):
+    """4x4 thumbnail of what an approach does to the group x test table."""
+    cw, ch = 11, 7
+    for r in range(4):
+        for c in range(4):
+            xx, yy, h = x + c * cw, y + r * ch, HAVE[r][c]
+            if kind == "drop":
+                S.rect(xx, yy, cw - 2, ch - 2, "#dddbd4" if h else "#ffffff", LINE, 1, None, 0.7)
+            elif kind == "impute":
+                S.rect(xx, yy, cw - 2, ch - 2, PASTEL[r] if h else "#f0b9b9", GROUPS[r] if h else RED, 1, None, 0.7)
+            elif kind == "fusion":
+                S.rect(xx, yy, cw - 2, ch - 2, "#cfcdc6" if h else "#ffffff", LINE, 1, None, 0.7)
             else:
-                S.rect(x0 + c * cw, yy, cw - 6, ch - 8, "#ffffff", LINE, 4, "4 3")
-    # bracket: two groups with nothing in common
-    bx = x0 + 5 * cw + 2
-    S.path(f"M{bx},{y0+19} h10 v{3*ch} h-10", RED, False, sw=1.4)
-    S.text(bx - 2, y0 + 4 * ch + 12, "no test in common", 11, "end", fill=RED, weight="600")
-    # key
-    ky = 306
-    S.rect(30, ky, 22, 14, PASTEL[0], GROUPS[0], 3); S.text(58, ky + 11, "measured", 11, fill=DIM)
-    S.rect(130, ky, 22, 14, "#ffffff", LINE, 3, "4 3"); S.text(158, ky + 11, "never ordered", 11, fill=DIM)
-    S.circle(262, ky + 7, 2.6, GROUPS[0]); S.circle(271, ky + 7, 2.6, GROUPS[0]); S.text(280, ky + 11, "patients in the group", 11, fill=DIM)
+                if h:
+                    S.rect(xx, yy, cw - 2, ch - 2, PASTEL[r], GROUPS[r], 1, None, 0.8)
+    if kind == "drop":
+        S.line(x - 2, y + 4 * ch - 1, x + 4 * cw, y - 1, RED, False, sw=2)
+    if kind == "fusion":
+        for c in range(4):
+            S.rect(x + c * cw - 1, y - 1.5, cw, 4 * ch + 1, "none", INK, 1.5, None, 0.9)
+    if kind == "separate":
+        for r in range(1, 4):
+            S.line(x - 2, y + r * ch - 1, x + 4 * cw, y + r * ch - 1, INK, False, sw=0.9)
 
-    # ---------------- (b) three standard options ----------------
-    S.rect(626, 14, 600, 330, PANEL, LINE, 8)
-    S.text(642, 40, "(b)  One common model needs one input space", 15, weight="700")
-    cards = [("Keep shared columns", "common"), ("Impute the rest", "impute"), ("One model per group", "separate")]
-    for i, (title, mode) in enumerate(cards):
-        cx = 642 + i * 194
-        S.rect(cx, 58, 182, 272, "#ffffff", LINE, 6)
-        S.text(cx + 12, 82, title, 12.5, weight="700")
-        S.cross(cx + 164, 77)
-        if mode in ("common", "impute"):
-            mini_table(S, cx + 14, 100, 31, 24, mode)
-        if mode == "common":
-            for c in range(5):                                # no column survives the intersection
-                S.line(cx + 14 + c * 31 + 14, 96, cx + 14 + c * 31 + 14, 198, RED, False, sw=1.3)
-            S.line(cx + 91, 204, cx + 91, 226, DIM)
-            S.rect(cx + 50, 230, 82, 30, "#ffffff", RED, 4, "4 3")
-            S.text(cx + 91, 250, "∅", 16, "middle", fill=RED, weight="700")
-            S.text(cx + 91, 284, "no column is shared by all;", 10.5, "middle", fill=DIM)
-            S.text(cx + 91, 299, "labs and imaging discarded", 10.5, "middle", fill=DIM)
-        elif mode == "impute":
-            S.line(cx + 91, 204, cx + 91, 226, DIM)
-            S.rect(cx + 40, 230, 102, 30, "#ecebe6", INK, 4); S.text(cx + 91, 250, "one model", 11.5, "middle")
-            S.rect(cx + 14, 274, 16, 11, "url(#hatch)", RED, 2, None, 0.9)
-            S.text(cx + 36, 284, "invented values: 12 of 20", 10.5, fill=DIM)
-            S.text(cx + 36, 299, "blocks were never measured", 10.5, fill=DIM)
-        else:
-            for r, (_, have, n) in enumerate(SITES):
-                yy = 100 + r * 26
-                for k in range(n):
-                    S.circle(cx + 18 + k * 7, yy + 9, 2.4, GROUPS[r], op=0.8)
-                S.line(cx + 90, yy + 9, cx + 112, yy + 9, DIM)
-                S.rect(cx + 116, yy, 52, 18, PASTEL[r], GROUPS[r], 3); S.text(cx + 142, yy + 13, f"model {r+1}", 10, "middle")
-            S.path(f"M{cx+34},{100+3*26+24} v14", RED, False, sw=1.3)
-            S.text(cx + 14, 232, "few patients", 11, fill=RED, weight="600")
-            S.text(cx + 91, 284, "small groups cannot support", 10.5, "middle", fill=DIM)
-            S.text(cx + 91, 299, "a model; nothing is shared", 10.5, "middle", fill=DIM)
 
-    # ---------------- (c) this paper ----------------
-    S.rect(14, 360, 800, 326, PANEL, LINE, 8)
-    S.text(30, 386, "(c)  This paper: separate inputs, one shared space, one predictor", 15, weight="700")
-    S.tick(792, 381)
-    ys = [424, 484, 544, 604]
-    widths = [26, 52, 104, 26]
-    for r, (name, have, n) in enumerate(SITES):
-        y = ys[r]
-        S.text(30, y - 6, name, 11, fill=DIM)
-        for k in range(widths[r] // 26 * 1):
-            pass
-        ncell = sum(have)
-        for k in range(ncell):
-            S.rect(30 + k * 28, y, 24, 24, PASTEL[r], GROUPS[r], 3)
-        S.line(30 + 4 * 28 + 6, y + 12, 196, y + 12, DIM)
-        hin = 10 + ncell * 7                                     # encoder: input side scales with the group's feature count
-        S.poly([(200, y + 12 - hin / 2 - 4), (270, y + 2), (270, y + 22), (200, y + 12 + hin / 2 + 4)], PASTEL[r], GROUPS[r])
-        S.text(236, y + 16, f"enc. {r+1}", 10, "middle")
-        S.path(f"M272,{y+12} C320,{y+12} 320,{514 + (r-1.5)*16:.0f} 362,{514 + (r-1.5)*16:.0f}", DIM)
-    S.text(235, 660, "one encoder per group", 11.5, "middle", weight="600")
-    # shared space
-    S.ellipse(470, 514, 108, 104, "#ffffff", INK)
-    rnd = random.Random(3)
-    for cx_, cy_, col in [(430, 490, NEG), (512, 540, POS)]:
-        S.ellipse(cx_, cy_, 46, 38, col, col, "5 3", 0.13)
+def intro():
+    S = Svg(792, 566, "Patients carry different sets of tests, so no single input space exists. Dropping to shared columns, imputing, one model "
+                      "per group and modality fusion each give up a property; the proposed method keeps all measured data, invents nothing and "
+                      "couples groups even when they share no test, by giving each group its own encoder into one shared latent space with "
+                      "class anchors, and it protects the group furthest from its own achievable loss rather than the group with the highest loss.")
+    T, B, SM = 16, 14, 13                                          # title / body / smallest label, in px (= 8 / 7 / 6.5 pt in print)
+    # ---------------- (a) ----------------
+    S.rect(6, 6, 296, 274, PANEL, LINE, 8)
+    S.text(18, 30, "(a)  Patients carry different tests", T, weight="700")
+    x0, y0, cw, ch = 96, 64, 50, 37
+    for c, name in enumerate(TESTS):
+        S.text(x0 + c * cw + (cw - 5) / 2, y0 - 9, name, SM, "middle", fill=DIM)
+    for r in range(4):
+        yy = y0 + r * ch
+        S.circle(24, yy + 11, 5.5, GROUPS[r]); S.text(34, yy + 16, f"Group {r+1}", B, weight="600")
+        for i in range(NPAT[r]):
+            S.circle(21 + i * 8, yy + 27, 2.4, GROUPS[r], op=0.75)
+        for c in range(4):
+            if HAVE[r][c]:
+                S.rect(x0 + c * cw, yy, cw - 5, ch - 6, PASTEL[r], GROUPS[r], 4)
+            else:
+                S.rect(x0 + c * cw, yy, cw - 5, ch - 6, "#ffffff", LINE, 4, "4 3")
+    S.text(154, 232, "Group 4 shares no test with the others", SM, "middle", fill=RED, weight="600")
+    ky = 252
+    S.rect(18, ky, 18, 12, PASTEL[0], GROUPS[0], 3); S.text(41, ky + 11, "measured", SM, fill=DIM)
+    S.rect(108, ky, 18, 12, "#ffffff", LINE, 3, "4 3"); S.text(131, ky + 11, "never ordered", SM, fill=DIM)
+    S.circle(226, ky + 6, 2.4, GROUPS[0]); S.circle(234, ky + 6, 2.4, GROUPS[0]); S.text(242, ky + 11, "patients", SM, fill=DIM)
+
+    # ---------------- (b) ----------------
+    S.rect(310, 6, 476, 274, PANEL, LINE, 8)
+    S.text(322, 30, "(b)  One model for everyone: the options", T, weight="700")
+    cx0, cwid = 524, 64
+    heads = [("keeps", "all data"), ("invents", "nothing"), ("groups", "share"), ("no overlap", "needed")]
+    for c, (h1, h2) in enumerate(heads):
+        S.text(cx0 + c * cwid + cwid / 2, 58, h1, SM, "middle", fill=DIM); S.text(cx0 + c * cwid + cwid / 2, 74, h2, SM, "middle", fill=DIM)
+    rows = [("Shared columns only", "drop", [0, 1, 1, 0]), ("Imputation", "impute", [1, 0, 1, 1]),
+            ("One model per group", "separate", [1, 1, 0, 0]), ("Modality fusion (MoE)", "fusion", [1, 1, 1, 0]),
+            ("Ours", "ours", [1, 1, 1, 1])]
+    for r, (name, kind, props) in enumerate(rows):
+        yy = 86 + r * 37
+        ours = kind == "ours"
+        S.rect(318, yy, 460, 33, "#e2f3ea" if ours else "#ffffff", GREEN if ours else LINE, 5, None, 1.4 if ours else 0.9)
+        pict(S, 328, yy + 3, kind)
+        S.text(382, yy + 22, name, B, weight="700" if ours else "400")
+        for c, ok in enumerate(props):
+            mark(S, cx0 + c * cwid + cwid / 2, yy + 17, ok)
+
+    # ---------------- (c) ----------------
+    S.rect(6, 288, 470, 272, PANEL, LINE, 8)
+    S.text(18, 312, "(c)  Ours: share in a latent space, not at the input", T, weight="700")
+    ys = [338, 382, 426, 470]
+    cyc = 415
+    for r in range(4):
+        y = ys[r]; n = sum(HAVE[r])
+        for k in range(n):
+            S.rect(18 + k * 19, y, 16, 16, PASTEL[r], GROUPS[r], 3)
+        S.line(80, y + 8, 100, y + 8, DIM)
+        hin = 8 + n * 8
+        S.poly([(104, y + 8 - hin / 2), (160, y - 1), (160, y + 17), (104, y + 8 + hin / 2)], PASTEL[r], GROUPS[r])
+        S.add(f'<text x="133" y="{y+13}" font-size="{B}" text-anchor="middle">{sub("φ", str(r+1), B)}</text>')
+        S.path(f"M162,{y+8} C196,{y+8} 190,{cyc + (r-1.5)*14:.0f} 218,{cyc + (r-1.5)*14:.0f}", DIM)
+    S.ellipse(300, cyc, 80, 78, "#ffffff", INK)
+    rnd = random.Random(5)
+    for ax, ay, col in [(270, cyc - 22, NEG), (330, cyc + 24, POS)]:
+        S.ellipse(ax, ay, 36, 30, col, col, "5 3", 0.14)
         for g in range(4):
-            for _ in range(7):
-                S.circle(cx_ + rnd.gauss(0, 17), cy_ + rnd.gauss(0, 14), 3, GROUPS[g], op=0.85)
-        S.star(cx_, cy_, 10, col)
-    S.text(470, 660, "shared space, one target per outcome", 11.5, "middle", weight="600")
-    S.line(580, 514, 622, 514)
-    S.rect(626, 490, 66, 48, "#ecebe6", INK, 5); S.text(659, 511, "one", 11.5, "middle"); S.text(659, 526, "predictor", 11.5, "middle")
-    S.line(694, 514, 730, 514)
-    S.text(736, 510, "risk for", 11, fill=DIM); S.text(736, 524, "every patient", 11, fill=DIM)
-    S.star(610, 596, 7, NEG); S.text(622, 600, "class anchor (learnt)", 10.5, fill=DIM)
+            for _ in range(5):
+                S.circle(ax + rnd.gauss(0, 13), ay + rnd.gauss(0, 10), 2.8, GROUPS[g], op=0.9)
+        S.star(ax, ay, 9, col)
+    S.line(382, cyc, 404, cyc)
+    S.rect(408, cyc - 20, 56, 40, "#ecebe6", INK, 5)
+    S.add(f'<text x="436" y="{cyc+6}" font-size="17" text-anchor="middle" font-style="italic">ψ</text>')
+    S.text(133, 512, "one encoder", SM, "middle", fill=DIM); S.text(133, 527, "per group", SM, "middle", fill=DIM)
+    S.text(300, 512, "one shared space", SM, "middle", fill=DIM)
+    S.text(436, 512, "one head", SM, "middle", fill=DIM); S.text(436, 527, "for all", SM, "middle", fill=DIM)
+    S.star(232, 545, 6.5, NEG); S.text(243, 550, "class anchor", SM, fill=DIM)
     for g in range(4):
-        S.circle(606 + g * 8, 618, 3, GROUPS[g])
-    S.text(642, 622, "patients, by group", 10.5, fill=DIM)
+        S.circle(336 + g * 7, 545, 2.8, GROUPS[g])
+    S.text(366, 550, "patients", SM, fill=DIM)
 
-    # ---------------- (d) loss versus regret ----------------
-    S.rect(828, 360, 398, 326, PANEL, LINE, 8)
-    S.text(844, 386, "(d)  Which group needs the help?", 15, weight="700")
-    base, top, scale = 636, 420, 216                              # loss 0..1 over 216 px
-    S.line(876, base, 876, top + 2, DIM, True); S.text(876, top - 8, "loss", 10.5, "middle", fill=DIM)
+    # ---------------- (d) ----------------
+    S.rect(484, 288, 302, 272, PANEL, LINE, 8)
+    S.text(496, 312, "(d)  Ours: protect the largest gap", T, weight="700")
+    base, scale, ax = 496, 136, 530
+    S.line(ax, base, ax, base - scale - 14, DIM, True); S.text(ax, base - scale - 20, "loss", SM, "middle", fill=DIM)
     for v in (0, 0.5, 1.0):
-        S.line(872, base - v * scale, 876, base - v * scale, DIM, False); S.text(868, base - v * scale + 4, f"{v:g}", 10, "end", fill=DIM)
-    S.line(876, base, 1210, base, DIM, False)
-    for i, (lab, loss, floor, col, pas) in enumerate([("Group 1", 0.90, 0.85, GROUPS[0], PASTEL[0]), ("Group 2", 0.60, 0.30, GROUPS[1], PASTEL[1])]):
-        bx = 912 + i * 158
-        S.rect(bx, base - loss * scale, 64, loss * scale, pas, col, 3)
-        S.text(bx + 32, base - loss * scale - 8, f"loss {loss:.2f}", 11, "middle", weight="600")
-        S.line(bx - 12, base - floor * scale, bx + 76, base - floor * scale, INK, False, "5 3", 1.4)
-        S.text(bx + 80, base - floor * scale + 4, f"best {floor:.2f}", 10.5, fill=DIM)
-        S.path(f"M{bx+70},{base - loss*scale} v{(loss-floor)*scale}", RED, False, sw=3)
-        S.text(bx + 80, base - (loss + floor) / 2 * scale + (4 if i else -8), f"gap {loss-floor:.2f}", 10.5, fill=RED, weight="600")
-        S.text(bx + 32, base + 16, lab, 11.5, "middle", weight="600")
-    S.text(944, 672, "highest loss", 11, "middle", fill=DIM)
-    S.text(1102, 672, "furthest from its best", 11, "middle", fill=RED, weight="600")
+        S.line(ax - 4, base - v * scale, ax, base - v * scale, DIM, False); S.text(ax - 7, base - v * scale + 4.5, f"{v:g}", SM, "end", fill=DIM)
+    S.line(ax, base, 776, base, DIM, False)
+    for i, (lab, loss, floor, who, col, pas) in enumerate([("Group A", 0.90, 0.85, "GroupDRO targets", GROUPS[0], PASTEL[0]),
+                                                           ("Group B", 0.60, 0.30, "we target", GROUPS[1], PASTEL[1])]):
+        bx = 548 + i * 122
+        S.rect(bx, base - loss * scale, 66, loss * scale, pas, col, 3)
+        S.text(bx + 33, base - loss * scale - 7, f"loss {loss:.2f}", B, "middle", weight="600")
+        S.line(bx - 8, base - floor * scale, bx + 74, base - floor * scale, INK, False, "5 3", 1.5)
+        S.text(bx + 33, base - floor * scale + 16, f"best {floor:.2f}", SM, "middle", fill=DIM)
+        S.path(f"M{bx+72},{base - loss*scale} v{(loss-floor)*scale}", RED, False, sw=3.2)
+        gy = base - (loss + floor) / 2 * scale
+        S.text(bx + 80, gy + (5 if i else -4), "gap", SM, fill=RED, weight="700"); S.text(bx + 80, gy + (20 if i else 11), f"{loss-floor:.2f}", SM, fill=RED, weight="700")
+        S.text(bx + 33, base + 17, lab, B, "middle", weight="600")
+        S.text(bx + 33, base + 34, who, SM, "middle", fill=(RED if i else DIM), weight=("700" if i else "400"))
+    S.text(635, base + 54, "illustrative numbers (Section 3.2)", SM, "middle", fill=DIM, italic=True)
     S.save("fig_intro_problem")
 
 

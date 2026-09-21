@@ -1268,21 +1268,19 @@ def updated_baselines_page():
                ("SharedPad_ERM", "Imputation baseline: fill missing features, one model, ERM", "base"),
                ("SharedPad_Anchors_GDRO", "Imputation baseline + our anchors + GroupDRO", "base")]
     _FIXNOTE = ("Corrected 2026-09-21. The earlier version of this table was wrong in two ways: it listed 'common features' models, which have no input at all "
-                "when nothing is common (they could only predict a constant), and the baseline script read the nested column layout, so Reweigh, Flex-MoE and REMIND "
-                "received no real inputs for two of the three groups. Both are fixed. Flex-MoE is marked n/a: as published its first stage trains on patients who have "
+                "when nothing is common (they could only predict a constant), and our baseline script read the wrong columns on this split, so Reweigh, Flex-MoE and REMIND "
+                "received no real inputs for two of the three groups. Both were errors in our scripts, not in the methods, and are fixed. Flex-MoE is marked n/a: as published its first stage trains on patients who have "
                 "every modality, and no such patient exists when groups share nothing, so the method is not defined in this setting. ")
     SPECS.append(("NHANES with no common information (groups share no column)", "runs/nhanes_nooverlap_v3/metrics_long.csv",
                   "runs/baselines_v3/nhanes_nooverlap/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_NO,
                   _FIXNOTE +
                   "NHANES re-partitioned so the three groups share no feature (G0 survey, G1 body measures + HbA1c + HDL, G2 blood pressure + other lipids); 10 seeds. "
-                  "What holds: coupling groups that share nothing helps. The full method reaches 74.7 worst-group accuracy against 65.6 for an independent model per group "
-                  "and 66.2 for per-group encoders with a shared head and plain ERM (both p < 0.001); the anchors and the robust objective are what deliver the gain. "
-                  "What does not hold: that the baselines cannot run here. With the right inputs REMIND (72.1 | 0.563) and Reweigh (71.6 | 0.567) tie the full method on accuracy and loss. "
-                  "But REMIND's architecture contributes nothing in this setting: its backbone trained with plain ERM gets 67.2, level with an independent model per group (65.6) "
-                  "and per-group ERM (66.2); REMIND's gain over that comes from its group reweighting, and plain inverse-frequency reweighting (Reweigh) matches it. "
-                  "Our anchors add +3.9 over per-group GroupDRO (69.5 to 73.4, p = 0.02), and that alignment term is the part the baselines have no counterpart for. "
-                  "And the imputation baseline (missing features filled with the mean, one model for everyone), once given our anchors and GroupDRO, ties on accuracy (74.2) with significantly lower "
-                  "worst-group loss (0.521 vs 0.588, p = 0.01), so on this dataset per-group encoders are not what matters."))
+                  "REMIND and Reweigh are run exactly as published: REMIND defines a group as any modality combination and shares its experts and head across all groups, so disjoint groups need no change to it. "
+                  "On worst-group accuracy the full method is highest (74.7), against 72.1 for REMIND, 71.6 for Reweigh (both ties) and 65.6 for a separate model per group; "
+                  "REMIND's backbone trained with plain ERM is at 67.2, level with separate models, so REMIND's architecture adds nothing here and its gain comes from its group reweighting. "
+                  "But read the AUROC table below before drawing conclusions from accuracy: the dataset is about 90% negative, and on the threshold-free metric every method, "
+                  "including separate models, is the same. The accuracy differences in this table are differences in operating point, not in how well the models separate patients. "
+                  "On worst-group loss the full method (0.588) ties REMIND and Reweigh (0.563, 0.567); the imputation baseline with our anchors and GroupDRO is lower (0.521, p = 0.01)."))
     SPECS.append(("Fed-Heart with no common information (each hospital keeps one feature block)", "runs/fedheart_nooverlap_v3/metrics_long.csv",
                   "runs/baselines_v3/fedheart_nooverlap/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_NO,
                   "The 13 Fed-Heart features split into four clinical blocks fixed before any run (demographics + resting blood pressure; exercise test; chest-pain type; "

@@ -1164,9 +1164,8 @@ def auroc_block(path):
     from collections import defaultdict
     LAB = [("Ours_Regret", "Per-group + anchors + Regret-DRO (full method)"), ("Ours_GDRO", "Per-group + anchors + GroupDRO"),
            ("RegretDRO", "Per-group encoders + Regret-DRO"), ("GroupDRO", "Per-group encoders + GroupDRO"),
-           ("PerGroupOnly", "Per-group encoders + ERM (shared head)"), ("Independent", "Separate model per group (nothing shared)"),
-           ("Imputation_ERM", "Imputation baseline, ERM"), ("Imputation_Anchors_GDRO", "Imputation baseline + our anchors + GroupDRO"),
-           ("Reweigh", "Reweigh"), ("REMIND", "REMIND"), ("SoftMoE_ERM", "REMIND backbone with plain ERM")]
+           ("PerGroupOnly", "Per-group encoders + ERM (shared head)"), ("Independent", "Dedicated model per group (nothing shared)"),
+                      ("Reweigh", "Reweigh"), ("FlexMoE", "Flex-MoE"), ("REMIND", "REMIND"), ("SoftMoE_ERM", "REMIND backbone with plain ERM")]
     d = defaultdict(lambda: defaultdict(dict))
     for r in _csv.DictReader(open(path)):
         d[r["method"]][int(r["seed"])][r["group"]] = (float(r["auroc"]), float(r["accuracy"]))
@@ -1186,8 +1185,8 @@ def auroc_block(path):
     return ("<p class='legend'><b>Read this before the accuracy columns above.</b> The dataset is about 90% negative, so accuracy rewards a model for leaning towards 'no CVD'; "
             "AUROC does not depend on the threshold. On AUROC every method is the same: about 0.77 / 0.57-0.61 / 0.70 on the three groups, including a separate model per group, "
             "and no method differs significantly from the full method. So the full method's +9 points of worst-group accuracy over separate models is a shift in operating point, "
-            "not better discrimination: the full method has the highest accuracy in this table and the lowest AUROC. "
-            "Our anchored arms predict only the majority class on G1 in 4 of 10 seeds. Flex-MoE is not applicable in this setting (see the table above).</p>"
+            "not better discrimination: the two methods with the highest accuracy (Flex-MoE and the full method) have the lowest AUROC. "
+            "Flex-MoE predicts only the majority class on 2-3 of 10 seeds per group; our anchored arms do so on G1 in 4 of 10 seeds.</p>"
             "<div class='card'><table class='data'><thead><tr><th class='it'>method</th><th>worst-group AUROC</th><th>G0 survey</th><th>G1 body + HbA1c/HDL</th><th>G2 BP + lipids</th>"
             "<th>worst-group acc (for reference)</th><th class='it'>AUROC vs full method</th></tr></thead><tbody>" + "".join(body) + "</tbody></table></div>")
 
@@ -1264,23 +1263,22 @@ def updated_baselines_page():
                ("RegretDRO", "Per-group encoders + Regret-DRO", "base"),
                ("GroupDRO", "Per-group encoders + GroupDRO", "base"),
                ("PerGroupOnly", "Per-group encoders + ERM (shared head)", "base"),
-               ("Independent", "Separate model per group (nothing shared)", "base"),
-               ("SharedPad_ERM", "Imputation baseline: fill missing features, one model, ERM", "base"),
-               ("SharedPad_Anchors_GDRO", "Imputation baseline + our anchors + GroupDRO", "base")]
+               ("Independent", "Dedicated model per group (nothing shared)", "base")
+               ]
     _FIXNOTE = ("Corrected 2026-09-21. The earlier version of this table was wrong in two ways: it listed 'common features' models, which have no input at all "
                 "when nothing is common (they could only predict a constant), and our baseline script read the wrong columns on this split, so Reweigh, Flex-MoE and REMIND "
-                "received no real inputs for two of the three groups. Both were errors in our scripts, not in the methods, and are fixed. Flex-MoE is marked n/a: as published its first stage trains on patients who have "
-                "every modality, and no such patient exists when groups share nothing, so the method is not defined in this setting. ")
+                "received no real inputs for two of the three groups. Both were errors in our scripts, not in the methods, and are fixed. "
+                "Flex-MoE is run as in every other table: its released code warms up on all training samples, so it runs here unchanged. ")
     SPECS.append(("NHANES with no common information (groups share no column)", "runs/nhanes_nooverlap_v3/metrics_long.csv",
                   "runs/baselines_v3/nhanes_nooverlap/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_NO,
                   _FIXNOTE +
                   "NHANES re-partitioned so the three groups share no feature (G0 survey, G1 body measures + HbA1c + HDL, G2 blood pressure + other lipids); 10 seeds. "
                   "REMIND and Reweigh are run exactly as published: REMIND defines a group as any modality combination and shares its experts and head across all groups, so disjoint groups need no change to it. "
-                  "On worst-group accuracy the full method is highest (74.7), against 72.1 for REMIND, 71.6 for Reweigh (both ties) and 65.6 for a separate model per group; "
+                  "On worst-group accuracy the full method gets 74.7, against 75.9 for Flex-MoE, 72.1 for REMIND, 71.6 for Reweigh (all ties) and 65.6 for a dedicated model per group; "
                   "REMIND's backbone trained with plain ERM is at 67.2, level with separate models, so REMIND's architecture adds nothing here and its gain comes from its group reweighting. "
                   "But read the AUROC table below before drawing conclusions from accuracy: the dataset is about 90% negative, and on the threshold-free metric every method, "
                   "including separate models, is the same. The accuracy differences in this table are differences in operating point, not in how well the models separate patients. "
-                  "On worst-group loss the full method (0.588) ties REMIND and Reweigh (0.563, 0.567); the imputation baseline with our anchors and GroupDRO is lower (0.521, p = 0.01)."))
+                  "On worst-group loss the full method (0.588) ties REMIND and Reweigh (0.563, 0.567) and is below Flex-MoE (0.675, p = 0.04)."))
     SPECS.append(("Fed-Heart with no common information (each hospital keeps one feature block)", "runs/fedheart_nooverlap_v3/metrics_long.csv",
                   "runs/baselines_v3/fedheart_nooverlap/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_NO,
                   "The 13 Fed-Heart features split into four clinical blocks fixed before any run (demographics + resting blood pressure; exercise test; chest-pain type; "
@@ -1328,10 +1326,7 @@ def updated_baselines_page():
         _aid = ("ub-nocommon" if label.startswith("NHANES with no") else "ub-nocommon-fh" if label.startswith("Fed-Heart with no") else "ub-" + label)
         out.append(f"<h3 id='{_aid}' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>{label}</h3>"
                    f"<p class='legend'>{html.escape(note)}</p>")
-        _na = ([("Flex-MoE", "not applicable when groups share nothing. As published, its first stage trains the experts on patients who have every modality, and no such patient exists here.")]
-               if "with no common" in label else None)
-        if _na:
-            merged = {k: v for k, v in merged.items() if not k.startswith("FlexMoE")}
+        _na = None
         out.append(f"<div class='card'>{baseline_table(merged, None, rows=rows, na_rows=_na)}</div>")
         # paired comparison block: the full method against each baseline (ablation arms live in the table above)
         def ws(bs): return worst_by_seed(bs), worst_loss_by_seed(bs), {sd: max(g['excess'] for g in gr.values()) for sd, gr in bs.items() if gr}

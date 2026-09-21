@@ -1607,6 +1607,12 @@ def build(outdir=SITE):
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "
                   f"class='{'on' if i == 0 else ''}'>{html.escape(t)}</a>"
                   for i, (t, sid) in enumerate(tabs))
+    # every tab except the corrected one and the glossary carries a banner, so numbers from the
+    # earlier pipeline cannot be mistaken for current ones
+    _OLD = ("<div class='note' style='border-left:4px solid #b03a3a'><b>Earlier pipeline.</b> The numbers on this tab predate the code review of 2026-09-20 "
+            "(holdout 'folds', test-set checkpoint selection, Cholesky in the Wasserstein term, clamped excess). They are kept so each correction can be quantified. "
+            "The current results are on the <b>Updated baselines</b> tab.</div>")
+    secs = [(sid, c if sid in ("sec-updated", "sec-methods") else _OLD + c) for sid, c in secs]
     body = "".join(f"<section id='{sid}' class='{'on' if i == 0 else ''}'>{c}</section>"
                    for i, (sid, c) in enumerate(secs))
     page = (f'<!doctype html><html><head><meta charset="utf-8">'

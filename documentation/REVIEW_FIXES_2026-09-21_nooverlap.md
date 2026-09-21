@@ -92,3 +92,25 @@ Reweigh 0.712.
 - Inside our ablation the anchors' +3 worst-group accuracy does NOT reflect better discrimination:
   per-group GroupDRO 0.775 vs full method 0.760 (p = 0.04, anchors lower). It is an operating-point
   effect. ERM on the ten common features has the highest AUROC (better than the full method, p = 0.003).
+
+## EMBED, no overlap: results (10 seeds)
+`runs/embed_disjoint_v3/metrics_long.csv` (arms from job g2.0, regret_only from g0.5; group_only's
+excess recomputed against the same references), baselines `runs/baselines_embed_disjoint`. Run on
+the laptop from the private S3 feature bundle (the GPU instance had no capacity); nothing from the
+bundle is tracked by git.
+
+worst-group acc | loss | excess: dedicated model per group 61.3 | 0.927 | 0.097; per-group GroupDRO
+59.4 | 0.994 | 0.161; full method 56.4 | 1.016 | 0.184; AnchorsOnly 62.0 | 1.024; Regret-DRO 64.3 |
+1.040; anchors + GroupDRO 56.4 | 1.041; per-group ERM 62.7 | 1.492 | 0.660; Flex-MoE 62.3 | 1.508 |
+0.748; REMIND 58.9 | 1.970 | 1.204; Reweigh 60.7 | 2.183 | 1.418.
+
+- Full method vs baselines: loss 33-53% lower, excess 75-87% lower (all p < 0.001); worst-group
+  accuracy lower than Flex-MoE (p = 0.007) and Reweigh (p = 0.001), tie with REMIND. The worst
+  group holds 44 exams, so accuracy moves in steps of 2.3 points.
+- Dedicated models beat the full method on worst-group loss (p < 0.001) and accuracy. Sharing does
+  not help on disjoint EMBED; the robust objective is what separates the DRO arms from ERM and from
+  the baselines. Anchors add nothing over per-group GroupDRO.
+
+Across all three no-overlap experiments: no method that shares parameters, ours included, beats a
+dedicated model per group on discrimination or loss (NHANES: equal AUROC; Fed-Heart: equal; EMBED:
+dedicated models better).

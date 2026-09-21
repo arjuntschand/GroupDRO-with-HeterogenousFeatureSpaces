@@ -1203,7 +1203,8 @@ def updated_baselines_page():
             "<a href='#ub-NHANES' data-t='ub-NHANES'>NHANES</a>"
             "<a href='#ub-EMBED' data-t='ub-EMBED'>EMBED</a>"
             "<a href='#ub-nocommon' data-t='ub-nocommon'>No common info: NHANES</a>"
-            "<a href='#ub-nocommon-fh' data-t='ub-nocommon-fh'>No common info: Fed-Heart</a></aside>")
+            "<a href='#ub-nocommon-fh' data-t='ub-nocommon-fh'>No common info: Fed-Heart</a>"
+            "<a href='#ub-nocommon-em' data-t='ub-nocommon-em'>No common info: EMBED</a></aside>")
     out = [side, "<h2 id='ub-what'>Updated baselines (corrected pipeline)</h2>",
            "<p class='sub'>Re-runs after the code review of 2026-09-20. This tab is the current set of results. Every other tab (Final results, Overview, the dataset pages, Plots, Baselines) still shows the earlier pipeline and is kept for comparison until its figures are regenerated.</p>",
            "<div class='note'><b>What was corrected.</b> "
@@ -1317,6 +1318,20 @@ def updated_baselines_page():
             ("fig11_latent_scatter_embed", "Unchanged from the earlier pipeline: the arms shown (per-group + GroupDRO with no anchors, with class anchors, with random anchors) do not use the regret update, and EMBED already had diagonal anchors with the closed-form distance. Real anchors align the six view groups (1.03 to 0.19); random anchors do not (0.69)."),
         ],
     }
+    ROWS_EM_NO = [("ours", "Per-group + anchors + Regret-DRO", "full"),
+                  ("align_only", "Per-group + anchors + GroupDRO", "abl"),
+                  ("regret_only", "Per-group encoders + Regret-DRO", "base"),
+                  ("groupdro", "Per-group encoders + GroupDRO", "base"),
+                  ("erm", "Per-group encoders + ERM (shared head)", "base"),
+                  ("group_only", "Dedicated model per group (nothing shared)", "base")]
+    SPECS.append(("EMBED with no common information (four groups, one view each)", "runs/embed_disjoint_v3/metrics_long.csv",
+                  "runs/baselines_embed_disjoint/metrics_long.csv", "runs/baselines_v3/__none__", ROWS_EM_NO,
+                  "Four groups with one mammography view each and no view in common: g1 FFDM CC (1,158 breasts), g2 C-View CC (the worst group, 44 test exams), g3 FFDM MLO, g6 C-View MLO (10,700 test exams). "
+                  "g4 and g5 are dropped because four views cannot give six disjoint groups. 10 seeds; step sizes carried over from the main EMBED runs; references re-estimated by 5-fold out-of-fold fits. "
+                  "The robust objective matters a great deal: every DRO arm has worst-group loss about 1.0 against 1.49 for ERM, and the full method's loss is 33-53% below Flex-MoE, REMIND and Reweigh "
+                  "(1.016 vs 1.508 / 1.970 / 2.183, all p < 0.001) with 75-87% lower excess. But sharing itself does not help: a dedicated model per group has the lowest worst-group loss (0.927, below the full "
+                  "method, p < 0.001) and higher worst-group accuracy (61.3 vs 56.4). Worst-group accuracy moves in steps of 2.3 points here (44 exams), and the full method is below Flex-MoE and Reweigh on it. "
+                  "The anchors add nothing over per-group GroupDRO (0.994)."))
     for label, op, relp, matp, rows, note in SPECS:
         if not (os.path.exists(op) and os.path.exists(relp)):
             continue
@@ -1325,7 +1340,8 @@ def updated_baselines_page():
             if os.path.exists(path):
                 for m, v in load(path).items():
                     merged[f"{m}__{tag}"] = v
-        _aid = ("ub-nocommon" if label.startswith("NHANES with no") else "ub-nocommon-fh" if label.startswith("Fed-Heart with no") else "ub-" + label)
+        _aid = ("ub-nocommon" if label.startswith("NHANES with no") else "ub-nocommon-fh" if label.startswith("Fed-Heart with no")
+                else "ub-nocommon-em" if label.startswith("EMBED with no") else "ub-" + label)
         out.append(f"<h3 id='{_aid}' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>{label}</h3>"
                    f"<p class='legend'>{html.escape(note)}</p>")
         _na = None

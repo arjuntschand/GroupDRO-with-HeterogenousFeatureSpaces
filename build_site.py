@@ -1152,7 +1152,7 @@ def updated_baselines_page():
     Same table format as the Baselines tab. A dataset appears only once its corrected runs exist,
     so nothing from the earlier pipeline is mixed in."""
     out = ["<h2>Updated baselines (corrected pipeline)</h2>",
-           "<p class='sub'>Re-runs after the code review of 2026-09-20. Every other tab still shows the earlier pipeline until all three datasets are redone.</p>",
+           "<p class='sub'>Re-runs after the code review of 2026-09-20. This tab is the current set of results. Every other tab (Final results, Overview, the dataset pages, Plots, Baselines) still shows the earlier pipeline and is kept for comparison until its figures are regenerated.</p>",
            "<div class='note'><b>What was corrected.</b> "
            "(1) <b>Folds:</b> Fed-Heart now uses one fixed stratified 5-fold partition per site, so every patient is tested exactly once; "
            "the earlier 'folds' were five independent 80/20 holdouts (about a third of patients never tested, a quarter tested twice or more). "
@@ -1170,6 +1170,11 @@ def updated_baselines_page():
     out.append("<div class='grid'>" + "".join(
         f"<div class='stat'><div class='k'>{n}</div><div class='v' style='font-size:20px'>{'corrected' if ok else 'pending'}</div>"
         f"<div class='d'>{'shown below' if ok else 're-run not finished; see the other tabs for the earlier pipeline'}</div></div>" for n, ok in STATUS) + "</div>")
+    out.append("<div class='note'><b>Regret or GroupDRO inside the full method?</b> The two anchored rows differ only in the weight signal. "
+               "Paired over 10 seeds (regret minus GroupDRO): Fed-Heart accuracy -1.0 (p = 0.07), loss -0.012 (n.s.), excess -0.037 (p = 0.07); "
+               "NHANES +0.3 / -0.005 / +0.003 (all n.s.); no-common-information NHANES +1.3 (n.s.), loss -0.013 (p = 0.03), excess -0.013 (p = 0.02); "
+               "EMBED +0.6 (n.s.), loss -0.068 (p = 0.02), excess -0.051 (p = 0.02). "
+               "So the regret variant is never significantly worse, and is significantly better on loss and excess in two of the four settings; on accuracy the two are tied everywhere.</div>")
     ROWS_FH = [("Ours_Regret", "Per-group + anchors + Regret-DRO", "full"),
                ("Ours", "Per-group + anchors + GroupDRO", "abl"),
                ("RegretDRO", "Per-group encoders + Regret-DRO", "base"),
@@ -1565,9 +1570,10 @@ def build(outdir=SITE):
             bl.append("<p class='legend'>Capacity-matched runs still in progress.</p>")
     tabs.append(("Baselines", "sec-baselines")); secs.append(("sec-baselines", "".join(bl)))
 
-    tabs.append(("Updated baselines", "sec-updated")); secs.append(("sec-updated", updated_baselines_page()))
     tabs.append(("Methods", "sec-methods")); secs.append(("sec-methods", methods_page()))
     tabs.insert(0, ("Final results", "sec-plan")); secs.insert(0, ("sec-plan", final_results_page(loaded, merged_bl)))
+    # corrected pipeline first: it is the tab that opens by default
+    tabs.insert(0, ("Updated baselines", "sec-updated")); secs.insert(0, ("sec-updated", updated_baselines_page()))
 
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "
                   f"class='{'on' if i == 0 else ''}'>{html.escape(t)}</a>"

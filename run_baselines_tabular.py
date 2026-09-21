@@ -77,6 +77,9 @@ def build_blocks(dataset: str, cfg: dict):
     return blocks, gb
 
 
+_LAST_AUROC: List[float] = []      # per-group AUROC of the most recent evaluate() call (binary tasks)
+
+
 def evaluate(model, loader, blocks, device, num_groups, num_classes):
     from dro_hetero_anchors.src.model.baselines import FlexMoESparse
     model.eval()
@@ -86,6 +89,7 @@ def evaluate(model, loader, blocks, device, num_groups, num_classes):
     tp = [[0] * num_classes for _ in range(num_groups)]
     fp = [[0] * num_classes for _ in range(num_groups)]
     fn = [[0] * num_classes for _ in range(num_groups)]
+    _pr = [[] for _ in range(num_groups)]; _yy = [[] for _ in range(num_groups)]
     with torch.no_grad():
         for x, y, g in loader:
             x, y, g = x.to(device), y.to(device), g.to(device)
@@ -93,6 +97,12 @@ def evaluate(model, loader, blocks, device, num_groups, num_classes):
             out = model(xb, g, warmup=False) if isinstance(model, FlexMoESparse) else model(xb, g)
             logits = out[0]
             loss = ce(logits, y); pred = logits.argmax(1)
+            if num_classes == 2:
+                _p1 = torch.softmax(logits, 1)[:, 1]
+                for gi_ in range(num_groups):
+                    _m = (g == gi_)
+                    if bool(_m.any()):
+                        _pr[gi_].extend(_p1[_m].tolist()); _yy[gi_].extend(y[_m].tolist())
             for i in range(x.size(0)):
                 gi, yi, pi = int(g[i]), int(y[i]), int(pred[i])
                 tg[gi] += 1; ls[gi] += float(loss[i]); lc[gi] += 1
@@ -108,6 +118,14 @@ def evaluate(model, loader, blocks, device, num_groups, num_classes):
             r = tp[gi][c] / max(1, tp[gi][c] + fn[gi][c])
             per.append(0.0 if p + r == 0 else 2 * p * r / (p + r))
         f1.append(sum(per) / len(per))
+    # threshold-free check: accuracy on a 90%-negative task rewards predicting the majority class
+    global _LAST_AUROC
+    _LAST_AUROC = []
+    if num_classes == 2:
+        from sklearn.metrics import roc_auc_score
+        for gi in range(num_groups):
+            ok = len(set(_yy[gi])) == 2
+            _LAST_AUROC.append(float(roc_auc_score(_yy[gi], _pr[gi])) if ok else float("nan"))
     return acc, loss_g, f1, tg
 
 
@@ -171,6 +189,7 @@ def main():
     for method in args.methods:
         for seed in args.seeds:
           fold_acc, fold_loss, fold_f1, fold_n = [], [], [], []
+          fold_auroc = []
           for fold in range(args.folds):
             torch.manual_seed(seed); np.random.seed(seed)
             cfg = copy.deepcopy(base); cfg["seed"] = seed
@@ -290,6 +309,7 @@ def main():
                     nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                     opt.step()
                 acc, lg, f1, tg = evaluate(model, te, blocks, device, ng, nc)
+                _te_auroc = list(_LAST_AUROC)
                 # Select on VALIDATION, report TEST, matching what our own arms do. Selecting on
                 # test gave the baselines a best-of-60 advantage on the very set the comparison
                 # is scored on.
@@ -299,8 +319,9 @@ def main():
                 else:
                     sel = min(acc)
                 if sel > best[0]:
-                    best = (sel, (acc, lg, f1, tg))
+                    best = (sel, (acc, lg, f1, tg), _te_auroc)
             acc, lg, f1, tg = best[1]
+            fold_auroc.append(best[2] if len(best) > 2 and best[2] else [float("nan")] * ng)
             n_par = sum(p.numel() for p in model.parameters())
             fold_acc.append(acc); fold_loss.append(lg); fold_f1.append(f1); fold_n.append(tg)
           # pool folds the same way run_fedheart_cv does: weight each fold by its test count,
@@ -312,12 +333,13 @@ def main():
           lg = ((L * W).sum(0) / den).tolist()
           f1 = ((F * W).sum(0) / den).tolist()
           tg = W.sum(0).astype(int).tolist()
+          au = np.nanmean(np.array(fold_auroc, dtype=float), 0).tolist()     # mean over folds
           print(f"  {method} s{seed}: worst={min(acc)*100:.2f} params={n_par:,} "
                 f"n/group={tg} per-group={[round(a*100,1) for a in acc]}", flush=True)
           for gi in range(ng):
                 rows.append(dict(method=method, seed=seed, group=f"g{gi}", n=tg[gi],
                                  n_params=n_par,
-                                 accuracy=acc[gi], macro_f1=f1[gi], loss=lg[gi],
+                                 accuracy=acc[gi], macro_f1=f1[gi], loss=lg[gi], auroc=au[gi],
                                  R_star=rstar[gi] if gi < len(rstar) else "",
                                  excess_loss=(lg[gi] - rstar[gi]) if gi < len(rstar) else ""))
 
@@ -325,7 +347,7 @@ def main():
     with open(p, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=["method", "seed", "group", "n", "n_params",
                                            "accuracy", "macro_f1", "loss", "R_star",
-                                           "excess_loss"])
+                                           "excess_loss", "auroc"])
         w.writeheader(); w.writerows(rows)
     print(f"\nwrote {p}  ({len(rows)} rows)")
 

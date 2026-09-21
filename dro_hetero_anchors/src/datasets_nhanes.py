@@ -477,6 +477,15 @@ def _load_and_preprocess_nhanes(
     labels = df["CVD"].values.astype(np.int64)
     groups = df["GROUP"].values.astype(np.int64)
 
+    # DIAGNOSTIC ONLY (never set in an experiment): NHANES_SCRAMBLE_GROUP=<g> permutes group g's
+    # feature rows among its own patients, which destroys the feature-label link for that group
+    # and nothing else. A method that really uses group g's inputs must fall to chance on g.
+    _scr = os.environ.get("NHANES_SCRAMBLE_GROUP")
+    if _scr is not None and _scr != "":
+        _rows = np.where(groups == int(_scr))[0]
+        features[_rows] = features[np.random.default_rng(0).permutation(_rows)]
+        print(f"[NHANES] DIAGNOSTIC: scrambled the features of group {_scr} ({len(_rows)} rows)")
+
     # Train/test split, stratified by group × class
     strat_key = groups * 10 + labels  # combined stratification key
     indices = np.arange(len(features))

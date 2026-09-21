@@ -48,3 +48,31 @@ not help here. Rotations 1-3 of the block-to-hospital assignment are queued.
 ## EMBED, no overlap
 `--disjoint`: g1 {M3}, g2 {M1}, g3 {M4}, g6 {M2}; g4 and g5 dropped (four views cannot give six
 disjoint groups). Runs in `runs/embed_disjoint_v3`, baselines in `runs/baselines_embed_disjoint`.
+
+## Checks added later on 2026-09-21
+
+**Input-scramble check** (`NHANES_SCRAMBLE_GROUP=<g>`, diagnostic hook in `datasets_nhanes.py`, seed 42):
+permuting one group's feature rows sends that group's macro-F1 to chance (about 0.47) for the full
+method, Independent, REMIND, Reweigh and the REMIND backbone under ERM, so all of them use every
+group's inputs. Flex-MoE does not change on G1/G2 because it already predicts only the majority
+class there (acc exactly 90.0 / 89.7).
+
+**REMIND's backbone under plain ERM** (`SoftMoE_ERM`): 67.2 worst-group accuracy, level with
+Independent (65.6) and per-group ERM (66.2). REMIND's 72.1 comes from its group reweighting;
+Reweigh matches it (71.6).
+
+**AUROC (threshold-free), NHANES no overlap, 10 seeds** (`runs/nhanes_nooverlap_v3/auroc_long.csv`;
+baselines re-run with AUROC logging in `runs/baselines_v3/nhanes_partition_auroc_*`):
+worst-group AUROC REMIND 0.607, Imputation-ERM 0.596, AnchorsOnly 0.595, REMIND-backbone-ERM 0.595,
+Independent 0.594, per-group ERM 0.587, Reweigh 0.583, GroupDRO 0.574, Imputation+anchors+GroupDRO
+0.570, Ours_GDRO 0.568, full method 0.567, RegretDRO 0.567, Flex-MoE 0.555. No method differs
+significantly from the full method (closest: REMIND, p = 0.07, in REMIND's favour). Per-group AUROC
+is about 0.77 / 0.57-0.61 / 0.70 for every method including separate models.
+
+Conclusion: on this split no method, ours included, discriminates better than a separate model per
+group. The +9 points of worst-group accuracy of the full method over Independent is an operating-
+point shift on a 90%-negative task, not better discrimination; the methods with the highest accuracy
+have the lowest AUROC. Majority-class seeds (macro-F1 < 0.48): Flex-MoE 2-3 of 10 per group; our
+anchored arms 4 of 10 on G1; REMIND 1; Reweigh 0. Both our arms and the baselines select the
+reported epoch on validation worst-group ACCURACY, which itself favours majority-leaning epochs on
+this data. The same caution applies to the accuracy gains on the main NHANES table.

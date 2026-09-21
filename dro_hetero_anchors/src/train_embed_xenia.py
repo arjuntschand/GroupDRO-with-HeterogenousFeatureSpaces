@@ -528,7 +528,12 @@ def main():
                     help="R~_g = min{fitted, constant predictor} - bootstrap margin c_g (draft eq. 13)")
     ap.add_argument("--save-latents", default=None,
                     help="directory to write the TEST latents (z, y, group) and anchor means per method and seed")
+    ap.add_argument("--disjoint", action="store_true",
+                    help="no-overlap variant: g1/g2/g3/g6 with one distinct view each (see model/embed_xenia.py)")
     args = ap.parse_args()
+    if args.disjoint:
+        from dro_hetero_anchors.src.model.embed_xenia import use_disjoint_views
+        use_disjoint_views()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     os.makedirs(args.out, exist_ok=True)

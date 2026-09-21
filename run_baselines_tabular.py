@@ -38,14 +38,37 @@ NHANES_GROUP_BLOCKS = {0: [0], 1: [0, 1], 2: [0, 1, 2]}
 def build_blocks(dataset: str, cfg: dict):
     """Return (block_feature_indices, group -> block ids)."""
     if dataset == "nhanes":
-        return NHANES_BLOCKS, NHANES_GROUP_BLOCKS
+        mode = cfg.get("feature_mode", "nested")
+        if mode == "nested":
+            return NHANES_BLOCKS, NHANES_GROUP_BLOCKS
+        # Any other layout: take the blocks from the loader's own per-group column lists. The
+        # nested constants above were previously used for every mode; on the no-overlap
+        # 'partition' layout (G0 cols 0-9, G1 cols 15-19, G2 cols 20-24) that fed G1 all-zero
+        # columns and never read G2's columns at all, so the baselines had no input for two of
+        # the three groups (found 2026-09-21).
+        from dro_hetero_anchors.src.datasets_nhanes import _get_feature_config
+        _, _, idx = _get_feature_config(mode)
+        sets = {g: set(v) for g, v in idx.items()}
+        shared = set.intersection(*sets.values())
+        blocks, gb = [], {g: [] for g in sets}
+        if shared:
+            blocks.append(sorted(shared))
+            for g in gb:
+                gb[g].append(0)
+        for g in sorted(sets):
+            extra = sorted(sets[g] - shared)
+            if extra:
+                blocks.append(extra); gb[g].append(len(blocks) - 1)
+        return blocks, gb
     # Fed-Heart: derive blocks from the per-group feature masks. Block 0 is the intersection
     # (features every site records); after that one block per site for the features unique to
     # it. That reproduces the modality-combination structure the paper assumes.
     masks = [set(m) for m in cfg["feature_mask"]]
     shared = set.intersection(*masks)
-    blocks = [sorted(shared)]
-    gb: Dict[int, List[int]] = {g: [0] for g in range(len(masks))}
+    # with no feature common to every site there is no shared block (an empty block would be a
+    # zero-width projection)
+    blocks = [sorted(shared)] if shared else []
+    gb: Dict[int, List[int]] = {g: ([0] if shared else []) for g in range(len(masks))}
     for gi, m in enumerate(masks):
         extra = sorted(m - shared)
         if extra:

@@ -32,6 +32,7 @@ METHODS = [   # (label, common_encoder, groupdro, anchor_weight, use_regret)
     # here even though this is the protocol we actually trust for Fed-Heart.
     ("ERM",                 True,  False, 0.0,   False),
     ("PerGroupOnly",        False, False, 0.0,   False),
+    ("Independent",         False, False, 0.0,   False),   # per-group encoders AND heads: one model per site
     ("Shared_GDRO",         True,  True,  0.0,   False),
     ("Shared_Anchors",      True,  False, 0.1,   False),
     ("Shared_Anchors_GDRO", True,  True,  0.1,   False),
@@ -132,6 +133,7 @@ def main():
             for k in range(args.folds):
                 cfg = copy.deepcopy(base)
                 cfg["common_encoder"] = shared
+                cfg["per_group_head"] = (label == "Independent")
                 cfg["groupdro_enabled"] = gdro
                 cfg["lambda_fit"] = anch
                 cfg["lambda_sep"] = anch

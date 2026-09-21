@@ -151,7 +151,12 @@ def main():
     ap.add_argument("--dro-gamma", type=float, default=0.02,
                     help="REMIND's sharpness gamma in lambda_k <- lambda_k exp(gamma R_k); the paper "
                          "sweeps {0.5, 0.1, 0.02} on EMBED and uses 0.02")
+    ap.add_argument("--disjoint", action="store_true",
+                    help="no-overlap variant: g1/g2/g3/g6 with one distinct view each (see model/embed_xenia.py)")
     args = ap.parse_args()
+    if args.disjoint:
+        from dro_hetero_anchors.src.model.embed_xenia import use_disjoint_views
+        use_disjoint_views()
 
     os.makedirs(args.out, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

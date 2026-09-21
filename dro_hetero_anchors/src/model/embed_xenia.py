@@ -36,6 +36,19 @@ GROUP_VIEWS: Dict[str, List[str]] = {               # views present in each grou
 }
 GROUPS = ["g1", "g2", "g3", "g4", "g5", "g6"]
 
+# No-overlap variant (2026-09-21): four groups, one view each, no view shared by two groups, so
+# nothing is shared at the input (the per-view projections below are then per-group too). Fixed
+# before any run: every group keeps the lowest-numbered view that no earlier group has taken;
+# g4 and g5 are dropped because four views cannot give six disjoint groups.
+DISJOINT_GROUP_VIEWS: Dict[str, List[str]] = {"g1": ["M3"], "g2": ["M1"], "g3": ["M4"], "g6": ["M2"]}
+
+
+def use_disjoint_views() -> None:
+    """Switch the module-level group definition in place, so every importer sees it. Call before
+    loading data or building a model."""
+    GROUP_VIEWS.clear(); GROUP_VIEWS.update(DISJOINT_GROUP_VIEWS)
+    GROUPS[:] = list(DISJOINT_GROUP_VIEWS)
+
 
 class DiagAnchors(nn.Module):
     """Per-class diagonal Gaussian anchors N(m_c, diag(s_c)), s_c = softplus(rho_c)+eps."""

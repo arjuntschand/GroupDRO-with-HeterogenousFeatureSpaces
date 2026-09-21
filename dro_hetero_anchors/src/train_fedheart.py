@@ -29,7 +29,7 @@ from .datasets_fedheart import (
     print_fedheart_summary,
 )
 from .encoders import ENCODER_REGISTRY
-from .model.head import LinearHead, MLPHead
+from .model.head import LinearHead, MLPHead, PerGroupHead, apply_head
 from .model.anchors import AnchorModule
 from .model.losses import diagonalize_moments, group_alignment_losses, per_class_batch_moments, anchor_fit_loss, anchor_sep_loss, FocalLoss, LabelSmoothingLoss
 from .model.groupdro import GroupDRO
@@ -80,9 +80,11 @@ def build_models(cfg, group_counts: List[int], device: torch.device) -> Tuple[Di
                 encoders[gid] = enc_cls(latent_dim)
     
     # Build classification head
-    head = (MLPHead(latent_dim, cfg["head_hidden"], cfg["num_classes"])
-            if cfg.get("head_hidden", 0) > 0 
-            else LinearHead(latent_dim, cfg["num_classes"]))
+    _mk_head = (lambda: MLPHead(latent_dim, cfg["head_hidden"], cfg["num_classes"])
+                if cfg.get("head_hidden", 0) > 0
+                else LinearHead(latent_dim, cfg["num_classes"]))
+    # per_group_head: no shared parameter at all, i.e. one independent model per site
+    head = PerGroupHead(_mk_head, num_groups) if cfg.get("per_group_head", False) else _mk_head()
     
     # Build anchor module
     anchors = AnchorModule(cfg["num_classes"], latent_dim, eps=cfg["anchor_eps"],
@@ -132,7 +134,7 @@ def _val_group_losses(encoders, head, loader, device, num_groups, feature_indice
             if feature_indices is not None and gid in feature_indices:
                 xg = xg[:, feature_indices[gid]]
             z[m] = enc(xg)
-        l = nn.functional.cross_entropy(head(z), y, reduction="none").double()
+        l = nn.functional.cross_entropy(apply_head(head, z, g), y, reduction="none").double()
         s.index_add_(0, g.long(), l); n.index_add_(0, g.long(), torch.ones_like(l))
     return [float(s[i] / n[i]) if n[i] > 0 else 0.0 for i in range(num_groups)]
 
@@ -209,7 +211,7 @@ def evaluate(encoders: Dict[int, nn.Module], head: nn.Module, loader,
                     x_g = x_g[:, feature_indices[gid]]
                 z[mask] = enc(x_g)
             
-            logits = head(z)
+            logits = apply_head(head, z, g)
             pred = logits.argmax(dim=1)
             losses = ce(logits, y)
             
@@ -617,7 +619,7 @@ def train(cfg):
                     x_g = x_g[:, feature_indices[gid]]
                 z[mask] = enc(x_g)
             
-            logits = head(z)
+            logits = apply_head(head, z, g)
             
             # Classification loss
             if groupdro is not None:

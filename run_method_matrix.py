@@ -67,6 +67,7 @@ METHODS = [
     # --- encoder x DRO x anchors, all eight cells ---
     ("ERM",                 True,  False, False, ANCHOR_OFF),   # 1 shared,    -,   -
     ("PerGroupOnly",        False, False, False, ANCHOR_OFF),   # 2 per-group, -,   -
+    ("Independent",         False, False, False, ANCHOR_OFF),   # per-group encoders AND heads: one model per group
     ("Shared_GDRO",         True,  True,  False, ANCHOR_OFF),   # 3 shared,    DRO, -
     ("GroupDRO",            False, True,  False, ANCHOR_OFF),   # 4 per-group, DRO, -
     ("Shared_Anchors",      True,  False, False, ANCHOR_ON),    # 5 shared,    -,   anchors
@@ -165,6 +166,7 @@ def main():
         for seed in args.seeds:
             cfg = copy.deepcopy(base)
             cfg["common_encoder"] = shared
+            cfg["per_group_head"] = (label == "Independent")
             cfg["groupdro_enabled"] = gdro
             cfg["use_regret"] = regret
             if regret:

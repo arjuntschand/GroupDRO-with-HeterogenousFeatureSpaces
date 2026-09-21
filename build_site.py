@@ -1231,6 +1231,22 @@ def updated_baselines_page():
                      "All three DRO arms sit at worst-group loss 1.04-1.07 against 1.35 for ERM, and 12-51% below every baseline (all significant), with 39-87% lower excess and "
                      "+1.2 to +7.8 overall accuracy (significant). Worst-group accuracy is a tie throughout: the worst group holds 37 exams. "
                      "The anchors add nothing over the unanchored DRO arms here."))
+    # figures regenerated from the corrected families (plot_mechanism.py --v3, run_latent_w2.py + plot_latent_scatter.py --suffix _v3)
+    UBFIGS = {
+        "Fed-Heart": [
+            ("fig5_dynamics_fedheart_groupdro_v3", "Per-group encoders + GroupDRO, corrected pipeline (10 seeds, fold 0). Top: per-group loss on train / validation / test, with the per-fold reference R* dashed. Bottom: group weight. The weight goes to VA (about 0.7) and Cleveland; Hungarian and Switzerland drop to zero. VA's test loss climbs from 0.55 to 0.93 while its training loss falls: with about 135 training patients (200 at the site, less the test fold and the validation split) the up-weighted group is overfitted, which is why the reported epoch (chosen on validation) is an early one."),
+            ("fig5_dynamics_fedheart_regretdro_v3", "Per-group encoders + Regret-DRO, same runs. With the signed excess the weight no longer collapses onto Switzerland as it did under the clamped update: Hungarian goes to zero and Cleveland, Switzerland and VA share the weight."),
+            ("fig11_latent_scatter_fedheart_v3", "Test patients of fold 0 (185 of the 920) in the shared latent space, first two principal components. Left: no anchors (weight exactly 0). Middle: class anchors. Right: the randomly-assigned-anchor control. Top row coloured by hospital, bottom row by outcome; stars are the learnt anchor means, ellipses the learnt diagonal anchor Gaussians at 2 sigma. Scale-normalised W2 over 10 seeds: between hospitals 0.97 / 0.35 / 0.30, between classes 0.33 / 0.39 / 0.40, cloud to learnt anchor 0.47 (real) vs 0.52 (random). The anchors do pull the hospitals together, but the random control does it equally well, and neither improves the Fed-Heart numbers in the table above."),
+        ],
+        "NHANES": [
+            ("fig5_dynamics_nhanes_groupdro_v3", "Per-group encoders + GroupDRO, corrected pipeline (10 seeds). Top: per-group loss on train / validation / test with the reference R* dashed. Bottom: group weight."),
+            ("fig5_dynamics_nhanes_regretdro_v3", "Per-group encoders + Regret-DRO, same protocol. The weight moves to the survey-only group (about 0.9), the group furthest above its reference, and the + labs group drops to zero; losses are flat after the first few epochs."),
+            ("fig11_latent_scatter_v3", "600 test participants per group in the shared latent space. Left: no anchors (weight exactly 0). Middle: class anchors. Right: randomly-assigned-anchor control. Scale-normalised W2 over 10 seeds: between groups 0.74 / 0.04 / 0.17, between classes 0.59 / 0.48 / 0.52, cloud to learnt anchor 0.07 (real) vs 0.36 (random). With the corrected distance the real anchors align the three groups four times more tightly than the random control, and the clouds sit on their learnt anchors; this is the dataset where the anchors also move the accuracy (+2.7 to +3.0)."),
+        ],
+        "EMBED": [
+            ("fig11_latent_scatter_embed", "Unchanged from the earlier pipeline: the arms shown (per-group + GroupDRO with no anchors, with class anchors, with random anchors) do not use the regret update, and EMBED already had diagonal anchors with the closed-form distance. Real anchors align the six view groups (1.03 to 0.19); random anchors do not (0.69)."),
+        ],
+    }
     for label, op, relp, matp, rows, note in SPECS:
         if not (os.path.exists(op) and os.path.exists(relp)):
             continue
@@ -1272,6 +1288,10 @@ def updated_baselines_page():
                 blk.append(f"<tr><td class='it'>{arm_lab if mi == 0 else ''}</td><td class='it'>{mname}</td>{''.join(cells)}</tr>")
         blk.append("</tbody></table></div><p class='legend'>Paired over 10 seeds against each baseline at its published configuration. Strong shading = p &lt; 0.05, pale = not separable.</p>")
         out.append("".join(blk))
+        for stem, cap in UBFIGS.get(label, []):
+            rel = f"figs/paper/{stem}.png"
+            if os.path.exists(rel):
+                out.append(f"<div class='fig'><img src='{rel}' alt=''><div class='cap'>{html.escape(cap)}</div></div>")
     out.append("<p class='legend'>Record of the review, every fix and every run: documentation/REVIEW_FIXES_2026-09-20.md in the repository.</p>")
     return "".join(out)
 

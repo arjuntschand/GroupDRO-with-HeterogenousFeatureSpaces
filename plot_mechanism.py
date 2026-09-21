@@ -26,6 +26,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 OUT = "figs/paper"
+import sys
+# --v3: draw from the corrected-pipeline families (review of 2026-09-20) and write *_v3 files, so
+# the figures of the earlier pipeline are left as they are.
+V3 = "--v3" in sys.argv
+SUF = "_v3" if V3 else ""
 os.makedirs(OUT, exist_ok=True)
 
 # Fed-Heart appears as the UNCAPPED run: that is FLamby's standard protocol, our best arm
@@ -41,6 +46,11 @@ DS = [
     ("NHANES", "runs/gamma_sweep_nh_val10/g0.1_s1/{a}_s*/metrics.csv", "runs/rstar_nhanes_eq13.json",
      ["survey only", "+ exam", "+ labs"], ["survey only", "+ labs"]),
 ]
+if V3:
+    DS = [("Fed-Heart", "runs/fedheart_v3/{a}_s*_f0/metrics.csv", "runs/rstar_v3/fedheart/fold0.json",
+           ["Cleveland", "Hungarian", "Switzerland", "VA"], ["Switzerland", "VA"]),
+          ("NHANES", "runs/nhanes_v3/{a}_s*/metrics.csv", "runs/rstar_v3/nhanes/nested.json",
+           ["survey only", "+ exam", "+ labs"], ["survey only", "+ labs"])]
 ARMS = [("GroupDRO", "GroupDRO", "#4a7ba7", "o"), ("RegretDRO", "Regret-DRO", "#c0625f", "s")]
 
 
@@ -108,8 +118,8 @@ def fig_lambda_vs_rstar():
     np.atleast_1d(axes)[0].set_ylabel(r"final group weight $\lambda_g$", fontsize=9)
     np.atleast_1d(axes)[0].legend(fontsize=8, frameon=False)
     fig.tight_layout()
-    fig.savefig(f"{OUT}/fig3_lambda_vs_rstar.pdf", bbox_inches="tight")
-    fig.savefig(f"{OUT}/fig3_lambda_vs_rstar.png", dpi=180, bbox_inches="tight")
+    fig.savefig(f"{OUT}/fig3_lambda_vs_rstar{SUF}.pdf", bbox_inches="tight")
+    fig.savefig(f"{OUT}/fig3_lambda_vs_rstar{SUF}.png", dpi=180, bbox_inches="tight")
     plt.close(fig)
     print(f"  wrote {OUT}/fig3_lambda_vs_rstar.pdf")
 
@@ -144,8 +154,8 @@ def fig_loss_curves():
     np.atleast_1d(axes)[0].legend(fontsize=7, frameon=False)
     fig.suptitle("Per-group loss, mean over 10 seeds with $\\pm$1 SE", fontsize=9.5, y=1.02)
     fig.tight_layout()
-    fig.savefig(f"{OUT}/fig4_loss_curves.pdf", bbox_inches="tight")
-    fig.savefig(f"{OUT}/fig4_loss_curves.png", dpi=180, bbox_inches="tight")
+    fig.savefig(f"{OUT}/fig4_loss_curves{SUF}.pdf", bbox_inches="tight")
+    fig.savefig(f"{OUT}/fig4_loss_curves{SUF}.png", dpi=180, bbox_inches="tight")
     plt.close(fig)
     print(f"  wrote {OUT}/fig4_loss_curves.pdf")
 
@@ -214,7 +224,7 @@ def fig_full_dynamics():
             fig.tight_layout(rect=(0, 0, 1, .96))
             slug = arm.lower().replace("dro", "dro")
             ds_slug = name.lower().replace('-', '').replace(' ', '_')
-            stem = f"{OUT}/fig5_dynamics_{ds_slug}_{slug}"
+            stem = f"{OUT}/fig5_dynamics_{ds_slug}_{slug}{SUF}"
             fig.savefig(stem + ".pdf", bbox_inches="tight")
             fig.savefig(stem + ".png", dpi=170, bbox_inches="tight")
             plt.close(fig)

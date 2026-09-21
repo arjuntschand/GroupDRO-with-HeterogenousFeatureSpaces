@@ -71,6 +71,9 @@ def main():
     ap.add_argument("--base", default=None)
     ap.add_argument("--seeds", nargs="+", type=int, default=[42, 1337, 7])
     ap.add_argument("--out", default="runs/latent_w2_nhanes.json")
+    ap.add_argument("--anchor-off", type=float, default=0.001,
+                    help="anchor weight of the 'no anchors' arm; 0.0 under the corrected pipeline "
+                         "(the trainer then skips the anchor terms), 0.001 reproduces the earlier runs")
     ap.add_argument("--save-latents", default=None,
                     help="directory to write the test latents (z, y, g, anchor means) per arm and seed, "
                          "for plot_latent_scatter.py")
@@ -80,7 +83,7 @@ def main():
                                              "fedheart": "experiments/fedheart_uncapped.yaml"}[args.dataset]))
     # ANCHOR_ON / ANCHOR_OFF exactly as run_method_matrix.py uses for the paper arms, so
     # "real anchors" here IS the Ours_GDRO cell and "no anchors" IS the GroupDRO cell.
-    ARMS = [("no anchors", dict(lambda_fit=0.001, lambda_sep=0.001)),
+    ARMS = [("no anchors", dict(lambda_fit=args.anchor_off, lambda_sep=args.anchor_off)),
             ("real anchors", dict(lambda_fit=0.1, lambda_sep=0.1)),
             ("random anchors", dict(lambda_fit=0.1, lambda_sep=0.1, random_anchor_targets=True))]
     results = {}

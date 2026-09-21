@@ -213,3 +213,31 @@ Full method against the three published baselines, published configurations, pai
   and all three baselines fall to the majority class, the per-group arms do not, and there the
   anchors and regret both help.
 - Parameter counts are unchanged (1.4-17x fewer than the baselines on the tabular datasets).
+
+## 8. Figures regenerated under the corrected pipeline (2026-09-21)
+
+- Training dynamics: `python plot_mechanism.py --v3` reads `runs/fedheart_v3` (fold 0), `runs/nhanes_v3`
+  and the per-fold references in `runs/rstar_v3`, and writes `figs/paper/fig{3,4,5}_*_v3`. The
+  earlier figures are untouched. Fed-Heart: under GroupDRO the weight goes to VA (about 0.7) and
+  VA's test loss climbs 0.55 to 0.93 while its training loss falls; under Regret-DRO with the
+  signed excess the weight no longer collapses onto Switzerland. NHANES Regret-DRO: weight moves
+  to the survey-only group (about 0.9).
+- Latent space: `run_latent_w2.py --anchor-off 0.0` (anchors off = weight exactly 0) on the v3
+  configs, 10 seeds each, summaries in `runs/latent_w2_v3/{nhanes,fedheart}.json`, scatters
+  `fig11_latent_scatter_v3` and `fig11_latent_scatter_fedheart_v3`. Scale-normalised W2:
+
+  | | between groups: none / real / random | between classes | cloud to learnt anchor: real / random |
+  |---|---|---|---|
+  | NHANES | 0.74 / 0.04 / 0.17 | 0.59 / 0.48 / 0.52 | 0.07 / 0.36 |
+  | Fed-Heart | 0.97 / 0.35 / 0.30 | 0.33 / 0.39 / 0.40 | 0.47 / 0.52 |
+
+  NHANES: real anchors align the groups four times more tightly than the random control.
+  Fed-Heart: the random control aligns the hospitals as well as the real anchors, consistent with
+  the anchors not helping there.
+- Mistake caught while doing this: the first Fed-Heart latent export used a config without
+  `impute_missing: true`, so it ran on the 740 complete-case patients (Switzerland 46) instead of
+  the 920 the CV runner uses. It was rerun with imputation on (fold 0 = 185 test patients) before
+  anything was published. The main v3 runs and the step-size sweep go through `run_fedheart_cv.py`,
+  which sets imputation itself, and were not affected. The scatter's seed count and test-patient
+  count are now read from the data rather than hard-coded.
+- EMBED scatter is unchanged: its arms do not use the regret update and already had diagonal anchors.

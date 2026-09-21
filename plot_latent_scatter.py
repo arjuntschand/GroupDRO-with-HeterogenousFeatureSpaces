@@ -25,6 +25,7 @@ _ap = argparse.ArgumentParser(); _ap.add_argument("--dataset", choices=["nhanes"
 _ap.add_argument("--columns", type=int, default=3, help="2 drops the random-anchor control (main-text version)")
 _ap.add_argument("--dir", default=None, help="override the latent-point directory")
 _ap.add_argument("--suffix", default="", help="appended to the output stem")
+_ap.add_argument("--w2", default=None, help="override the multi-seed W2 summary JSON")
 _ap.add_argument("--subtitle", default=None, help="override the middle panel's title")
 ARGS = _ap.parse_args()
 SLOTS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]      # categorical slots 1-6, fixed order
@@ -49,6 +50,8 @@ DS = {
 D = DS[ARGS.dataset]
 if ARGS.dir:
     D["dir"] = ARGS.dir
+if ARGS.w2:
+    D["w2"] = ARGS.w2
 ARMS = [(k, t, k not in ("no_anchors", "groupdro")) for k, t in D["arms"]][:ARGS.columns]
 if ARGS.subtitle:
     ARMS = [(k, (ARGS.subtitle if i == 1 else t), a) for i, (k, t, a) in enumerate(ARMS)]
@@ -149,7 +152,7 @@ for j, (key, title, show_anchor) in enumerate(ARMS):
         else: ax.set_ylabel(f"PC2 ({var[1]*100:.0f}%)", fontsize=8, color=INK2)
     w = W2.get(key.replace("_", " "), {})
     if w:
-        bg, bc, src = w["w2_between_groups_same_class_normalised"], w["w2_between_classes_same_group_normalised"], "10 seeds"
+        bg, bc, src = w["w2_between_groups_same_class_normalised"], w["w2_between_classes_same_group_normalised"], f"{int(w.get('n_seeds', 10))} seeds"
     else:
         bg, bc = w2_stats(z, y, g); src = "this seed"
     note = f"W₂ between groups {bg:.2f}  ·  between classes {bc:.2f}  ({src})"
@@ -163,7 +166,8 @@ axes[0][0].legend(handles=h1, fontsize=7.5 if len(GROUPS) > 4 else 8, frameon=Fa
 h2 = [Line2D([], [], marker="o", ls="", ms=6, color=CCOL[c_], label=D["classes"][c_]) for c_ in range(len(D["classes"]))]
 h2 += [Line2D([], [], marker="*", ls="", ms=11, color=INK2, label="learnt anchor mean"), Line2D([], [], ls="--", color=INK2, label="learnt anchor, 2σ")]
 axes[1][0].legend(handles=h2, fontsize=8, frameon=False, loc="lower left")
-fig.suptitle(D["title"] + "\nW₂ values are scale-normalised. Axes are scaled per panel." + ("" if ARGS.dataset == "embed" else " The anchors shrink the latent space by an order of magnitude or more.") + "",
+N_TEST = len(np.load(f"{D['dir']}/{D['arms'][0][0]}_s{SEED}.npz")["y"])
+fig.suptitle(D["title"].replace("the 150 test patients", f"the {N_TEST} test patients") + "\nW₂ values are scale-normalised. Axes are scaled per panel." + ("" if ARGS.dataset == "embed" else " The anchors shrink the latent space by an order of magnitude or more.") + "",
              fontsize=10.5, color=INK, x=.01, ha="left")
 fig.tight_layout(rect=(0, 0, 1, .93), w_pad=2.0, h_pad=1.6)
 os.makedirs("figs/paper", exist_ok=True)

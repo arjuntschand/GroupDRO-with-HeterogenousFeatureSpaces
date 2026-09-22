@@ -166,6 +166,7 @@ def main():
                 tab[m] = dict(n_seeds=len(s), worst_acc=float(s.wacc.mean() * 100), worst_loss=float(s.wloss.mean()),
                               worst_excess=float(s.wex.mean()), worst_auroc=float(s.wauc.mean()), overall_acc=float(ov.mean() * 100),
                               step=float(dm.chosen_step.iloc[0]), mean_epoch=float(dm.epoch.mean()),
+                              n_params=float(dm.n_params.iloc[0]),
                               per_seed={"worst_acc": s.wacc.to_dict(), "worst_loss": s.wloss.to_dict(), "worst_excess": s.wex.to_dict(), "worst_auroc": s.wauc.to_dict()})
             summary[fam][v] = tab
             print(f"{fam:20s} {v:9s} " + "  ".join(f"{m}:{t['worst_acc']:.1f}|{t['worst_loss']:.3f}" for m, t in sorted(tab.items())))

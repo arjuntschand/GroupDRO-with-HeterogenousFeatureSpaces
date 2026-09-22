@@ -1699,6 +1699,9 @@ def build(outdir=SITE):
     tabs.insert(0, ("Final results", "sec-plan")); secs.insert(0, ("sec-plan", final_results_page(loaded, merged_bl)))
     # corrected pipeline first: it is the tab that opens by default
     tabs.insert(0, ("Updated baselines", "sec-updated")); secs.insert(0, ("sec-updated", updated_baselines_page()))
+    # protocol v4 (2026-09-22): first tab, opens by default
+    import site_v4
+    tabs.insert(0, ("V3 Updated Baselines", "sec-v4")); secs.insert(0, ("sec-v4", site_v4.page()))
 
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "
                   f"class='{'on' if i == 0 else ''}'>{html.escape(t)}</a>"
@@ -1708,7 +1711,7 @@ def build(outdir=SITE):
     _OLD = ("<div class='note' style='border-left:4px solid #b03a3a'><b>Earlier pipeline.</b> The numbers on this tab predate the code review of 2026-09-20 "
             "(holdout 'folds', test-set checkpoint selection, Cholesky in the Wasserstein term, clamped excess). They are kept so each correction can be quantified. "
             "The current results are on the <b>Updated baselines</b> tab.</div>")
-    secs = [(sid, c if sid in ("sec-updated", "sec-methods") else _OLD + c) for sid, c in secs]
+    secs = [(sid, c if sid in ("sec-v4", "sec-updated", "sec-methods") else _OLD + c) for sid, c in secs]
     body = "".join(f"<section id='{sid}' class='{'on' if i == 0 else ''}'>{c}</section>"
                    for i, (sid, c) in enumerate(secs))
     page = (f'<!doctype html><html><head><meta charset="utf-8">'

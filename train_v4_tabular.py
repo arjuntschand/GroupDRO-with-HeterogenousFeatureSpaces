@@ -106,6 +106,30 @@ class EqualGroupBatches:
         return np.concatenate(out)
 
 
+class ProportionalBatches:
+    """Protocol v4b: every batch keeps the training group proportions (the stratified sampler every
+    earlier run used), at least one sample per group. Each group walks its own shuffled permutation."""
+    def __init__(self, g, batch, rng):
+        self.idx = [np.where(g.numpy() == k)[0] for k in range(int(g.max()) + 1)]
+        n = np.array([len(ix) for ix in self.idx], dtype=float)
+        per = np.maximum(1, np.round(n / n.sum() * batch)).astype(int)
+        self.m = per.tolist()
+        self.rng = rng; self.perm = [rng.permutation(ix) for ix in self.idx]; self.pos = [0] * len(self.idx)
+        self.steps_per_epoch = int(math.ceil(n.sum() / sum(self.m)))
+
+    def next(self):
+        out = []
+        for k, ix in enumerate(self.idx):
+            take = []
+            while len(take) < self.m[k]:
+                if self.pos[k] >= len(ix):
+                    self.perm[k] = self.rng.permutation(ix); self.pos[k] = 0
+                need = self.m[k] - len(take)
+                take.extend(self.perm[k][self.pos[k]:self.pos[k] + need]); self.pos[k] += need
+            out.append(np.asarray(take[:self.m[k]]))
+        return np.concatenate(out)
+
+
 # --------------------------------------------------------------- metrics ----
 def group_metrics(logits, y, g, G):
     from sklearn.metrics import roc_auc_score
@@ -188,7 +212,8 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
     (Xtr, ytr, gtr), (Xva, yva, gva), (Xte, yte, gte) = data
     G = int(gtr.max()) + 1
     torch.manual_seed(seed * 1000 + fold); rng = np.random.default_rng(seed * 1000 + fold)
-    sampler = EqualGroupBatches(gtr, args.per_group, rng)
+    sampler = (ProportionalBatches(gtr, args.batch, rng) if args.sampler == "proportional"
+               else EqualGroupBatches(gtr, args.per_group, rng))
     spe = sampler.steps_per_epoch
     N = min(50, spe)
     cls_w = None
@@ -223,7 +248,8 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
             return (model(xb, g, warmup=warmup) if method == "FlexMoE" else model(xb, g))[0]
 
     opt = torch.optim.Adam(params, lr=cfg.get("lr", 1e-3), weight_decay=cfg.get("weight_decay", 1e-4))
-    sched = None     # constant learning rate for EVERY method (protocol v4, amendment 1)
+    sched = (torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs, eta_min=cfg.get("lr_min", 1e-5))
+             if args.schedule == "cosine" else None)          # v4a: constant for everyone; v4b: cosine for everyone
     a_fit, a_sep = args.alpha_align, args.alpha_sep
     lam = torch.full((G,), 1.0 / G)
     Lbar = R.clone() if regret else None                          # Algorithm 1 line 6; GroupDRO: first batch
@@ -242,7 +268,7 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
                              test_auroc=mt[k]["auroc"], weight=(float(lam[k]) if dro else float("nan")),
                              R_star=float(R[k]), n_params=n_params))
     log_epoch(0)
-    warm_eps = max(1, round(args.epochs * 5 / 60))                # Flex-MoE: 5 of 60 epochs at release
+    warm_eps = max(1, round(args.epochs * 5 / 60)) if args.sampler == "equal" else 5   # Flex-MoE: 5 warm-up epochs at release
     for ep in range(1, args.epochs + 1):
         if method == "REMIND" and getattr(model, "moe", None) is not None and model.moe.phi_res is not None:
             model.moe.residual_active = ep > args.epochs // 2      # REMIND stage 2
@@ -261,6 +287,8 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
                                   for k in range(G)])
             if dro:
                 loss = (lam * (ce_w + a_fit * al)).sum()
+            elif args.sampler == "proportional":
+                loss = F.cross_entropy(logits, y, weight=cls_w) + a_fit * al.mean()   # plain ERM over the batch
             else:
                 loss = ce_w.mean() + a_fit * al.mean()             # equal-group batch: group-balanced mean
             if anchors is not None:
@@ -298,6 +326,9 @@ def main():
     ap.add_argument("--epochs", type=int, default=10)
     ap.add_argument("--per-group", type=int, default=None, help="samples per group per step; default 50 (NHANES), 16 (Fed-Heart)")
     ap.add_argument("--rho", type=float, default=0.9)
+    ap.add_argument("--sampler", choices=["equal", "proportional"], default="equal")
+    ap.add_argument("--batch", type=int, default=None, help="proportional sampler: batch size (default from the config)")
+    ap.add_argument("--schedule", choices=["constant", "cosine"], default="constant")
     ap.add_argument("--alpha-align", type=float, default=0.1)
     ap.add_argument("--alpha-sep", type=float, default=0.1)
     ap.add_argument("--shard", default="0/1", help="i/n: this process handles jobs with index % n == i")
@@ -306,6 +337,8 @@ def main():
     if args.per_group is None:
         args.per_group = 50 if args.dataset == "nhanes" else 16
     cfg = yaml.safe_load(open(args.base))
+    if args.batch is None:
+        args.batch = int(cfg.get("batch_size", 64))
     si, sn = map(int, args.shard.split("/"))
     os.makedirs(os.path.join(args.out, "epochs"), exist_ok=True)
 

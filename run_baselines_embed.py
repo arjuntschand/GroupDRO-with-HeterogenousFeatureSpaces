@@ -57,7 +57,7 @@ def evaluate(model, data, masks, split, device, rstar):
 
 
 def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5e-5,
-              batch=32, n_experts=128, capacity_matched=False, verbose=True, dro_gamma=0.02):
+              batch=32, n_experts=128, capacity_matched=False, verbose=True, dro_gamma=0.02, v4=False):
     torch.manual_seed(seed); np.random.seed(seed)
     groups = [g for g in GROUPS if g in data]
     gv = {g: GROUP_VIEWS[g] for g in groups}
@@ -81,8 +81,11 @@ def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5
 
     K = len(groups)
     counts = [int(masks[g]["train"].sum()) for g in groups]
-    if method == "Reweigh":
+    if method == "Reweigh" and not v4:
         lam = inverse_frequency_weights(counts, device)     # fixed, never updated
+        # protocol v4: every step already draws the same number of samples from every group, so
+        # the sampling frequencies are equal and inverse-frequency weights are uniform; 1/n_g on
+        # top of balanced sampling squares the correction (falls through to the uniform branch)
     else:
         lam = torch.full((K,), 1.0 / K, device=device)
     ema = torch.zeros(K, device=device)
@@ -92,6 +95,12 @@ def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5
     steps = max(1, int(np.ceil(max(counts) / batch)))
     gstep = 0
     best_sel, best_state = float("inf"), None
+    curve = []
+    warm = 5 if not v4 else max(1, int(epochs * 5 / 20))
+    with torch.no_grad():
+        curve.append({"epoch": -1, "lambda": (lam.detach().cpu().tolist() if method == "REMIND" else None),
+                      "val_full": evaluate(model, data, masks, "val", device, rstar),
+                      "test_full": evaluate(model, data, masks, "test", device, rstar)})
 
     for ep in range(epochs):
         model.train()
@@ -111,7 +120,7 @@ def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5
                 n = sub["y"].shape[0]
                 sel = torch.randint(0, n, (min(batch, n),), device=device)
                 feats = {v: t[sel] for v, t in sub["feats"].items()}
-                logits, _ = model(g, feats, warmup=(ep < 5)) \
+                logits, _ = model(g, feats, warmup=(ep < warm)) \
                     if isinstance(model, FlexMoESparseEmbed) else model(g, feats)
                 li = F.cross_entropy(logits, sub["y"][sel])
                 per[gi] = li.detach(); present[gi] = True
@@ -126,6 +135,8 @@ def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5
                         lam = lam / lam.sum()
         sched.step()
         val = evaluate(model, data, masks, "val", device, rstar)
+        curve.append({"epoch": ep, "lambda": (lam.detach().cpu().tolist() if method == "REMIND" else None),
+                      "val_full": val, "test_full": evaluate(model, data, masks, "test", device, rstar)})
         sel_metric = float(np.mean([v["loss"] for v in val.values()]))
         if sel_metric < best_sel:
             best_sel = sel_metric
@@ -134,6 +145,7 @@ def train_one(method, data, masks, device, rstar, seed, epochs=20, lr=5e-5, wd=5
             print(f"    [{method} s{seed}] ep{ep:02d} val avg loss={sel_metric:.4f}", flush=True)
     if best_state:
         model.load_state_dict(best_state)
+    model._curve = {"groups": groups, "curve": curve}
     return model
 
 
@@ -151,6 +163,8 @@ def main():
     ap.add_argument("--dro-gamma", type=float, default=0.02,
                     help="REMIND's sharpness gamma in lambda_k <- lambda_k exp(gamma R_k); the paper "
                          "sweeps {0.5, 0.1, 0.02} on EMBED and uses 0.02")
+    ap.add_argument("--v4", action="store_true",
+                    help="protocol v4: Reweigh's weights follow the (equal) sampling frequencies; Flex-MoE warm-up scales with the budget")
     ap.add_argument("--disjoint", action="store_true",
                     help="no-overlap variant: g1/g2/g3/g6 with one distinct view each (see model/embed_xenia.py)")
     args = ap.parse_args()
@@ -181,8 +195,10 @@ def main():
     for method in args.methods:
         for seed in args.seeds:
             model = train_one(method, data, masks, device, rstar, seed, epochs=args.epochs, dro_gamma=args.dro_gamma,
-                              capacity_matched=args.capacity_matched)
+                              capacity_matched=args.capacity_matched, v4=args.v4)
             n_params = sum(p.numel() for p in model.parameters())
+            json.dump({**model._curve, "n_params": n_params},
+                      open(os.path.join(args.out, f"curve_{method}_s{seed}.json"), "w"))
             test = evaluate(model, data, masks, "test", device, rstar)
             worst = min(v["acc"] for v in test.values())
             print(f"[seed {seed}] {method}: worst={worst:.3f} "

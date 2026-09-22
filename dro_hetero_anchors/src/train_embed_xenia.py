@@ -369,6 +369,11 @@ def train_one(method, data, masks, device, rstar, seed,
     for g in groups:
         m = masks[g]["train"]
         train_sub[g] = _subset(data[g], m, device) if m.sum() > 0 else None
+    with torch.no_grad():
+        _ov0, _pv0 = evaluate(model, data, masks, "val", device, rstar)
+        _, _pt0 = evaluate(model, data, masks, "test", device, rstar)
+    curve.append({"epoch": -1, "lambda": lam.detach().cpu().numpy().tolist(), "val_full": _pv0, "test_full": _pt0})
+    model.train()
 
     for ep in range(epochs):
         model.train()
@@ -448,6 +453,7 @@ def train_one(method, data, masks, device, rstar, seed,
         _, pg_tr = evaluate(model, data, masks, "train", device, rstar)
         _, pg_te = evaluate(model, data, masks, "test", device, rstar)
         curve.append({"epoch": ep, "lambda": lam.detach().cpu().numpy().tolist(),
+                      "val_full": pg_val, "test_full": pg_te,      # protocol v4: everything needed to select afterwards
                       "per_group_loss": {g_: float(r_["loss"]) for g_, r_ in pg_val.items()},
                       "per_group_loss_train": {g_: float(r_["loss"]) for g_, r_ in pg_tr.items()},
                       "per_group_loss_test": {g_: float(r_["loss"]) for g_, r_ in pg_te.items()},
@@ -569,6 +575,21 @@ def main():
             if method == "group_only":
                 for g, pg in group_only_models(data, masks, device, seed):
                     long_rows.append(dict(method="group_only", seed=seed, group=g, n_params=n_params, **pg))
+                continue
+            if method == "dedicated":
+                _names = [g_ for g_ in GROUPS if g_ in data]
+                _merged = {}
+                for g_ in _names:
+                    _m, _info = train_one("erm", {g_: data[g_]}, {g_: masks[g_]}, device, rstar, seed,
+                                          epochs=args.epochs, uniform_lambda_init=True, verbose=False)
+                    for _c in _info["curve"]:
+                        _e = _merged.setdefault(_c["epoch"], {"epoch": _c["epoch"], "lambda": None, "val_full": {}, "test_full": {}})
+                        _e["val_full"].update(_c["val_full"]); _e["test_full"].update(_c["test_full"])
+                    _, _pg = evaluate(_m, {g_: data[g_]}, {g_: masks[g_]}, "test", device, rstar)
+                    long_rows.append(dict(method="dedicated", seed=seed, group=g_, n_params=n_params, **_pg[g_]))
+                with open(os.path.join(args.out, f"curve_dedicated_s{seed}.json"), "w") as f:
+                    json.dump({"lambda": None, "groups": _names, "curve": [_merged[k] for k in sorted(_merged)]}, f)
+                print(f"[seed {seed}] dedicated: done", flush=True)
                 continue
             if method not in METHOD_FLAGS:
                 print(f"  (skip unknown method {method})"); continue

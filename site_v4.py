@@ -150,9 +150,15 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
     side = [f"<aside class='toc' id='{P}-toc'><div class='toc-t'>On this page</div><a href='#{P}-what' data-t='{P}-what'>Protocol</a>"]
     side += [f"<a href='#{aid.replace('v4-', P + '-')}' data-t='{aid.replace('v4-', P + '-')}'>{html.escape(lab.replace('with no common information', ': no common info'))}</a>" for k, lab, aid in FAMS if k in summ]
     side.append("</aside>")
+    # V3 (runs/v4) trained 10 epochs on the tabular datasets, so only the views that exist there are offered
+    views = VIEWS if root != "runs/v4" else [("fixed10", "fixed budget, no selection: last epoch (10 tabular / 20 EMBED) (default view)"), ("fixed5", "fixed budget: epoch 5"),
+                                             ("fixed15", "fixed budget: epoch 15 (EMBED only; tabular shows epoch 10)"), ("fixed", "fixed budget: last epoch (10 / 20)"),
+                                             ("excess", "early stopping on max excess (declared primary rule)"), ("worst", "early stopping on worst-group loss"),
+                                             ("overall", "early stopping on overall loss"), ("groupavg", "early stopping on group-averaged loss")]
+    primary = PRIMARY if root != "runs/v4" else "fixed10"
     sel = (f"<div class='note' id='{P}-sel' style='position:sticky;top:0;z-index:5'><b>Selection rule for every table, heat map and number on this tab:</b> "
            f"<select id='{P}-view' onchange=\"document.querySelectorAll('.{P}v').forEach(e=>e.style.display=(e.dataset.v===this.value?'':'none'))\" style='font-size:14px;padding:4px 8px;margin-left:8px'>"
-           + "".join(f"<option value='{v}'>{html.escape(l)}</option>" for v, l in VIEWS) + "</select>"
+           + "".join(f"<option value='{v}'>{html.escape(l)}</option>" for v, l in views) + "</select>"
            "<span class='hint' style='margin-left:12px'>The reported epoch is chosen per run on the VALIDATION split by this rule; the test metrics of that epoch are reported. "
            "The step size of every DRO arm is chosen the same way. Same rule for every method.</span></div>")
     out = ["".join(side), f"<h2 id='{P}-what'>{html.escape(title)}</h2>", intro or "",
@@ -170,11 +176,11 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
         rows = ROWS_EM if k.startswith("embed") else ROWS_TAB
         full = "ours" if k.startswith("embed") else "Ours_Regret"
         out.append(f"<h3 id='{aid.replace('v4-', P + '-')}' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>{html.escape(lab)}</h3>")
-        for v, _ in VIEWS:
+        for v, _ in views:
             if v not in summ[k]:
                 continue
             tab = summ[k][v]
-            out.append(f"<div class='{P}v' data-v='{v}'{'' if v == PRIMARY else ' style=display:none'}>")
+            out.append(f"<div class='{P}v' data-v='{v}'{'' if v == primary else ' style=display:none'}>")
             out.append(f"<div class='card'>{table(tab, rows, full)}</div>")
             out.append(heat(tab, full))
             out.append("</div>")

@@ -1637,7 +1637,7 @@ def build(outdir=SITE):
                      f"<div class='fig'><img src='{rel}' alt=''></div>")
     if not shown:
         plots.append("<p class='na'>Runs in progress.</p>")
-    tabs.append(("Plots", "sec-plots")); secs.append(("sec-plots", "".join(plots)))
+    # Plots tab removed 2026-09-23 (earlier-pipeline figures; the V4 tab carries its own curves)
 
     # Baselines tab: the three methods from the REMIND paper against our arms, per dataset,
     # at both the released hyperparameters and capacity-matched to our model.
@@ -1701,14 +1701,18 @@ def build(outdir=SITE):
     tabs.insert(0, ("Updated baselines", "sec-updated")); secs.insert(0, ("sec-updated", updated_baselines_page()))
     # protocol v4 (2026-09-22): first tab, opens by default
     import site_v4
-    tabs.insert(0, ("V3 Updated Baselines", "sec-v4")); secs.insert(0, ("sec-v4", site_v4.page()))
+    _v3_intro = ("<p class='sub'>Protocol v4a (<code>documentation/PROTOCOL_V4_2026-09-22.md</code>): equal numbers of samples from every group in every batch, "
+                 "constant learning rate (tabular), a fixed 10 epochs on the tabular datasets and 20 on EMBED with no early stopping, uniform initial group weights, "
+                 "every epoch logged and the selection rule applied afterwards to every method alike. Kept as a robustness check: the equal-group sampler does the "
+                 "group weighting for every method, so the arms tie. The main protocol is the V4 Baselines tab.</p>")
+    tabs.insert(0, ("V3 Baselines", "sec-v4")); secs.insert(0, ("sec-v4", site_v4.page("runs/v4", "V3 Baselines (protocol v4a: equal-group batches, constant lr, fixed 10 / 20 epochs)", _v3_intro, "v4")))
     # protocol v4b (main tabular protocol: natural-proportion batches, cosine, 30 epochs) + the same EMBED runs
     _v4b_intro = ("<p class='sub'>Main results under the pre-declared protocol v4b (<code>documentation/PROTOCOL_V4_2026-09-22.md</code>): "
                   "natural-proportion stratified batches, cosine learning-rate decay over a fixed 30-epoch budget, uniform initial group weights, "
                   "Algorithm 1 objective with the weights driven by a training-batch running average, validated step sizes, real folds, "
                   "every epoch logged and the selection rule applied afterwards to every method alike. The primary rule, declared before the runs, is max excess. "
                   "EMBED trains under its own equal-group, step-schedule protocol (unchanged from the frozen protocol) with the same afterwards-selection; "
-                  "the equal-group tabular run is on the V3 Updated Baselines tab as a robustness check.</p>"
+                  "the equal-group tabular run is on the V3 Baselines tab as a robustness check.</p>"
                   "")
     tabs.insert(0, ("V4 Baselines", "sec-v4b")); secs.insert(0, ("sec-v4b", site_v4.page("runs/v4b", "V4 Baselines (protocol v4b, 2026-09-22)", _v4b_intro, "v4b")))
 

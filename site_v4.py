@@ -7,12 +7,14 @@ view at a time. Tables, heat maps and curve plots are all computed from the same
 import html, json, os
 import numpy as np
 
-PRIMARY = "fixed15"        # default view on the tab; the paper's declared primary rule is max excess (see the protocol file)
-VIEWS = [("fixed15", "fixed budget: epoch 15 (default view)"), ("fixed", "fixed budget, no selection: last epoch (30 tabular / 20 EMBED)"),
-         ("fixed5", "fixed budget: epoch 5"), ("fixed10", "fixed budget: epoch 10"),
-         ("fixed20", "fixed budget: epoch 20"), ("fixed25", "fixed budget: epoch 25 (EMBED: 20)"),
-         ("excess", "early stopping on max excess (declared primary rule)"), ("worst", "early stopping on worst-group loss"),
+PRIMARY = "fixed10"
+def _fx(t, e): return f"fixed budget, no early stopping (tabular: epoch {t} | EMBED: epoch {e})"
+VIEWS = [("fixed10", _fx(10, 10)), ("fixed5", _fx(5, 5)), ("fixed15", _fx(15, 15)), ("fixed20", _fx(20, 20)), ("fixed25", _fx(25, 20)), ("fixed", _fx(30, 20)),
+         ("excess", "early stopping on max excess"), ("worst", "early stopping on worst-group loss"),
          ("overall", "early stopping on overall loss"), ("groupavg", "early stopping on group-averaged loss")]
+VIEWS_V3 = [("fixed10", _fx(10, 10)), ("fixed5", _fx(5, 5)), ("fixed15", _fx(10, 15)), ("fixed", _fx(10, 20)),
+            ("excess", "early stopping on max excess"), ("worst", "early stopping on worst-group loss"),
+            ("overall", "early stopping on overall loss"), ("groupavg", "early stopping on group-averaged loss")]
 FAMS = [("nhanes", "NHANES", "v4-NHANES"), ("fedheart", "Fed-Heart", "v4-Fed-Heart"), ("embed", "EMBED", "v4-EMBED"),
         ("nhanes_nooverlap", "NHANES with no common information", "v4-nocommon"),
         ("fedheart_nooverlap", "Fed-Heart with no common information", "v4-nocommon-fh"),
@@ -151,11 +153,8 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
     side += [f"<a href='#{aid.replace('v4-', P + '-')}' data-t='{aid.replace('v4-', P + '-')}'>{html.escape(lab.replace('with no common information', ': no common info'))}</a>" for k, lab, aid in FAMS if k in summ]
     side.append("</aside>")
     # V3 (runs/v4) trained 10 epochs on the tabular datasets, so only the views that exist there are offered
-    views = VIEWS if root != "runs/v4" else [("fixed10", "fixed budget, no selection: last epoch (10 tabular / 20 EMBED) (default view)"), ("fixed5", "fixed budget: epoch 5"),
-                                             ("fixed15", "fixed budget: epoch 15 (EMBED only; tabular shows epoch 10)"), ("fixed", "fixed budget: last epoch (10 / 20)"),
-                                             ("excess", "early stopping on max excess (declared primary rule)"), ("worst", "early stopping on worst-group loss"),
-                                             ("overall", "early stopping on overall loss"), ("groupavg", "early stopping on group-averaged loss")]
-    primary = PRIMARY if root != "runs/v4" else "fixed10"
+    views = VIEWS if root != "runs/v4" else VIEWS_V3
+    primary = PRIMARY
     sel = (f"<div class='note' id='{P}-sel' style='position:sticky;top:0;z-index:5'><b>Selection rule for every table, heat map and number on this tab:</b> "
            f"<select id='{P}-view' onchange=\"document.querySelectorAll('.{P}v').forEach(e=>e.style.display=(e.dataset.v===this.value?'':'none'))\" style='font-size:14px;padding:4px 8px;margin-left:8px'>"
            + "".join(f"<option value='{v}'>{html.escape(l)}</option>" for v, l in views) + "</select>"

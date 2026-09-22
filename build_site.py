@@ -1709,7 +1709,7 @@ def build(outdir=SITE):
                   "every epoch logged and the selection rule applied afterwards to every method alike. The primary rule, declared before the runs, is max excess. "
                   "EMBED trains under its own equal-group, step-schedule protocol (unchanged from the frozen protocol) with the same afterwards-selection; "
                   "the equal-group tabular run is on the V3 Updated Baselines tab as a robustness check.</p>"
-                  "<div class='note' style='border-left:4px solid #b03a3a'><b>EMBED rows ERM and anchors-only are being rerun</b> with proportional group weights (amendment 6): the rows shown for them at the moment come from a uniform-weight run that overfits the 40-exam group, so their loss is too high. Every other EMBED row and all tabular rows are final.</div>")
+                  "")
     tabs.insert(0, ("V4 Baselines", "sec-v4b")); secs.insert(0, ("sec-v4b", site_v4.page("runs/v4b", "V4 Baselines (protocol v4b, 2026-09-22)", _v4b_intro, "v4b")))
 
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "

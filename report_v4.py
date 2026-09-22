@@ -18,7 +18,7 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 
-VIEWS = ["fixed10", "overall", "worst", "groupavg", "excess"]
+VIEWS = ["fixed", "fixed5", "fixed10", "fixed15", "fixed20", "fixed25", "overall", "worst", "groupavg", "excess"]
 import sys
 OUT = sys.argv[1] if len(sys.argv) > 1 else "runs/v4"
 
@@ -38,8 +38,10 @@ def val_score(df_epoch, view):
 
 
 def select_epoch(run, view, last):
-    if view == "fixed10":
+    if view == "fixed":
         return last
+    if view.startswith("fixed"):
+        return min(int(view[5:]), last)          # fixed budget of N epochs (capped at the run's last epoch)
     by = run[run.epoch >= 1].groupby("epoch")
     scores = {e: val_score(d, view) for e, d in by}
     return min(scores, key=scores.get)
@@ -62,7 +64,7 @@ def tabular_family(fam):
             for (sd, fold), run in dm.groupby(["seed", "fold"]):
                 e = select_epoch(run, v, last)
                 sel = run[run.epoch == e]
-                vs = val_score(sel, "worst" if v == "fixed10" else v)
+                vs = val_score(sel, "worst" if v.startswith("fixed") else v)
                 for _, r in sel.iterrows():
                     out[v].append(dict(method=m, step=st, seed=sd, fold=fold, group=r.group, n=r.n_test, n_params=r.n_params,
                                        accuracy=r.test_acc, macro_f1=r.test_f1, loss=r.test_loss, R_star=r.R_star,
@@ -108,7 +110,7 @@ def embed_family(fam):
             for sd, run in dm.groupby("seed"):
                 e = select_epoch(run, v, last)
                 sel = run[run.epoch == e]
-                vs = val_score(sel, "worst" if v == "fixed10" else v)
+                vs = val_score(sel, "worst" if v.startswith("fixed") else v)
                 for _, r in sel.iterrows():
                     out[v].append(dict(method=m, step=st, seed=sd, fold=0, group=r.group, n=r.n_test, n_params=r.n_params,
                                        accuracy=r.test_acc, macro_f1=r.test_f1, loss=r.test_loss, R_star=r.R_star,

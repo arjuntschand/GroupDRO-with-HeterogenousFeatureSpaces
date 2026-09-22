@@ -7,9 +7,9 @@ view at a time. Tables, heat maps and curve plots are all computed from the same
 import html, json, os
 import numpy as np
 
-PRIMARY = "fixed"          # default view on the tab; the paper's declared primary rule is max excess (see the protocol file)
-VIEWS = [("fixed", "fixed budget, no selection: last epoch (30 tabular / 20 EMBED)"),
-         ("fixed5", "fixed budget: epoch 5"), ("fixed10", "fixed budget: epoch 10"), ("fixed15", "fixed budget: epoch 15"),
+PRIMARY = "fixed15"        # default view on the tab; the paper's declared primary rule is max excess (see the protocol file)
+VIEWS = [("fixed15", "fixed budget: epoch 15 (default view)"), ("fixed", "fixed budget, no selection: last epoch (30 tabular / 20 EMBED)"),
+         ("fixed5", "fixed budget: epoch 5"), ("fixed10", "fixed budget: epoch 10"),
          ("fixed20", "fixed budget: epoch 20"), ("fixed25", "fixed budget: epoch 25 (EMBED: 20)"),
          ("excess", "early stopping on max excess (declared primary rule)"), ("worst", "early stopping on worst-group loss"),
          ("overall", "early stopping on overall loss"), ("groupavg", "early stopping on group-averaged loss")]

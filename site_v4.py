@@ -108,6 +108,41 @@ def heat(tab, full_key):
     return "".join(out)
 
 
+def overview(summ, v):
+    """One heat map for the whole tab: every family x every baseline x (acc, loss, excess), full method vs baseline."""
+    fams = [(k, lab) for k, lab, _ in FAMS if k in summ and v in summ[k]]
+    if not fams:
+        return ""
+    out = ["<div class='card'><table class='data'><thead><tr><th class='it'>full method vs</th>"]
+    for _, lab in BASE[:3]:
+        out.append(f"<th colspan='3' style='text-align:center'>{html.escape(lab)}</th>")
+    out.append("</tr><tr><th></th>" + "".join("<th>worst acc</th><th>worst loss</th><th>worst excess</th>" for _ in BASE[:3]) + "</tr></thead><tbody>")
+    for k, lab in fams:
+        tab = summ[k][v]; full = "ours" if k.startswith("embed") else "Ours_Regret"
+        if full not in tab:
+            continue
+        cells = []
+        for bk, _ in BASE[:3]:
+            for key, hi, pct in [("worst_acc", True, False), ("worst_loss", False, True), ("worst_excess", False, True)]:
+                if bk not in tab:
+                    cells.append("<td class='na'>n/a</td>"); continue
+                a_, b_ = tab[full]["per_seed"][key], tab[bk]["per_seed"][key]
+                seeds = sorted(set(a_) & set(b_)); ma = np.mean([a_[x] for x in seeds]); mb = np.mean([b_[x] for x in seeds])
+                p = paired_p(a_, b_); sig = p is not None and p < 0.05
+                if pct:
+                    d = (mb - ma) / mb * 100; better = d > 0; txt = f"{abs(d):.0f}% {'lower' if better else 'higher'}"
+                else:
+                    d = (ma - mb) * 100; better = d > 0; txt = f"{d:+.1f}"
+                col = "#1a7f4b" if better else "#b03a3a"
+                bg = ("rgba(31,159,110,.16)" if better else "rgba(176,58,58,.14)") if sig else ("rgba(31,159,110,.06)" if better else "rgba(176,58,58,.05)")
+                cells.append(f"<td style='background:{bg};color:{col};font-weight:600'>{txt}{'*' if sig else ''}</td>")
+        out.append(f"<tr><td class='it'>{html.escape(lab.replace('with no common information', ': no common info'))}</td>{''.join(cells)}</tr>")
+    out.append("</tbody></table></div><p class='legend'>Full method (per-group encoders + anchors + Regret-DRO) against each published baseline at the selected rule. "
+               "Accuracy in percentage points, loss and excess as relative reduction (baseline minus ours, over baseline). Green = ours better, red = ours worse; "
+               "strong shading and * = paired t-test p &lt; 0.05 over seeds. Detailed tables per dataset follow.</p>")
+    return "".join(out)
+
+
 def svg_curves(curves, fam, arms, glabels, metric, title, ymax=None):
     """Small-multiples SVG: one panel per arm, one line per group, epochs on x."""
     W, H, PW, PH = 900, 210, 200, 150
@@ -149,7 +184,8 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
             if k in s0:
                 summ[k] = s0[k]; curves[k] = c0.get(k, {})
     P = toc
-    side = [f"<aside class='toc' id='{P}-toc'><div class='toc-t'>On this page</div><a href='#{P}-what' data-t='{P}-what'>Protocol</a>"]
+    side = [f"<aside class='toc' id='{P}-toc'><div class='toc-t'>On this page</div><a href='#{P}-what' data-t='{P}-what'>Protocol</a>"
+            f"<a href='#{P}-overview' data-t='{P}-overview'>Heat-map overview</a>"]
     side += [f"<a href='#{aid.replace('v4-', P + '-')}' data-t='{aid.replace('v4-', P + '-')}'>{html.escape(lab.replace('with no common information', ': no common info'))}</a>" for k, lab, aid in FAMS if k in summ]
     side.append("</aside>")
     # V3 (runs/v4) trained 10 epochs on the tabular datasets, so only the views that exist there are offered
@@ -169,6 +205,9 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
            "<div class='note'><b>Read with the earlier tabs in mind.</b> Under equal-group batches 'ERM' is group-balanced ERM, and every group is sampled equally, "
            "so much of what group weighting did before is now done by the sampler for every method. The tabular budget is 10 epochs at a constant learning rate; "
            "the earlier tabs trained up to 100 epochs with early stopping. Numbers here are not comparable to those tabs, only to each other.</div>", sel]
+    out.append(f"<h3 id='{P}-overview' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:32px'>Heat-map overview: full method against the published baselines, all datasets</h3>")
+    for v, _ in views:
+        out.append(f"<div class='{P}v' data-v='{v}'{'' if v == primary else ' style=display:none'}>{overview(summ, v)}</div>")
     for k, lab, aid in FAMS:
         if k not in summ:
             continue

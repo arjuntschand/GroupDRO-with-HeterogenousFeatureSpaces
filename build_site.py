@@ -1702,6 +1702,14 @@ def build(outdir=SITE):
     # protocol v4 (2026-09-22): first tab, opens by default
     import site_v4
     tabs.insert(0, ("V3 Updated Baselines", "sec-v4")); secs.insert(0, ("sec-v4", site_v4.page()))
+    # protocol v4b (main tabular protocol: natural-proportion batches, cosine, 30 epochs) + the same EMBED runs
+    _v4b_intro = ("<p class='sub'>Main results under the pre-declared protocol v4b (<code>documentation/PROTOCOL_V4_2026-09-22.md</code>): "
+                  "natural-proportion stratified batches, cosine learning-rate decay over a fixed 30-epoch budget, uniform initial group weights, "
+                  "Algorithm 1 objective with the weights driven by a training-batch running average, validated step sizes, real folds, "
+                  "every epoch logged and the selection rule applied afterwards to every method alike. The primary rule, declared before the runs, is max excess. "
+                  "EMBED trains under its own equal-group, step-schedule protocol (unchanged from the frozen protocol) with the same afterwards-selection; "
+                  "the equal-group tabular run is on the V3 Updated Baselines tab as a robustness check.</p>")
+    tabs.insert(0, ("V4 Baselines", "sec-v4b")); secs.insert(0, ("sec-v4b", site_v4.page("runs/v4b", "V4 Baselines (protocol v4b, 2026-09-22)", _v4b_intro, "v4b")))
 
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "
                   f"class='{'on' if i == 0 else ''}'>{html.escape(t)}</a>"
@@ -1711,7 +1719,7 @@ def build(outdir=SITE):
     _OLD = ("<div class='note' style='border-left:4px solid #b03a3a'><b>Earlier pipeline.</b> The numbers on this tab predate the code review of 2026-09-20 "
             "(holdout 'folds', test-set checkpoint selection, Cholesky in the Wasserstein term, clamped excess). They are kept so each correction can be quantified. "
             "The current results are on the <b>Updated baselines</b> tab.</div>")
-    secs = [(sid, c if sid in ("sec-v4", "sec-updated", "sec-methods") else _OLD + c) for sid, c in secs]
+    secs = [(sid, c if sid in ("sec-v4b", "sec-v4", "sec-updated", "sec-methods") else _OLD + c) for sid, c in secs]
     body = "".join(f"<section id='{sid}' class='{'on' if i == 0 else ''}'>{c}</section>"
                    for i, (sid, c) in enumerate(secs))
     page = (f'<!doctype html><html><head><meta charset="utf-8">'

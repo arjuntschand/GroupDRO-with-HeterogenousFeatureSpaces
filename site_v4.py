@@ -7,9 +7,10 @@ view at a time. Tables, heat maps and curve plots are all computed from the same
 import html, json, os
 import numpy as np
 
-VIEWS = [("worst", "early stopping on worst-group loss (primary)"), ("fixed10", "fixed 10 epochs, no selection"),
-         ("overall", "early stopping on overall loss"), ("groupavg", "early stopping on group-averaged loss"),
-         ("excess", "early stopping on max excess")]
+PRIMARY = "excess"
+VIEWS = [("excess", "early stopping on max excess (primary, declared in advance)"), ("worst", "early stopping on worst-group loss"),
+         ("fixed10", "fixed budget, no selection (last epoch)"), ("overall", "early stopping on overall loss"),
+         ("groupavg", "early stopping on group-averaged loss")]
 FAMS = [("nhanes", "NHANES", "v4-NHANES"), ("fedheart", "Fed-Heart", "v4-Fed-Heart"), ("embed", "EMBED", "v4-EMBED"),
         ("nhanes_nooverlap", "NHANES with no common information", "v4-nocommon"),
         ("fedheart_nooverlap", "Fed-Heart with no common information", "v4-nocommon-fh"),
@@ -134,19 +135,25 @@ def svg_curves(curves, fam, arms, glabels, metric, title, ymax=None):
     return "".join(s)
 
 
-def page():
-    if not os.path.exists("runs/v4/summary.json"):
-        return "<h2>V3 Updated Baselines</h2><p class='na'>runs/v4/summary.json not built yet (python report_v4.py)</p>"
-    summ = json.load(open("runs/v4/summary.json")); curves = json.load(open("runs/v4/curves.json")) if os.path.exists("runs/v4/curves.json") else {}
-    side = ["<aside class='toc' id='v4-toc'><div class='toc-t'>On this page</div><a href='#v4-what' data-t='v4-what'>Protocol</a>"]
-    side += [f"<a href='#{aid}' data-t='{aid}'>{html.escape(lab.replace('with no common information', ': no common info'))}</a>" for k, lab, aid in FAMS if k in summ]
+def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group batches, constant lr, 10 epochs)", intro=None, toc="v4"):
+    if not os.path.exists(f"{root}/summary.json"):
+        return f"<h2>{html.escape(title)}</h2><p class='na'>{root}/summary.json not built yet (python report_v4.py {root})</p>"
+    summ = json.load(open(f"{root}/summary.json")); curves = json.load(open(f"{root}/curves.json")) if os.path.exists(f"{root}/curves.json") else {}
+    if root != "runs/v4" and os.path.exists("runs/v4/summary.json"):     # EMBED families live under runs/v4
+        s0 = json.load(open("runs/v4/summary.json")); c0 = json.load(open("runs/v4/curves.json"))
+        for k in ("embed", "embed_disj"):
+            if k in s0:
+                summ[k] = s0[k]; curves[k] = c0.get(k, {})
+    P = toc
+    side = [f"<aside class='toc' id='{P}-toc'><div class='toc-t'>On this page</div><a href='#{P}-what' data-t='{P}-what'>Protocol</a>"]
+    side += [f"<a href='#{aid.replace('v4-', P + '-')}' data-t='{aid.replace('v4-', P + '-')}'>{html.escape(lab.replace('with no common information', ': no common info'))}</a>" for k, lab, aid in FAMS if k in summ]
     side.append("</aside>")
-    sel = ("<div class='note' id='v4-sel' style='position:sticky;top:0;z-index:5'><b>Selection rule for every table, heat map and number on this tab:</b> "
-           "<select id='v4-view' onchange=\"document.querySelectorAll('.v4v').forEach(e=>e.style.display=(e.dataset.v===this.value?'':'none'))\" style='font-size:14px;padding:4px 8px;margin-left:8px'>"
+    sel = (f"<div class='note' id='{P}-sel' style='position:sticky;top:0;z-index:5'><b>Selection rule for every table, heat map and number on this tab:</b> "
+           f"<select id='{P}-view' onchange=\"document.querySelectorAll('.{P}v').forEach(e=>e.style.display=(e.dataset.v===this.value?'':'none'))\" style='font-size:14px;padding:4px 8px;margin-left:8px'>"
            + "".join(f"<option value='{v}'>{html.escape(l)}</option>" for v, l in VIEWS) + "</select>"
            "<span class='hint' style='margin-left:12px'>The reported epoch is chosen per run on the VALIDATION split by this rule; the test metrics of that epoch are reported. "
            "The step size of every DRO arm is chosen the same way. Same rule for every method.</span></div>")
-    out = ["".join(side), "<h2 id='v4-what'>V3 Updated Baselines (protocol v4, 2026-09-22)</h2>",
+    out = ["".join(side), f"<h2 id='{P}-what'>{html.escape(title)}</h2>", intro or "",
            "<p class='sub'>Every method, ours and the published baselines, trained under one protocol declared before any run "
            "(<code>documentation/PROTOCOL_V4_2026-09-22.md</code>): equal-group batches (the same number of samples from every group in every step), "
            "uniform initial group weights logged as epoch 0, a fixed budget of 10 epochs with no early stopping, and every epoch's validation and test metrics stored, "
@@ -160,12 +167,12 @@ def page():
             continue
         rows = ROWS_EM if k.startswith("embed") else ROWS_TAB
         full = "ours" if k.startswith("embed") else "Ours_Regret"
-        out.append(f"<h3 id='{aid}' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>{html.escape(lab)}</h3>")
+        out.append(f"<h3 id='{aid.replace('v4-', P + '-')}' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>{html.escape(lab)}</h3>")
         for v, _ in VIEWS:
             if v not in summ[k]:
                 continue
             tab = summ[k][v]
-            out.append(f"<div class='v4v' data-v='{v}'{'' if v == 'worst' else ' style=display:none'}>")
+            out.append(f"<div class='{P}v' data-v='{v}'{'' if v == PRIMARY else ' style=display:none'}>")
             out.append(f"<div class='card'>{table(tab, rows, full)}</div>")
             out.append(heat(tab, full))
             out.append("</div>")
@@ -179,7 +186,7 @@ def page():
                     cands = [a for a in cv if a.split("|")[0] == n]
                     if cands:
                         # the step size the primary view chose, else the first
-                        st = summ[k].get("worst", {}).get(n, {}).get("step")
+                        st = summ[k].get(PRIMARY, {}).get(n, {}).get("step")
                         best = next((a for a in cands if st is not None and abs(float(a.split("|")[1]) - st) < 1e-9), cands[0])
                         got.append(best)
                 return got

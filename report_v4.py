@@ -19,7 +19,8 @@ import numpy as np
 import pandas as pd
 
 VIEWS = ["fixed10", "overall", "worst", "groupavg", "excess"]
-OUT = "runs/v4"
+import sys
+OUT = sys.argv[1] if len(sys.argv) > 1 else "runs/v4"
 
 
 def val_score(df_epoch, view):
@@ -145,6 +146,9 @@ def main():
     summary = {}; all_curves = {}
     fams = [("nhanes", tabular_family), ("nhanes_nooverlap", tabular_family), ("fedheart", tabular_family),
             ("fedheart_nooverlap", tabular_family), ("embed", embed_family), ("embed_disj", embed_family)]
+    if OUT != "runs/v4":       # EMBED ran once, under runs/v4; the tabular variants borrow it
+        global_embed = "runs/v4"
+        fams = [(f, fn) for f, fn in fams if not f.startswith("embed")]
     for fam, fn in fams:
         res = fn(fam)
         if res is None:

@@ -61,20 +61,22 @@ def main_figure():
         curves, summ = load(root)
         ax = axes[0, j]
         for m, (lab, col, ls, lw) in arms.items():
-            if not any(k.split("|")[0] == m for k in curves[fam]):
+            if not any(k.split("|")[0] in (m, "REMIND" if m == "REMIND_pub" else m) for k in curves[fam]):
                 continue
             eps, w = worst(curves, summ, fam, m, "test_loss")
             eps, w = zip(*[(e, v) for e, v in zip(eps, w) if e >= 1])
             ax.plot(eps, w, ls, color=col, lw=lw, label=lab, zorder=3 if m == full else 2)
+        if fam == "embed":
+            ax.set_ylim(0.8, 4.0)
         ax.axvline(BUDGET[fam], color=DIM, lw=0.7, ls=":", zorder=1)
-        ax.text(BUDGET[fam] + 0.3, ax.get_ylim()[1] * 0.98, "reported\nbudget", fontsize=6, color=DIM, va="top")
+        yl = ax.get_ylim()
+        ax.text(BUDGET[fam] + 0.4, yl[0] + 0.03 * (yl[1] - yl[0]), "reported budget", fontsize=6, color=DIM, va="bottom", rotation=90)
         ax.set_title(title, fontweight="bold", loc="left")
         ax.set_ylabel("worst-group test loss" if j == 0 else "")
         ax.grid(alpha=0.25, lw=0.5)
-        if fam == "embed":
-            ax.set_ylim(0.8, 3.2)
-        if j == 0:
-            ax.legend(frameon=False, ncol=2, loc="upper left", bbox_to_anchor=(0, 1.0), handlelength=1.6)
+        if j == 2:
+            handles, labels = ax.get_legend_handles_labels()
+            fig.legend(handles, labels, frameon=False, ncol=6, loc="lower center", bbox_to_anchor=(0.5, -0.02), handlelength=1.8)
         # weights
         ax2 = axes[1, j]
         per = series(curves, summ, fam, full, "weight")
@@ -84,8 +86,8 @@ def main_figure():
         ax2.axvline(BUDGET[fam], color=DIM, lw=0.7, ls=":")
         ax2.set_ylim(0, 1); ax2.set_xlabel("epoch"); ax2.grid(alpha=0.25, lw=0.5)
         ax2.set_ylabel("group weight $\\lambda_g$ (ours)" if j == 0 else "")
-        ax2.legend(frameon=False, ncol=2 if len(per) > 4 else 1, loc="upper left", handlelength=1.2, fontsize=6)
-    fig.tight_layout(h_pad=0.8, w_pad=1.2)
+        ax2.legend(frameon=False, ncol=2 if len(per) > 4 else 1, loc={"nhanes": "upper left", "fedheart": "upper right", "embed": "center right"}[fam], handlelength=1.2, fontsize=6)
+    fig.tight_layout(h_pad=0.8, w_pad=1.2, rect=(0, 0.04, 1, 1))
     for ext in ("png", "pdf"):
         fig.savefig(f"figs/paper/fig_dynamics_v4.{ext}", bbox_inches="tight")
     print("wrote figs/paper/fig_dynamics_v4.{png,pdf}")

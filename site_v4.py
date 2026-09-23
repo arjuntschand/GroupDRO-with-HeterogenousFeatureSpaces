@@ -187,7 +187,12 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
     P = toc
     side = [f"<aside class='toc' id='{P}-toc'><div class='toc-t'>On this page</div><a href='#{P}-what' data-t='{P}-what'>Protocol</a>"
             f"<a href='#{P}-overview' data-t='{P}-overview'>Heat-map overview</a>"]
+    if root != "runs/v4":
+        side_latent = [f"<a href='#{P}-latent' data-t='{P}-latent'>Latent space</a>"]
+    else:
+        side_latent = []
     side += [f"<a href='#{aid.replace('v4-', P + '-')}' data-t='{aid.replace('v4-', P + '-')}'>{html.escape(lab.replace('with no common information', ': no common info'))}</a>" for k, lab, aid in FAMS if k in summ]
+    side += side_latent
     side.append("</aside>")
     # V3 (runs/v4) trained 10 epochs on the tabular datasets, so only the views that exist there are offered
     views = VIEWS if root != "runs/v4" else VIEWS_V3
@@ -254,5 +259,14 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
             out.append("<div class='fig'>" + svg_curves(cv, k, arms_w, gl, "weight", "Group weight per epoch (mean over seeds; epoch 0 = initial, uniform)") + "</div>")
             out.append("<div class='fig'>" + svg_curves(cv, k, arms_l, gl, "val_loss", "Per-group validation loss per epoch (mean over seeds)") + "</div>")
             out.append("<div class='fig'>" + svg_curves(cv, k, arms_l, gl, "test_loss", "Per-group test loss per epoch (mean over seeds; shown for the dynamics only, never used to select)") + "</div>")
+    if root != "runs/v4":       # latent-space figures for the main protocol (V4); the EMBED one is unchanged from the earlier pipeline
+        LAT = [("v4-latent-nh", "NHANES", "fig11_latent_scatter_v4", "Test patients of the fixed split, seed 42, first two principal components. Left: per-group encoders + GroupDRO (no anchors, validated step). Middle: the full method at its validated step. Right: the same with randomly assigned anchor targets (control). Top row coloured by group, bottom by outcome; stars are the learnt anchor means and ellipses the learnt diagonal anchor Gaussians at 2 sigma. W2 values are computed from these points."),
+               ("v4-latent-fh", "Fed-Heart", "fig11_latent_scatter_fedheart_v4", "Fold 0 test patients (185 of 920), seed 42, same three panels."),
+               ("v4-latent-em", "EMBED", "fig11_latent_scatter_embed", "Unchanged from the earlier pipeline: EMBED's training did not change under protocol v4, so the arms shown (per-group + GroupDRO without anchors, with class anchors, with random anchors) are the same models.")]
+        out.append(f"<h3 id='{P}-latent' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>Latent space: anchors on and off</h3>")
+        for aid, lab, stem, cap in LAT:
+            rel = f"figs/paper/{stem}.png"
+            if os.path.exists(rel):
+                out.append(f"<h4 id='{aid}'>{lab}</h4><div class='fig'><img src='{rel}' alt=''><div class='cap'>{html.escape(cap)}</div></div>")
     out.append("<p class='legend'>Per-seed series behind every number: runs/v4/summary.json; per-epoch logs: runs/v4/&lt;family&gt;/epochs and the EMBED curve_*.json files.</p>")
     return "".join(out)

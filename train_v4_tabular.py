@@ -283,7 +283,8 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
             ce_u = torch.stack([F.cross_entropy(logits[g == k], y[g == k]) for k in range(G)]).detach()
             al = torch.zeros(G)
             if anchors is not None:
-                al = torch.stack([(lambda a: a if a is not None else z.new_zeros(()))(align_loss(z[g == k], y[g == k], anchors))
+                y_anc = y[torch.randperm(y.shape[0])] if args.random_anchors else y      # control: labels permuted within the batch
+                al = torch.stack([(lambda a: a if a is not None else z.new_zeros(()))(align_loss(z[g == k], y_anc[g == k], anchors))
                                   for k in range(G)])
             if dro:
                 loss = (lam * (ce_w + a_fit * al)).sum()
@@ -309,6 +310,15 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
         if sched is not None:
             sched.step()
         log_epoch(ep)
+    if args.save_latents and ours and fold == args.latents_fold:
+        model.eval()
+        with torch.no_grad():
+            z = model.encode(Xte, gte)
+        os.makedirs(args.save_latents, exist_ok=True)
+        tag = "random_anchors" if args.random_anchors else ("real_anchors" if anchors is not None else "no_anchors")
+        np.savez_compressed(os.path.join(args.save_latents, f"{tag}_s{seed}.npz"), z=z.numpy(), y=yte.numpy(), g=gte.numpy(),
+                            anchor_m=(anchors.m.detach().numpy() if anchors is not None else np.zeros((2, z.size(1)))),
+                            anchor_S=(np.stack([np.diag(v) for v in anchors.variance().detach().numpy()]) if anchors is not None else np.zeros((2, z.size(1), z.size(1)))))
     return rows
 
 
@@ -332,6 +342,9 @@ def main():
     ap.add_argument("--alpha-align", type=float, default=0.1)
     ap.add_argument("--alpha-sep", type=float, default=0.1)
     ap.add_argument("--shard", default="0/1", help="i/n: this process handles jobs with index % n == i")
+    ap.add_argument("--save-latents", default=None, help="write test latents (z, y, g, anchors) for plot_latent_scatter.py")
+    ap.add_argument("--latents-fold", type=int, default=0)
+    ap.add_argument("--random-anchors", action="store_true", help="control: alignment targets use permuted labels")
     args = ap.parse_args()
     torch.set_num_threads(1)
     if args.per_group is None:

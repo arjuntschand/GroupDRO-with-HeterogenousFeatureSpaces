@@ -108,8 +108,9 @@ def heat(tab, full_key):
     return "".join(out)
 
 
-def overview(summ, v):
+def overview(summ, v, vk=None):
     """One heat map for the whole tab: every family x every baseline x (acc, loss, excess), full method vs baseline."""
+    vk = vk or v
     fams = [(k, lab) for k, lab, _ in FAMS if k in summ and v in summ[k]]
     if not fams:
         return ""
@@ -118,7 +119,7 @@ def overview(summ, v):
         out.append(f"<th colspan='3' style='text-align:center'>{html.escape(lab)}</th>")
     out.append("</tr><tr><th></th>" + "".join("<th>worst acc</th><th>worst loss</th><th>worst excess</th>" for _ in BASE[:3]) + "</tr></thead><tbody>")
     for k, lab in fams:
-        tab = summ[k][v]; full = "ours" if k.startswith("embed") else "Ours_Regret"
+        tab = summ[k][vk] if vk in summ[k] else summ[k][v]; full = "ours" if k.startswith("embed") else "Ours_Regret"
         if full not in tab:
             continue
         cells = []
@@ -192,8 +193,13 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
     views = VIEWS if root != "runs/v4" else VIEWS_V3
     primary = PRIMARY
     sel = (f"<div class='note' id='{P}-sel' style='position:sticky;top:0;z-index:5'><b>Selection rule for every table, heat map and number on this tab:</b> "
-           f"<select id='{P}-view' onchange=\"document.querySelectorAll('.{P}v').forEach(e=>e.style.display=(e.dataset.v===this.value?'':'none'))\" style='font-size:14px;padding:4px 8px;margin-left:8px'>"
+           f"<select id='{P}-view' onchange=\"{P}show()\" style='font-size:14px;padding:4px 8px;margin-left:8px'>"
            + "".join(f"<option value='{v}'>{html.escape(l)}</option>" for v, l in views) + "</select>"
+           f"<span style='margin-left:18px'><b>Step size of the group-weight update:</b> <select id='{P}-step' onchange=\"{P}show()\" style='font-size:14px;padding:4px 8px;margin-left:8px'>"
+           "<option value=''>chosen on validation per arm (default)</option><option value='s0.1'>0.1 for every arm</option><option value='s0.5'>0.5</option>"
+           "<option value='s2'>2</option><option value='s10'>10</option></select></span>"
+           f"<script>function {P}show(){{var v=document.getElementById('{P}-view').value,s=document.getElementById('{P}-step').value;"
+           f"document.querySelectorAll('.{P}v').forEach(function(e){{e.style.display=((e.dataset.v===v&&(e.dataset.s||'')===s)?'':'none')}})}}</script>"
            "<span class='hint' style='margin-left:12px'>The reported epoch is chosen per run on the VALIDATION split by this rule; the test metrics of that epoch are reported. "
            "The step size of every DRO arm is chosen the same way. Same rule for every method.</span></div>")
     out = ["".join(side), f"<h2 id='{P}-what'>{html.escape(title)}</h2>", intro or "",
@@ -206,8 +212,11 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
            "so much of what group weighting did before is now done by the sampler for every method. The tabular budget is 10 epochs at a constant learning rate; "
            "the earlier tabs trained up to 100 epochs with early stopping. Numbers here are not comparable to those tabs, only to each other.</div>", sel]
     out.append(f"<h3 id='{P}-overview' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:32px'>Heat-map overview: full method against the published baselines, all datasets</h3>")
+    STEPS = ["", "s0.1", "s0.5", "s2", "s10"]
+    def key(v, st): return v if not st else f"{v}|{st}"
     for v, _ in views:
-        out.append(f"<div class='{P}v' data-v='{v}'{'' if v == primary else ' style=display:none'}>{overview(summ, v)}</div>")
+        for st in STEPS:
+            out.append(f"<div class='{P}v' data-v='{v}' data-s='{st}'{'' if (v == primary and not st) else ' style=display:none'}>{overview(summ, v, key(v, st))}</div>")
     for k, lab, aid in FAMS:
         if k not in summ:
             continue
@@ -215,10 +224,12 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
         full = "ours" if k.startswith("embed") else "Ours_Regret"
         out.append(f"<h3 id='{aid.replace('v4-', P + '-')}' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>{html.escape(lab)}</h3>")
         for v, _ in views:
-            if v not in summ[k]:
+          for st in STEPS:
+            vk = key(v, st) if key(v, st) in summ[k] else v
+            if vk not in summ[k]:
                 continue
-            tab = summ[k][v]
-            out.append(f"<div class='{P}v' data-v='{v}'{'' if v == primary else ' style=display:none'}>")
+            tab = summ[k][vk]
+            out.append(f"<div class='{P}v' data-v='{v}' data-s='{st}'{'' if (v == primary and not st) else ' style=display:none'}>")
             out.append(f"<div class='card'>{table(tab, rows, full)}</div>")
             out.append(heat(tab, full))
             out.append("</div>")

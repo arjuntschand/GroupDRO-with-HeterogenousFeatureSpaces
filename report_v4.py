@@ -118,12 +118,18 @@ def embed_family(fam):
     return {v: pd.DataFrame(out[v]) for v in VIEWS}, curves
 
 
-def pick_step(df):
-    """One step size per method: the grid value with the best mean validation score (over seeds and folds)."""
+STEP_OPTS = [0.1, 0.5, 2.0, 10.0]      # second selector on the site: force one step size for every arm that was run at it
+
+
+def pick_step(df, force=None):
+    """One step size per method: the grid value with the best mean validation score (over seeds and
+    folds), or `force` for every method that was run at that value (others keep their validated choice)."""
     keep = []
     for m, dm in df.groupby("method"):
         by = dm.groupby("step").val_score.mean()
         best = by.idxmin()
+        if force is not None and any(abs(st - force) < 1e-9 for st in by.index):
+            best = [st for st in by.index if abs(st - force) < 1e-9][0]
         keep.append(dm[dm.step == best].assign(chosen_step=best))
     return pd.concat(keep, ignore_index=True)
 
@@ -158,13 +164,15 @@ def main():
         views, curves = res
         all_curves[fam] = curves
         summary[fam] = {}
-        for v, df in views.items():
-            if df.empty:
-                continue
-            df = pool_folds(pick_step(df))
-            os.makedirs(f"{OUT}/{fam}/views/{v}", exist_ok=True)
+        for v, df0 in views.items():
+          if df0.empty:
+              continue
+          for force in [None] + STEP_OPTS:
+            v_key = v if force is None else f"{v}|s{force:g}"
+            df = pool_folds(pick_step(df0, force))
+            os.makedirs(f"{OUT}/{fam}/views/{v_key.replace('|', '_')}", exist_ok=True)
             cols = ["method", "seed", "group", "n", "n_params", "accuracy", "macro_f1", "loss", "R_star", "excess_loss", "auroc", "chosen_step", "epoch"]
-            df[cols].to_csv(f"{OUT}/{fam}/views/{v}/metrics_long.csv", index=False)
+            df[cols].to_csv(f"{OUT}/{fam}/views/{v_key.replace('|', '_')}/metrics_long.csv", index=False)
             tab = {}
             for m, dm in df.groupby("method"):
                 s = dm.groupby("seed").agg(wacc=("accuracy", "min"), wloss=("loss", "max"), wex=("excess_loss", "max"), wauc=("auroc", "min"))
@@ -174,8 +182,8 @@ def main():
                               step=float(dm.chosen_step.iloc[0]), mean_epoch=float(dm.epoch.mean()),
                               n_params=float(dm.n_params.iloc[0]),
                               per_seed={"worst_acc": s.wacc.to_dict(), "worst_loss": s.wloss.to_dict(), "worst_excess": s.wex.to_dict(), "worst_auroc": s.wauc.to_dict()})
-            summary[fam][v] = tab
-            print(f"{fam:20s} {v:9s} " + "  ".join(f"{m}:{t['worst_acc']:.1f}|{t['worst_loss']:.3f}" for m, t in sorted(tab.items())))
+            summary[fam][v_key] = tab
+            if force is None: print(f"{fam:20s} {v:9s} " + "  ".join(f"{m}:{t['worst_acc']:.1f}|{t['worst_loss']:.3f}" for m, t in sorted(tab.items())))
     json.dump(summary, open(f"{OUT}/summary.json", "w"))
     json.dump(all_curves, open(f"{OUT}/curves.json", "w"))
     print("wrote", f"{OUT}/summary.json")

@@ -69,7 +69,12 @@ def tabular_family(fam):
                     out[v].append(dict(method=m, step=st, seed=sd, fold=fold, group=r.group, n=r.n_test, n_params=r.n_params,
                                        accuracy=r.test_acc, macro_f1=r.test_f1, loss=r.test_loss, R_star=r.R_star,
                                        excess_loss=r.test_loss - r.R_star, auroc=r.test_auroc, val_score=vs, epoch=e))
-    return {v: pd.DataFrame(out[v]) for v in VIEWS}, curves
+    for v in VIEWS:
+        d = pd.DataFrame(out[v])
+        if not d.empty:
+            d.loc[(d.method == "REMIND") & (d.step == 0.02), "method"] = "REMIND_pub"
+        out[v] = d
+    return {v: out[v] for v in VIEWS}, curves
 
 
 def embed_family(fam):

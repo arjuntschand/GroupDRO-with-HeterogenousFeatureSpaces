@@ -21,12 +21,12 @@ GROUPS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]
 INK, DIM, RED, GREEN = "#141413", "#6b6b6b", "#b03a3a", "#1a7f4b"
 OURS, ABL = "#1a7f4b", "#4a7ba7"
 DS = [("nhanes", "runs/v4b", "NHANES", "Ours_Regret", {"Ours_Regret": ("Ours", OURS, "-", 1.8), "GroupDRO": ("Per-group GroupDRO", ABL, "-", 1.2),
-                                                       "PerGroupOnly": ("Per-group ERM", "#9a9a94", "-", 1.0), "REMIND": ("REMIND", "#c0625f", "--", 1.3),
+                                                       "PerGroupOnly": ("Per-group ERM", "#9a9a94", "-", 1.0), "REMIND_pub": ("REMIND", "#c0625f", "--", 1.3),
                                                        "Reweigh": ("Reweigh", "#e8a33d", "--", 1.1), "FlexMoE": ("Flex-MoE", "#8c6bb1", "--", 1.1)},
         ["G0 survey", "G1 + exam", "G2 + labs"]),
       ("fedheart", "runs/v4b", "Fed-Heart", "Ours_Regret", None, ["Cleveland", "Hungarian", "Switzerland", "VA"]),
       ("embed", "runs/v4", "EMBED", "ours", {"ours": ("Ours", OURS, "-", 1.8), "groupdro": ("Per-group GroupDRO", ABL, "-", 1.2),
-                                              "erm": ("Per-group ERM", "#9a9a94", "-", 1.0), "REMIND": ("REMIND", "#c0625f", "--", 1.3),
+                                              "erm": ("Per-group ERM", "#9a9a94", "-", 1.0), "REMIND_pub": ("REMIND", "#c0625f", "--", 1.3),
                                               "Reweigh": ("Reweigh", "#e8a33d", "--", 1.1), "FlexMoE": ("Flex-MoE", "#8c6bb1", "--", 1.1)},
         ["g1", "g2", "g3", "g4", "g5", "g6"])]
 DS[1] = (DS[1][0], DS[1][1], DS[1][2], DS[1][3], DS[0][4], DS[1][5])
@@ -40,7 +40,8 @@ def load(root):
 def series(curves, summ, fam, method, metric, view="fixed10"):
     """Per-group series at the step size the view reports for that method: {group: [(epoch, value)]}."""
     st = summ[fam][view][method]["step"]
-    key = next(k for k in curves[fam] if k.split("|")[0] == method and abs(float(k.split("|")[1]) - st) < 1e-9)
+    names = ("REMIND_pub", "REMIND") if method == "REMIND_pub" else (method,)   # REMIND_pub = REMIND at 0.02, keyed either way
+    key = next(k for k in curves[fam] if k.split("|")[0] in names and abs(float(k.split("|")[1]) - st) < 1e-9)
     out = {}
     for r in curves[fam][key]:
         if r[metric] == r[metric]:
@@ -95,7 +96,7 @@ def appendix_figure():
     ARMS = [("full", "Ours"), ("gdro", "Per-group GroupDRO"), ("REMIND", "REMIND")]
     for i, (fam, root, title, full, arms, glabels) in enumerate(DS):
         curves, summ = load(root)
-        keys = {"full": full, "gdro": "groupdro" if fam == "embed" else "GroupDRO", "REMIND": "REMIND"}
+        keys = {"full": full, "gdro": "groupdro" if fam == "embed" else "GroupDRO", "REMIND": "REMIND_pub"}
         for j, (k, lab) in enumerate(ARMS):
             ax = axes[i, j]
             va = series(curves, summ, fam, keys[k], "val_loss"); te = series(curves, summ, fam, keys[k], "test_loss")

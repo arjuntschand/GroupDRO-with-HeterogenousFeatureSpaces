@@ -29,7 +29,7 @@ ROWS_EM = [("ours", "Per-group + anchors + Regret-DRO", "full"), ("align_only", 
            ("regret_only", "Per-group encoders + Regret-DRO", "base"), ("groupdro", "Per-group encoders + GroupDRO", "base"),
            ("anchors_only", "Per-group encoders + anchors + ERM", "base"), ("erm", "Per-group encoders + ERM", "base"),
            ("dedicated", "Dedicated model per group", "base")]
-BASE = [("Reweigh", "Reweigh"), ("FlexMoE", "Flex-MoE"), ("REMIND", "REMIND (gamma chosen on validation)"), ("REMIND_pub", "REMIND (published gamma 0.02)")]
+BASE = [("Reweigh", "Reweigh"), ("FlexMoE", "Flex-MoE"), ("REMIND_pub", "REMIND (published gamma 0.02)")]
 GROUP_LABELS = {"nhanes": ["G0 survey", "G1 + exam", "G2 + labs"], "nhanes_nooverlap": ["G0 survey", "G1 body + HbA1c/HDL", "G2 BP + lipids"],
                 "fedheart": ["Cleveland", "Hungarian", "Switzerland", "VA"], "fedheart_nooverlap": ["Cleveland", "Hungarian", "Switzerland", "VA"]}
 COLS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]
@@ -254,8 +254,8 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
                         got.append(best)
                 return got
             arms_w = pick([full, "Ours_GDRO" if not k.startswith("embed") else "align_only", "GroupDRO" if not k.startswith("embed") else "groupdro",
-                           "RegretDRO" if not k.startswith("embed") else "regret_only", "REMIND"])
-            arms_l = pick([full, "GroupDRO" if not k.startswith("embed") else "groupdro", "Independent" if not k.startswith("embed") else "dedicated", "REMIND", "Reweigh"])
+                           "RegretDRO" if not k.startswith("embed") else "regret_only", "REMIND_pub"])
+            arms_l = pick([full, "GroupDRO" if not k.startswith("embed") else "groupdro", "Independent" if not k.startswith("embed") else "dedicated", "REMIND_pub", "Reweigh"])
             out.append("<div class='fig'>" + svg_curves(cv, k, arms_w, gl, "weight", "Group weight per epoch (mean over seeds; epoch 0 = initial, uniform)") + "</div>")
             out.append("<div class='fig'>" + svg_curves(cv, k, arms_l, gl, "val_loss", "Per-group validation loss per epoch (mean over seeds)") + "</div>")
             out.append("<div class='fig'>" + svg_curves(cv, k, arms_l, gl, "test_loss", "Per-group test loss per epoch (mean over seeds; shown for the dynamics only, never used to select)") + "</div>")

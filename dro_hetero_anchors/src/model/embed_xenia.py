@@ -127,7 +127,7 @@ def anchor_fit_loss(z: torch.Tensor, y: torch.Tensor, anchors: DiagAnchors,
     return total / n_present
 
 
-def anchor_sep_loss(model: XeniaEmbedModel, n_per_anchor: int = 16) -> torch.Tensor:
+def anchor_sep_loss(model: XeniaEmbedModel, n_per_anchor: int = 16, stopgrad: bool = False) -> torch.Tensor:
     """Sample n_per_anchor points from each anchor (reparam), push through the shared
     head, and require the head to classify them to the right class (CE)."""
     anch = model.anchors
@@ -135,6 +135,8 @@ def anchor_sep_loss(model: XeniaEmbedModel, n_per_anchor: int = 16) -> torch.Ten
     C, D = anch.num_classes, anch.dim
     eps = torch.randn(C, n_per_anchor, D, device=m.device, dtype=m.dtype)
     samples = m[:, None, :] + s.sqrt()[:, None, :] * eps  # (C, n, D)
-    logits = model.head(samples.reshape(C * n_per_anchor, D))
+    x = samples.reshape(C * n_per_anchor, D)
+    logits = (torch.func.functional_call(model.head, {k: v.detach() for k, v in model.head.named_parameters()}, (x,))
+              if stopgrad else model.head(x))          # stopgrad: separation trains the anchors only (2026-09-23 variant)
     tgt = torch.arange(C, device=m.device).repeat_interleave(n_per_anchor)
     return F.cross_entropy(logits, tgt)

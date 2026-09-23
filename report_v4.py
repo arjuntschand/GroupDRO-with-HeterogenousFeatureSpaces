@@ -73,7 +73,8 @@ def tabular_family(fam):
 
 
 def embed_family(fam):
-    files = glob.glob(f"{OUT}/{fam}*/curve_*.json")
+    # 'embed' must not pick up 'embed_disj_*' (it did until 2026-09-23, mixing the two settings)
+    files = [f for f in glob.glob(f"{OUT}/{fam}_*/curve_*.json") if fam != "embed" or "embed_disj" not in f]
     if not files:
         return None
     rows = []
@@ -82,7 +83,7 @@ def embed_family(fam):
         method, seed = m.group(1), int(m.group(2))
         d = os.path.basename(os.path.dirname(f))
         g = re.search(r"g([\d.]+)$", d)
-        step = float(g.group(1)) if g else 0.0
+        step = float(g.group(1)) if g else (0.02 if "REMIND" in os.path.basename(f) else 0.0)   # the plain *_bl dirs ran REMIND at its published 0.02
         c = json.load(open(f))
         n_params = c.get("n_params", float("nan"))
         for e in c["curve"]:

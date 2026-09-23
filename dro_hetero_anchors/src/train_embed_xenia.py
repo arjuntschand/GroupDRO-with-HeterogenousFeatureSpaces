@@ -33,6 +33,7 @@ import torch.nn.functional as F
 from .model.embed_xenia import (
     XeniaEmbedModel, GROUP_VIEWS, GROUPS, VIEWS, anchor_fit_loss, anchor_sep_loss)
 
+SEP_STOPGRAD = False
 HEAD_GROUPS = {"g4", "g6"}      # >15% frequency; the rest are tail
 NUM_CLASSES = 4
 
@@ -402,7 +403,7 @@ def train_one(method, data, masks, device, rstar, seed,
                 raw.append((lt + lam_fit * lf).detach())
                 comp = (lt - rstar_t[gi]) + lam_fit * lf     # objective term (R* is a constant)
                 task_total = task_total + lam[gi] * comp
-            lsep = anchor_sep_loss(model) if flags["anchors"] else torch.zeros((), device=device)
+            lsep = anchor_sep_loss(model, stopgrad=SEP_STOPGRAD) if flags["anchors"] else torch.zeros((), device=device)
             loss = task_total + lam_sep * lsep
             loss.backward(); opt.step()
             gstep += 1
@@ -534,9 +535,11 @@ def main():
                     help="R~_g = min{fitted, constant predictor} - bootstrap margin c_g (draft eq. 13)")
     ap.add_argument("--save-latents", default=None,
                     help="directory to write the TEST latents (z, y, group) and anchor means per method and seed")
+    ap.add_argument("--sep-stopgrad", action="store_true", help="separation loss trains the anchors only (head detached in that term)")
     ap.add_argument("--disjoint", action="store_true",
                     help="no-overlap variant: g1/g2/g3/g6 with one distinct view each (see model/embed_xenia.py)")
     args = ap.parse_args()
+    global SEP_STOPGRAD; SEP_STOPGRAD = args.sep_stopgrad
     if args.disjoint:
         from dro_hetero_anchors.src.model.embed_xenia import use_disjoint_views
         use_disjoint_views()

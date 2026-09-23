@@ -136,9 +136,11 @@ def anchor_fit_loss(anchors_m: torch.Tensor, anchors_S: torch.Tensor, batch_mome
 
 def anchor_sep_loss(anchors_m: torch.Tensor, anchors_S: torch.Tensor, anchors_L: torch.Tensor, head: nn.Module,
                    num_classes: int, J: int, device: torch.device, sep_method: str = "classifier",
-                   margin: float = 1.0, eps: float = 1e-6) -> torch.Tensor:
+                   margin: float = 1.0, eps: float = 1e-6, sep_stopgrad: bool = False) -> torch.Tensor:
     """
-    Separation objective for anchors. Two supported methods:
+    Separation objective for anchors. sep_stopgrad=True (variant proposed 2026-09-23): the head's
+    parameters are detached inside this term, so it moves only the anchors and the head is trained
+    by the task loss alone. Two supported methods:
       - "classifier": draw J samples from each anchor (using L) and train the head
                       to predict class labels (cross-entropy). This is the current
                       practical surrogate used in the repo.
@@ -162,7 +164,8 @@ def anchor_sep_loss(anchors_m: torch.Tensor, anchors_S: torch.Tensor, anchors_L:
             xi = torch.randn(J, m_c.size(0), device=device)  # (J,k)
             # Sample via L; avoid mutating parameters. eps can act as small jitter.
             samples = m_c.unsqueeze(0) + xi @ L_c.T
-            logits = head(samples)
+            logits = (torch.func.functional_call(head, {k: v.detach() for k, v in head.named_parameters()}, (samples,))
+                      if sep_stopgrad else head(samples))
             target = torch.full((J,), c, dtype=torch.long, device=device)
             ce = F.cross_entropy(logits, target)
             losses.append(ce)

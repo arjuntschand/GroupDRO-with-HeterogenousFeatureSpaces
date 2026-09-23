@@ -297,7 +297,7 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
                 loss = loss + a_sep * anchor_sep_loss(m_anc, S_anc, L_norm, model.heads[0], cfg["num_classes"],
                                                       cfg.get("sep_samples_per_class", 4), torch.device("cpu"),
                                                       sep_method=cfg.get("sep_method", "classifier"),
-                                                      margin=cfg.get("sep_margin", 1.0), eps=cfg["anchor_eps"])
+                                                      margin=cfg.get("sep_margin", 1.0), eps=cfg["anchor_eps"], sep_stopgrad=args.sep_stopgrad)
             opt.zero_grad(set_to_none=True); loss.backward()
             nn.utils.clip_grad_norm_(params, cfg.get("grad_clip", 1.0)); opt.step()
             gstep += 1
@@ -345,6 +345,7 @@ def main():
     ap.add_argument("--save-latents", default=None, help="write test latents (z, y, g, anchors) for plot_latent_scatter.py")
     ap.add_argument("--latents-fold", type=int, default=0)
     ap.add_argument("--random-anchors", action="store_true", help="control: alignment targets use permuted labels")
+    ap.add_argument("--sep-stopgrad", action="store_true", help="separation loss trains the anchors only (head detached in that term)")
     args = ap.parse_args()
     torch.set_num_threads(1)
     if args.per_group is None:

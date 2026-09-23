@@ -192,16 +192,17 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
     # V3 (runs/v4) trained 10 epochs on the tabular datasets, so only the views that exist there are offered
     views = VIEWS if root != "runs/v4" else VIEWS_V3
     primary = PRIMARY
-    sel = (f"<div class='note' id='{P}-sel' style='position:sticky;top:0;z-index:5'><b>Selection rule for every table, heat map and number on this tab:</b> "
+    sel = (f"<div class='note' id='{P}-sel' style='position:sticky;top:0;z-index:5'><div><b>Epoch selection rule:</b> "
            f"<select id='{P}-view' onchange=\"{P}show()\" style='font-size:14px;padding:4px 8px;margin-left:8px'>"
            + "".join(f"<option value='{v}'>{html.escape(l)}</option>" for v, l in views) + "</select>"
-           f"<span style='margin-left:18px'><b>Step size of the group-weight update:</b> <select id='{P}-step' onchange=\"{P}show()\" style='font-size:14px;padding:4px 8px;margin-left:8px'>"
+           "<span class='hint' style='margin-left:12px'>Applied to every table, heat map and number on this tab, identically for every method.</span></div>"
+           f"<div style='margin-top:10px'><b>Step size of the group-weight update:</b> <select id='{P}-step' onchange=\"{P}show()\" style='font-size:14px;padding:4px 8px;margin-left:8px'>"
            "<option value=''>chosen on validation per arm (default)</option><option value='s0.1'>0.1 for every arm</option><option value='s0.5'>0.5</option>"
-           "<option value='s2'>2</option><option value='s10'>10</option></select></span>"
+           "<option value='s2'>2</option><option value='s10'>10</option></select>"
+           "<span class='hint' style='margin-left:12px'>Arms not run at that value keep their validated one; the step-size column shows what was used.</span></div>"
            f"<script>function {P}show(){{var v=document.getElementById('{P}-view').value,s=document.getElementById('{P}-step').value;"
            f"document.querySelectorAll('.{P}v').forEach(function(e){{e.style.display=((e.dataset.v===v&&(e.dataset.s||'')===s)?'':'none')}})}}</script>"
-           "<span class='hint' style='margin-left:12px'>The reported epoch is chosen per run on the VALIDATION split by this rule; the test metrics of that epoch are reported. "
-           "The step size of every DRO arm is chosen the same way. Same rule for every method.</span></div>")
+           "</div>")
     out = ["".join(side), f"<h2 id='{P}-what'>{html.escape(title)}</h2>", intro or "",
            "<p class='sub'>Every method, ours and the published baselines, trained under one protocol declared before any run "
            "(<code>documentation/PROTOCOL_V4_2026-09-22.md</code>): equal-group batches (the same number of samples from every group in every step), "

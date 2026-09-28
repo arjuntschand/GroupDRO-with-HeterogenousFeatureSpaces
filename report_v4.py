@@ -159,7 +159,7 @@ def pool_folds(df):
 def main():
     summary = {}; all_curves = {}
     fams = [("nhanes", tabular_family), ("nhanes_nooverlap", tabular_family), ("fedheart", tabular_family),
-            ("fedheart_nooverlap", tabular_family), ("embed", embed_family), ("embed_disj", embed_family)]
+            ("fedheart_nooverlap", tabular_family), ("nhanes_designed", tabular_family), ("embed", embed_family), ("embed_disj", embed_family)]
     if OUT in ("runs/v4b", "runs/v4b_sg"):       # tabular-only roots borrow EMBED from runs/v4
         global_embed = "runs/v4"
         fams = [(f, fn) for f, fn in fams if not f.startswith("embed")]

@@ -110,6 +110,14 @@ def _get_feature_config(mode: str = "nested"):
         gfc = {0: 10, 1: 5, 2: 5}
         indices = {0: list(range(0, 10)), 1: list(range(15, 20)), 2: list(range(20, 25))}
         return gfc, 25, indices
+    elif mode == "partition2":
+        # no-overlap split DESIGNED (2026-09-29) so that the groups' achievable losses differ: G0 gets only the
+        # weak questionnaire items (race, education, income, smoking; no age or gender), G1 gets age, gender
+        # and the body measures, G2 gets the labs and blood pressure. Same participants and group assignment
+        # as 'partition'; only the columns each group's model may see change.
+        gfc = {0: 8, 1: 5, 2: 7}
+        indices = {0: list(range(2, 10)), 1: [0, 1, 15, 16, 17], 2: list(range(18, 25))}
+        return gfc, 25, indices
     elif mode == "4group":
         # 4 groups with NATURAL non-nesting:
         # G0 (survey_only): expanded questionnaire only = 15 features
@@ -388,7 +396,7 @@ def _preprocess_features(df: pd.DataFrame, feature_mode: str = "nested") -> np.n
         _extract_bp(df, features, offset=18)
         _extract_labs(df, features, offset=20)
 
-    elif feature_mode in ("disjoint", "partition"):
+    elif feature_mode in ("disjoint", "partition", "partition2"):
         # [0-9]: shared survey (partition: G0 only)
         # [10-14]: G0 unique (extra questionnaire)
         # [15-19]: G1 unique (body + 2 labs: BMI, weight, height, HbA1c, HDL)

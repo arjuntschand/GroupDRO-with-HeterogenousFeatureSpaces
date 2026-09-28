@@ -27,6 +27,8 @@ _ap.add_argument("--dir", default=None, help="override the latent-point director
 _ap.add_argument("--suffix", default="", help="appended to the output stem")
 _ap.add_argument("--w2", default=None, help="override the multi-seed W2 summary JSON")
 _ap.add_argument("--subtitle", default=None, help="override the middle panel's title")
+_ap.add_argument("--keys", default=None, help="comma-separated arm keys to use instead of the dataset defaults (e.g. no_anchors,real_anchors)")
+_ap.add_argument("--titles", default=None, help="comma-separated panel titles matching --keys")
 ARGS = _ap.parse_args()
 SLOTS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]      # categorical slots 1-6, fixed order
 RAMP4 = ["#9ec5f4", "#5598e7", "#256abf", "#0d366b"]                            # ordinal outcome: one hue, light -> dark
@@ -52,6 +54,9 @@ if ARGS.dir:
     D["dir"] = ARGS.dir
 if ARGS.w2:
     D["w2"] = ARGS.w2
+if ARGS.keys:
+    _ks = ARGS.keys.split(","); _ts = (ARGS.titles.split(",") if ARGS.titles else [t for _, t in D["arms"]][:len(_ks)])
+    D["arms"] = list(zip(_ks, _ts))
 ARMS = [(k, t, k not in ("no_anchors", "groupdro")) for k, t in D["arms"]][:ARGS.columns]
 if ARGS.subtitle:
     ARMS = [(k, (ARGS.subtitle if i == 1 else t), a) for i, (k, t, a) in enumerate(ARMS)]

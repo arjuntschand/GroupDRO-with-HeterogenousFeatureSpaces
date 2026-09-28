@@ -1,0 +1,72 @@
+{
+ "no_anchors": {
+  "dist_to_own_anchor": 0.8519345758616257,
+  "anchor_accuracy": 0.7945945945945946,
+  "separation_ratio": 0.757639337877989,
+  "class_silhouette": 0.10151638171848235,
+  "knn_purity": 0.674054054054054,
+  "latent_scale": 6.874499939430002,
+  "anchors_used": false,
+  "per_group": {
+   "0": {
+    "dist_to_own_anchor": 0.65140023250603,
+    "anchor_accuracy": 0.7704918032786885,
+    "separation_ratio": 1.08117747061022,
+    "knn_purity": 0.6442622950819672
+   },
+   "1": {
+    "dist_to_own_anchor": 0.6938680427603011,
+    "anchor_accuracy": 0.7796610169491526,
+    "separation_ratio": 0.8980718551435848,
+    "knn_purity": 0.652542372881356
+   },
+   "2": {
+    "dist_to_own_anchor": 0.4891783080700334,
+    "anchor_accuracy": 0.6,
+    "separation_ratio": 0.7283332862275731,
+    "knn_purity": 0.8519999999999999
+   },
+   "3": {
+    "dist_to_own_anchor": 0.6437701772465958,
+    "anchor_accuracy": 0.65,
+    "separation_ratio": 0.3033135645995851,
+    "knn_purity": 0.6450000000000001
+   }
+  }
+ },
+ "real_anchors": {
+  "dist_to_own_anchor": 0.8995391830564482,
+  "anchor_accuracy": 0.772972972972973,
+  "separation_ratio": 0.791079326473931,
+  "class_silhouette": 0.11080997881827406,
+  "knn_purity": 0.6513513513513514,
+  "latent_scale": 1.4353487196108288,
+  "anchors_used": true,
+  "per_group": {
+   "0": {
+    "dist_to_own_anchor": 0.8917970501381944,
+    "anchor_accuracy": 0.7540983606557377,
+    "separation_ratio": 0.8794143266821096,
+    "knn_purity": 0.639344262295082
+   },
+   "1": {
+    "dist_to_own_anchor": 0.8913692790622887,
+    "anchor_accuracy": 0.7966101694915254,
+    "separation_ratio": 0.7753846311591114,
+    "knn_purity": 0.6745762711864406
+   },
+   "2": {
+    "dist_to_own_anchor": 0.8553082969705115,
+    "anchor_accuracy": 0.92,
+    "separation_ratio": 0.7799236079640142,
+    "knn_purity": 0.86
+   },
+   "3": {
+    "dist_to_own_anchor": 0.9544868644202456,
+    "anchor_accuracy": 0.675,
+    "separation_ratio": 0.33939554590929255,
+    "knn_purity": 0.6050000000000001
+   }
+  }
+ }
+}

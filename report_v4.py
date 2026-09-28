@@ -160,7 +160,7 @@ def main():
     summary = {}; all_curves = {}
     fams = [("nhanes", tabular_family), ("nhanes_nooverlap", tabular_family), ("fedheart", tabular_family),
             ("fedheart_nooverlap", tabular_family), ("embed", embed_family), ("embed_disj", embed_family)]
-    if OUT != "runs/v4":       # EMBED ran once, under runs/v4; the tabular variants borrow it
+    if OUT in ("runs/v4b", "runs/v4b_sg"):       # tabular-only roots borrow EMBED from runs/v4
         global_embed = "runs/v4"
         fams = [(f, fn) for f, fn in fams if not f.startswith("embed")]
     for fam, fn in fams:
@@ -187,7 +187,11 @@ def main():
                               worst_excess=float(s.wex.mean()), worst_auroc=float(s.wauc.mean()), overall_acc=float(ov.mean() * 100),
                               step=float(dm.chosen_step.iloc[0]), mean_epoch=float(dm.epoch.mean()),
                               n_params=float(dm.n_params.iloc[0]),
-                              per_seed={"worst_acc": s.wacc.to_dict(), "worst_loss": s.wloss.to_dict(), "worst_excess": s.wex.to_dict(), "worst_auroc": s.wauc.to_dict()})
+                              per_seed={"worst_acc": s.wacc.to_dict(), "worst_loss": s.wloss.to_dict(), "worst_excess": s.wex.to_dict(), "worst_auroc": s.wauc.to_dict(),
+                                        "overall_acc": ov.to_dict()},
+                              per_group={g: {k: [float(x[k].mean()), float(x[k].std(ddof=1)) if len(x) > 1 else 0.0]
+                                             for k in ["accuracy", "loss", "excess_loss", "auroc"]}
+                                         for g, x in dm.groupby("group")})
             summary[fam][v_key] = tab
             if force is None: print(f"{fam:20s} {v:9s} " + "  ".join(f"{m}:{t['worst_acc']:.1f}|{t['worst_loss']:.3f}" for m, t in sorted(tab.items())))
     json.dump(summary, open(f"{OUT}/summary.json", "w"))

@@ -1712,9 +1712,12 @@ def build(outdir=SITE):
                   "Algorithm 1 objective with the weights driven by a training-batch running average, validated step sizes, real folds, "
                   "every epoch logged and the selection rule applied afterwards to every method alike. The primary rule, declared before the runs, is max excess. "
                   "EMBED trains under its own equal-group, step-schedule protocol (unchanged from the frozen protocol) with the same afterwards-selection; "
-                  "the equal-group tabular run is on the V3 Baselines tab as a robustness check.</p>"
+                  "the equal-group tabular run is on the V3 Baselines tab as a robustness check. "
+                  "<b>v4c (2026-09-29):</b> the anchored arms use the separation loss with the head detached (the anchors are trained against a frozen head; "
+                  "the head sees the task loss only), adopted because it had lower validation worst-group loss at epoch 10 in 11 of 18 arm-dataset pairs "
+                  "(clearly on EMBED and NHANES no-common-info, ties on Fed-Heart). All other arms and every baseline are unchanged.</p>"
                   "")
-    tabs.insert(0, ("V4 Baselines", "sec-v4b")); secs.insert(0, ("sec-v4b", site_v4.page("runs/v4b", "V4 Baselines (protocol v4b, 2026-09-22)", _v4b_intro, "v4b")))
+    tabs.insert(0, ("V4 Baselines", "sec-v4b")); secs.insert(0, ("sec-v4b", site_v4.page("runs/v4c", "V4 Baselines (protocol v4b + v4c, 2026-09-29)", _v4b_intro, "v4b")))
 
     nav = "".join(f"<a href='#' onclick=\"show('{sid}',this);return false\" "
                   f"class='{'on' if i == 0 else ''}'>{html.escape(t)}</a>"

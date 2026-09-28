@@ -18,7 +18,8 @@ VIEWS_V3 = [("fixed10", _fx(10, 10)), ("fixed5", _fx(5, 5)), ("fixed15", _fx(10,
 FAMS = [("nhanes", "NHANES", "v4-NHANES"), ("fedheart", "Fed-Heart", "v4-Fed-Heart"), ("embed", "EMBED", "v4-EMBED"),
         ("nhanes_nooverlap", "NHANES with no common information", "v4-nocommon"),
         ("fedheart_nooverlap", "Fed-Heart with no common information", "v4-nocommon-fh"),
-        ("embed_disj", "EMBED with no common information", "v4-nocommon-em")]
+        ("embed_disj", "EMBED with no common information", "v4-nocommon-em"),
+        ("nhanes_designed", "NHANES with no common information, designed so the achievable losses differ", "v4-designed")]
 ROWS_TAB = [("Ours_Regret", "Per-group + anchors + Regret-DRO", "full"), ("Ours_GDRO", "Per-group + anchors + GroupDRO", "abl"),
             ("RegretDRO", "Per-group encoders + Regret-DRO", "base"), ("GroupDRO", "Per-group encoders + GroupDRO", "base"),
             ("AnchorsOnly", "Per-group encoders + anchors + ERM", "base"), ("PerGroupOnly", "Per-group encoders + ERM", "base"),
@@ -31,7 +32,9 @@ ROWS_EM = [("ours", "Per-group + anchors + Regret-DRO", "full"), ("align_only", 
            ("dedicated", "Dedicated model per group", "base")]
 BASE = [("Reweigh", "Reweigh"), ("FlexMoE", "Flex-MoE"), ("REMIND_pub", "REMIND (published gamma 0.02)")]
 GROUP_LABELS = {"nhanes": ["G0 survey", "G1 + exam", "G2 + labs"], "nhanes_nooverlap": ["G0 survey", "G1 body + HbA1c/HDL", "G2 BP + lipids"],
-                "fedheart": ["Cleveland", "Hungarian", "Switzerland", "VA"], "fedheart_nooverlap": ["Cleveland", "Hungarian", "Switzerland", "VA"]}
+                "nhanes_designed": ["G0 questionnaire only", "G1 age, gender, body", "G2 labs + BP"],
+                "fedheart": ["Cleveland", "Hungarian", "Switzerland", "VA"], "fedheart_nooverlap": ["Cleveland", "Hungarian", "Switzerland", "VA"],
+                "embed": ["g1 FFDM CC", "g2 C-View CC", "g3 FFDM MLO", "g4 FFDM CC+MLO", "g5 C-View CC + FFDM", "g6 all four"], "embed_disj": ["g1 FFDM CC", "g2 C-View CC", "g3 FFDM MLO", "g6 C-View MLO"]}
 COLS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]
 
 
@@ -68,6 +71,10 @@ def table(tab, rows, full_key):
         style = " style='background:rgba(31,159,110,.14)'" if kind == "full" else ""
         def cell(c, dp):
             v = t.get(c); s = fmt(v, dp)
+            ps = t.get("per_seed", {}).get(c)
+            if ps and len(ps) > 1:
+                sd = float(np.std(list(ps.values()), ddof=1)) * (100 if c in ("worst_acc", "overall_acc") else 1)
+                s = f"{s}<span class='sd'>±{sd:.{dp}f}</span>"
             return f"<td>{'<b>' + s + '</b>' if best.get(c) == k else s}</td>"
         out.append(f"<tr{style}><td class='m'>{html.escape(lab)}{tag}</td>{cell('worst_acc', 1)}{cell('overall_acc', 1)}{cell('worst_loss', 3)}"
                    f"{cell('worst_excess', 3)}{cell('worst_auroc', 3)}<td class='dim'>{fmt(t.get('step'), 2) if t.get('step') else '—'}</td>"
@@ -76,8 +83,34 @@ def table(tab, rows, full_key):
                    f"<tr{style}><td class='m'>{html.escape(lab)}{tag}</td>{cell('worst_acc', 1)}{cell('overall_acc', 1)}{cell('worst_loss', 3)}"
                    f"{cell('worst_excess', 3)}{cell('worst_auroc', 3)}<td class='dim'>{fmt(t.get('step'), 2) if t.get('step') else '—'}</td>"
                    f"<td class='dim'>{fmt(t.get('mean_epoch'), 1)}</td><td class='na'>—</td><td class='dim'>{t['n_seeds']}</td></tr>")
-    out.append("</tbody></table><p class='legend'>Bold = best in the column. Mean over 10 seeds (Fed-Heart: seeds x 5 real folds, every patient tested once). "
+    out.append("</tbody></table><p class='legend'>Bold = best in the column. Mean ± sd over 10 seeds (Fed-Heart: seeds x 5 real folds, every patient tested once). "
                "Step size and mean selected epoch are the values behind the row; the step size is chosen on the same validation rule as the epoch.</p>")
+    return "".join(out)
+
+
+def per_group_table(tab, rows, glabels):
+    """Per-group accuracy, loss and excess (mean ± sd over seeds) for every arm of a family."""
+    ent = [(k, lab) for k, lab, _ in rows if k in tab] + [(k, lab) for k, lab in BASE if k in tab]
+    groups = sorted({g for k, _ in ent for g in tab[k].get("per_group", {})})
+    if not ent or not groups:
+        return ""
+    gl = lambda i: glabels[i] if i < len(glabels) else groups[i]
+    out = ["<div class='card'><table class='data'><thead><tr><th>method</th>"]
+    for i, g in enumerate(groups):
+        out.append(f"<th colspan='3' style='text-align:center'>{html.escape(gl(i))}</th>")
+    out.append("</tr><tr><th></th>" + "".join("<th>acc</th><th>loss</th><th>excess</th>" for _ in groups) + "</tr></thead><tbody>")
+    for k, lab in ent:
+        pg = tab[k].get("per_group", {})
+        cells = []
+        for g in groups:
+            v = pg.get(g)
+            if not v:
+                cells.append("<td class='na'>—</td>" * 3); continue
+            cells.append(f"<td>{v['accuracy'][0]*100:.1f}<span class='sd'>±{v['accuracy'][1]*100:.1f}</span></td>"
+                         f"<td>{v['loss'][0]:.3f}<span class='sd'>±{v['loss'][1]:.3f}</span></td>"
+                         f"<td>{v['excess_loss'][0]:.3f}<span class='sd'>±{v['excess_loss'][1]:.3f}</span></td>")
+        out.append(f"<tr><td class='m'>{html.escape(lab)}</td>{''.join(cells)}</tr>")
+    out.append("</tbody></table></div><p class='legend'>Per-group test metrics at the selected rule, mean ± sd over seeds (Fed-Heart: folds pooled per seed).</p>")
     return "".join(out)
 
 
@@ -238,6 +271,7 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
             out.append(f"<div class='{P}v' data-v='{v}' data-s='{st}'{'' if (v == primary and not st) else ' style=display:none'}>")
             out.append(f"<div class='card'>{table(tab, rows, full)}</div>")
             out.append(heat(tab, full))
+            out.append(f"<h4>Per-group metrics</h4>{per_group_table(tab, rows, GROUP_LABELS.get(k, []))}")
             out.append("</div>")
         # curves are selection-independent
         cv = curves.get(k, {})
@@ -259,14 +293,28 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
             out.append("<div class='fig'>" + svg_curves(cv, k, arms_w, gl, "weight", "Group weight per epoch (mean over seeds; epoch 0 = initial, uniform)") + "</div>")
             out.append("<div class='fig'>" + svg_curves(cv, k, arms_l, gl, "val_loss", "Per-group validation loss per epoch (mean over seeds)") + "</div>")
             out.append("<div class='fig'>" + svg_curves(cv, k, arms_l, gl, "test_loss", "Per-group test loss per epoch (mean over seeds; shown for the dynamics only, never used to select)") + "</div>")
-    if root != "runs/v4":       # latent-space figures for the main protocol (V4); the EMBED one is unchanged from the earlier pipeline
-        LAT = [("v4-latent-nh", "NHANES", "fig11_latent_scatter_v4", "Test patients of the fixed split, seed 42, first two principal components. Left: per-group encoders + GroupDRO (no anchors, validated step). Middle: the full method at its validated step. Right: the same with randomly assigned anchor targets (control). Top row coloured by group, bottom by outcome; stars are the learnt anchor means and ellipses the learnt diagonal anchor Gaussians at 2 sigma. W2 values are computed from these points."),
-               ("v4-latent-fh", "Fed-Heart", "fig11_latent_scatter_fedheart_v4", "Fold 0 test patients (185 of 920), seed 42, same three panels."),
-               ("v4-latent-em", "EMBED", "fig11_latent_scatter_embed", "Unchanged from the earlier pipeline: EMBED's training did not change under protocol v4, so the arms shown (per-group + GroupDRO without anchors, with class anchors, with random anchors) are the same models.")]
-        out.append(f"<h3 id='{P}-latent' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>Latent space: anchors on and off</h3>")
-        for aid, lab, stem, cap in LAT:
+    if root != "runs/v4":       # latent-space figures for the main protocol (V4)
+        LAT = [("v4-latent-nh", "NHANES", "fig11_latent_scatter_main_v4c", "runs/latent_points_v4c/nhanes", "Test patients of the fixed split, seed 42, first two principal components."),
+               ("v4-latent-fh", "Fed-Heart", "fig11_latent_scatter_fedheart_main_v4c", "runs/latent_points_v4c/fedheart", "Fold 0 test patients (185 of 920), seed 42."),
+               ("v4-latent-em", "EMBED", "fig11_latent_scatter_embed_main_v4c", "runs/latent_points_v4c/embed", "Test exams (500 per group plotted), seed 0.")]
+        out.append(f"<h3 id='{P}-latent' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>Latent space: with and without anchors</h3>"
+                   "<p class='legend'>Left: per-group encoders + Regret-DRO, no anchors. Right: the same with class anchors (the full method, v4c). Same seed, same validated step size as the tables. "
+                   "Top row coloured by group (rings = group centroids), bottom row by outcome; stars are the learnt anchor means and ellipses the anchor Gaussians at 2 sigma. "
+                   "Metrics below each figure are computed on the plotted test latents: distance of every point to the anchor of its own class (scale-normalised; without anchors the class centroid stands in), "
+                   "the fraction of points whose nearest anchor is their own class, between-class centroid distance over within-class spread, class silhouette, and 10-nearest-neighbour class purity.</p>")
+        for aid, lab, stem, ldir, cap in LAT:
             rel = f"figs/paper/{stem}.png"
-            if os.path.exists(rel):
-                out.append(f"<h4 id='{aid}'>{lab}</h4><div class='fig'><img src='{rel}' alt=''><div class='cap'>{html.escape(cap)}</div></div>")
+            if not os.path.exists(rel):
+                continue
+            out.append(f"<h4 id='{aid}'>{lab}</h4><div class='fig'><img src='{rel}' alt=''><div class='cap'>{html.escape(cap)}</div></div>")
+            mp = os.path.join(ldir, "latent_metrics.json")
+            if os.path.exists(mp):
+                M = json.load(open(mp))
+                out.append("<div class='card'><table class='data'><thead><tr><th>arm</th><th>distance to own class anchor</th><th>nearest-anchor accuracy</th><th>class separation ratio</th><th>class silhouette</th><th>10-NN class purity</th><th>latent scale</th></tr></thead><tbody>")
+                for key, name in [("no_anchors", "No anchors (class centroids used as anchors)"), ("real_anchors", "Class anchors (ours)")]:
+                    if key in M:
+                        m = M[key]
+                        out.append(f"<tr><td class='m'>{name}</td><td>{m['dist_to_own_anchor']:.3f}</td><td>{m['anchor_accuracy']*100:.1f}%</td><td>{m['separation_ratio']:.3f}</td><td>{m['class_silhouette']:.3f}</td><td>{m['knn_purity']*100:.1f}%</td><td>{m['latent_scale']:.2f}</td></tr>")
+                out.append("</tbody></table></div>")
     out.append("<p class='legend'>Per-seed series behind every number: runs/v4/summary.json; per-epoch logs: runs/v4/&lt;family&gt;/epochs and the EMBED curve_*.json files.</p>")
     return "".join(out)

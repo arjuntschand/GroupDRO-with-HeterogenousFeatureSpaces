@@ -1,0 +1,60 @@
+{
+ "no_anchors": {
+  "dist_to_own_anchor": 0.8809875721980248,
+  "anchor_accuracy": 0.6842105263157895,
+  "separation_ratio": 0.7675673028751977,
+  "class_silhouette": 0.056415786628034086,
+  "knn_purity": 0.8373,
+  "latent_scale": 5.43916146583235,
+  "anchors_used": false,
+  "per_group": {
+   "0": {
+    "dist_to_own_anchor": 0.8392081579294449,
+    "anchor_accuracy": 0.6228893058161351,
+    "separation_ratio": 0.830321754193554,
+    "knn_purity": 0.8151969981238275
+   },
+   "1": {
+    "dist_to_own_anchor": 0.7856569681627175,
+    "anchor_accuracy": 0.6867924528301886,
+    "separation_ratio": 0.7763755710505309,
+    "knn_purity": 0.8379245283018868
+   },
+   "2": {
+    "dist_to_own_anchor": 0.8450609407466856,
+    "anchor_accuracy": 0.7048759623609923,
+    "separation_ratio": 0.929658628877498,
+    "knn_purity": 0.8429426860564585
+   }
+  }
+ },
+ "real_anchors": {
+  "dist_to_own_anchor": 0.7837548152749109,
+  "anchor_accuracy": 0.6842105263157895,
+  "separation_ratio": 1.0459352754694033,
+  "class_silhouette": 0.03309352489661974,
+  "knn_purity": 0.8375333333333334,
+  "latent_scale": 2.0137580414552185,
+  "anchors_used": true,
+  "per_group": {
+   "0": {
+    "dist_to_own_anchor": 0.7680074094043359,
+    "anchor_accuracy": 0.6378986866791745,
+    "separation_ratio": 0.9486526139957576,
+    "knn_purity": 0.8172607879924954
+   },
+   "1": {
+    "dist_to_own_anchor": 0.7467724065884866,
+    "anchor_accuracy": 0.7377358490566037,
+    "separation_ratio": 1.0060031542314738,
+    "knn_purity": 0.8392452830188679
+   },
+   "2": {
+    "dist_to_own_anchor": 0.7960243483611829,
+    "anchor_accuracy": 0.6826347305389222,
+    "separation_ratio": 1.0891975214592025,
+    "knn_purity": 0.8408896492728828
+   }
+  }
+ }
+}

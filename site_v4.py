@@ -271,7 +271,8 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
             out.append(f"<div class='{P}v' data-v='{v}' data-s='{st}'{'' if (v == primary and not st) else ' style=display:none'}>")
             out.append(f"<div class='card'>{table(tab, rows, full)}</div>")
             out.append(heat(tab, full))
-            out.append(f"<h4>Per-group metrics</h4>{per_group_table(tab, rows, GROUP_LABELS.get(k, []))}")
+            if not st:      # per-group tables only for the validated-step blocks (page size)
+                out.append(f"<h4>Per-group metrics</h4>{per_group_table(tab, rows, GROUP_LABELS.get(k, []))}")
             out.append("</div>")
         # curves are selection-independent
         cv = curves.get(k, {})

@@ -239,7 +239,8 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
            "<option value='s2'>2</option><option value='s10'>10</option></select>"
            "<span class='hint' style='margin-left:12px'>Arms not run at that value keep their validated one; the step-size column shows what was used.</span></div>"
            f"<script>function {P}show(){{var v=document.getElementById('{P}-view').value,s=document.getElementById('{P}-step').value;"
-           f"document.querySelectorAll('.{P}v').forEach(function(e){{e.style.display=((e.dataset.v===v&&(e.dataset.s||'')===s)?'':'none')}})}}</script>"
+           f"document.querySelectorAll('.{P}v').forEach(function(e){{e.style.display=((e.dataset.v===v&&(e.dataset.s||'')===s)?'':'none')}});"
+           f"document.querySelectorAll('.{P}c').forEach(function(e){{e.style.display=(((e.dataset.s||'')===s)?'':'none')}})}}</script>"
            "</div>")
     out = ["".join(side), f"<h2 id='{P}-what'>{html.escape(title)}</h2>", intro or "",
            "<p class='sub'>Every method, ours and the published baselines, trained under one protocol declared before any run "
@@ -274,26 +275,33 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
             if not st:      # per-group tables only for the validated-step blocks (page size)
                 out.append(f"<h4>Per-group metrics</h4>{per_group_table(tab, rows, GROUP_LABELS.get(k, []))}")
             out.append("</div>")
-        # curves are selection-independent
+        # curves follow the step-size selector (one block per option); the epoch selector does not affect them
         cv = curves.get(k, {})
         if cv:
             gl = GROUP_LABELS.get(k, sorted({r['group'] for a in cv.values() for r in a}))
-            def pick(names):
+            def pick(names, force):
                 got = []
                 for n in names:
                     cands = [a for a in cv if a.split("|")[0] == n]
-                    if cands:
-                        # the step size the primary view chose, else the first
-                        st = summ[k].get(PRIMARY, {}).get(n, {}).get("step")
-                        best = next((a for a in cands if st is not None and abs(float(a.split("|")[1]) - st) < 1e-9), cands[0])
-                        got.append(best)
+                    if not cands:
+                        continue
+                    st = summ[k].get(PRIMARY, {}).get(n, {}).get("step")            # validated step
+                    if force is not None and any(abs(float(a.split("|")[1]) - force) < 1e-9 for a in cands):
+                        st = force                                                    # forced step, if the arm was run at it
+                    got.append(next((a for a in cands if st is not None and abs(float(a.split("|")[1]) - st) < 1e-9), cands[0]))
                 return got
-            arms_w = pick([full, "Ours_GDRO" if not k.startswith("embed") else "align_only", "GroupDRO" if not k.startswith("embed") else "groupdro",
-                           "RegretDRO" if not k.startswith("embed") else "regret_only", "REMIND_pub"])
-            arms_l = pick([full, "GroupDRO" if not k.startswith("embed") else "groupdro", "Independent" if not k.startswith("embed") else "dedicated", "REMIND_pub", "Reweigh"])
-            out.append("<div class='fig'>" + svg_curves(cv, k, arms_w, gl, "weight", "Group weight per epoch (mean over seeds; epoch 0 = initial, uniform)") + "</div>")
-            out.append("<div class='fig'>" + svg_curves(cv, k, arms_l, gl, "val_loss", "Per-group validation loss per epoch (mean over seeds)") + "</div>")
-            out.append("<div class='fig'>" + svg_curves(cv, k, arms_l, gl, "test_loss", "Per-group test loss per epoch (mean over seeds; shown for the dynamics only, never used to select)") + "</div>")
+            names_w = [full, "Ours_GDRO" if not k.startswith("embed") else "align_only", "GroupDRO" if not k.startswith("embed") else "groupdro",
+                       "RegretDRO" if not k.startswith("embed") else "regret_only", "REMIND_pub"]
+            names_l = [full, "GroupDRO" if not k.startswith("embed") else "groupdro", "Independent" if not k.startswith("embed") else "dedicated", "REMIND_pub", "Reweigh"]
+            for st in STEPS:
+                force = None if not st else float(st[1:])
+                tag = "validated step size per arm" if force is None else f"step size {force:g} for every arm that was run at it (others: validated)"
+                out.append(f"<div class='{P}c' data-s='{st}'{'' if not st else ' style=display:none'}>")
+                out.append("<div class='fig'>" + svg_curves(cv, k, pick(names_w, force), gl, "weight", f"Group weight per epoch, {tag} (mean over seeds; epoch 0 = initial, uniform)") + "</div>")
+                out.append("<div class='fig'>" + svg_curves(cv, k, pick(names_l, force), gl, "val_loss", f"Per-group validation loss per epoch, {tag} (mean over seeds)") + "</div>")
+                if force is None:      # test-loss curves only at the validated step (page size); they are never used to select anything
+                    out.append("<div class='fig'>" + svg_curves(cv, k, pick(names_l, force), gl, "test_loss", f"Per-group test loss per epoch, {tag} (mean over seeds; dynamics only, never used to select)") + "</div>")
+                out.append("</div>")
     if root != "runs/v4":       # latent-space figures for the main protocol (V4)
         LAT = [("v4-latent-nh", "NHANES", "fig11_latent_scatter_main_v4c", "runs/latent_points_v4c/nhanes", "Test patients of the fixed split, seed 42, first two principal components."),
                ("v4-latent-fh", "Fed-Heart", "fig11_latent_scatter_fedheart_main_v4c", "runs/latent_points_v4c/fedheart", "Fold 0 test patients (185 of 920), seed 42."),

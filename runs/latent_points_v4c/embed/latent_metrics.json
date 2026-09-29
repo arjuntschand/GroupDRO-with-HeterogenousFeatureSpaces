@@ -1,6 +1,7 @@
 {
  "no_anchors": {
-  "dist_to_own_anchor": 0.6335879979164057,
+  "dist_to_own_anchor": NaN,
+  "dist_to_class_centroid": 0.6335879979164057,
   "anchor_accuracy": 0.670060861423221,
   "separation_ratio": 1.4350961077328297,
   "class_silhouette": 0.05385024652458761,
@@ -9,37 +10,37 @@
   "anchors_used": false,
   "per_group": {
    "0": {
-    "dist_to_own_anchor": 0.38569424780448686,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.5885167464114832,
     "separation_ratio": 2.1850692278945374,
     "knn_purity": 0.6287081339712918
    },
    "1": {
-    "dist_to_own_anchor": 0.32407696102503347,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.5675675675675675,
     "separation_ratio": 2.750596918635527,
     "knn_purity": 0.5567567567567568
    },
    "2": {
-    "dist_to_own_anchor": 0.39551622469009606,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.6015625,
     "separation_ratio": 1.6054480230147266,
     "knn_purity": 0.5460937499999999
    },
    "3": {
-    "dist_to_own_anchor": 0.38233386725492075,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.6709171496760996,
     "separation_ratio": 2.7205349005642505,
     "knn_purity": 0.6882333333333333
    },
    "4": {
-    "dist_to_own_anchor": 0.2359102923511748,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.8571428571428571,
     "separation_ratio": 2.6548060589847404,
     "knn_purity": 0.32857142857142857
    },
    "5": {
-    "dist_to_own_anchor": 0.3372526827954802,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.6862652424614802,
     "separation_ratio": 3.081160516277685,
     "knn_purity": 0.6956000000000001
@@ -48,6 +49,7 @@
  },
  "real_anchors": {
   "dist_to_own_anchor": 0.8785299019903946,
+  "dist_to_class_centroid": 0.8467795737032894,
   "anchor_accuracy": 0.7599094881398252,
   "separation_ratio": 0.9223269759999029,
   "class_silhouette": 0.020317148666250586,

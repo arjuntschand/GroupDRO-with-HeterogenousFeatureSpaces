@@ -1,6 +1,7 @@
 {
  "no_anchors": {
-  "dist_to_own_anchor": 0.8519345758616257,
+  "dist_to_own_anchor": NaN,
+  "dist_to_class_centroid": 0.8519345758616257,
   "anchor_accuracy": 0.7945945945945946,
   "separation_ratio": 0.757639337877989,
   "class_silhouette": 0.10151638171848235,
@@ -9,25 +10,25 @@
   "anchors_used": false,
   "per_group": {
    "0": {
-    "dist_to_own_anchor": 0.65140023250603,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.7704918032786885,
     "separation_ratio": 1.08117747061022,
     "knn_purity": 0.6442622950819672
    },
    "1": {
-    "dist_to_own_anchor": 0.6938680427603011,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.7796610169491526,
     "separation_ratio": 0.8980718551435848,
     "knn_purity": 0.652542372881356
    },
    "2": {
-    "dist_to_own_anchor": 0.4891783080700334,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.6,
     "separation_ratio": 0.7283332862275731,
     "knn_purity": 0.8519999999999999
    },
    "3": {
-    "dist_to_own_anchor": 0.6437701772465958,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.65,
     "separation_ratio": 0.3033135645995851,
     "knn_purity": 0.6450000000000001
@@ -36,6 +37,7 @@
  },
  "real_anchors": {
   "dist_to_own_anchor": 0.8995391830564482,
+  "dist_to_class_centroid": 0.8958793281243966,
   "anchor_accuracy": 0.772972972972973,
   "separation_ratio": 0.791079326473931,
   "class_silhouette": 0.11080997881827406,

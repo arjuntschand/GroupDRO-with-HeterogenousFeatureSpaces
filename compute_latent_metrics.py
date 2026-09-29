@@ -17,6 +17,7 @@ def metrics(z, y, anchors=None):
     cent = np.stack([z[y == c].mean(0) for c in classes])
     A = anchors if anchors is not None else cent
     d_own = np.mean([np.linalg.norm(z[i] - A[classes.index(y[i])]) for i in range(len(z))]) / scale
+    d_cent = np.mean([np.linalg.norm(z[i] - cent[classes.index(y[i])]) for i in range(len(z))]) / scale
     near = np.argmin(((z[:, None, :] - A[None, :, :]) ** 2).sum(-1), axis=1)
     anchor_acc = float(np.mean([classes[near[i]] == y[i] for i in range(len(z))]))
     within = np.mean([np.sqrt(((z[y == c] - cent[k]) ** 2).sum(1)).mean() for k, c in enumerate(classes)])
@@ -27,7 +28,7 @@ def metrics(z, y, anchors=None):
     sil = float(silhouette_score(z[idx], y[idx])) if len(classes) > 1 else float("nan")
     nn = NearestNeighbors(n_neighbors=11).fit(z); _, nb = nn.kneighbors(z[idx])
     purity = float(np.mean([(y[nb[i, 1:]] == y[idx[i]]).mean() for i in range(n)]))
-    return dict(dist_to_own_anchor=float(d_own), anchor_accuracy=anchor_acc, separation_ratio=float(between / within),
+    return dict(dist_to_own_anchor=(float(d_own) if anchors is not None else float("nan")), dist_to_class_centroid=float(d_cent), anchor_accuracy=anchor_acc, separation_ratio=float(between / within),
                 class_silhouette=sil, knn_purity=purity, latent_scale=float(scale), anchors_used=anchors is not None)
 
 

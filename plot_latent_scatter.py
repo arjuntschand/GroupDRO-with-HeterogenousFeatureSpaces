@@ -167,7 +167,11 @@ for j, (key, title, show_anchor) in enumerate(ARMS):
         bg, bc = w2_stats(z, y, g); src = "this seed"
     note = f"W₂ between groups {bg:.2f}  ·  between classes {bc:.2f}  ({src})"
     if show_anchor and S_anc is not None:
-        note += f"\ncloud → {'class centroid' if centroid_panel else 'learnt anchor'} {w2_to_anchor(z, y, g, A, S_anc):.2f} (this seed)"
+        if centroid_panel:
+            note += f"\ncloud → class centroid {w2_to_anchor(z, y, g, A, S_anc):.2f} (this seed)"
+        else:
+            Cm = np.stack([z[y == c].mean(0) for c in range(len(D["classes"]))]); Cs = np.stack([np.diag(z[y == c].var(0) + 1e-6) for c in range(len(D["classes"]))])
+            note += f"\ncloud → learnt anchor {w2_to_anchor(z, y, g, A, S_anc):.2f}  ·  cloud → class centroid {w2_to_anchor(z, y, g, Cm, Cs):.2f} (this seed)"
     axes[0][j].set_title(f"{title}\n\n", fontsize=11, color=INK, loc="left")
     axes[0][j].text(0, 1.02, note, transform=axes[0][j].transAxes, fontsize=8, color=INK2, va="bottom", linespacing=1.3)
 h1 = [Line2D([], [], marker="o", ls="", ms=6, color=GCOL[k], alpha=.8, label=GROUPS[k]) for k in range(len(GROUPS))]

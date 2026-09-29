@@ -301,7 +301,7 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
         out.append(f"<h3 id='{P}-latent' style='font-size:20px;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:44px'>Latent space: with and without anchors</h3>"
                    "<p class='legend'>Left: per-group encoders + Regret-DRO, no anchors. Right: the same with class anchors (the full method, v4c). Same seed, same validated step size as the tables. "
                    "Top row coloured by group (rings = group centroids), bottom row by outcome; stars are the learnt anchor means and ellipses the anchor Gaussians at 2 sigma. "
-                   "Metrics below each figure are computed on the plotted test latents: distance of every point to the anchor of its own class (scale-normalised; without anchors the class centroid stands in), "
+                   "Metrics below each figure are computed on the plotted test latents: distance of every point to the learnt anchor of its own class and to its own class centroid (both scale-normalised; the centroid column is comparable across the two arms), "
                    "the fraction of points whose nearest anchor is their own class, between-class centroid distance over within-class spread, class silhouette, and 10-nearest-neighbour class purity.</p>")
         for aid, lab, stem, ldir, cap in LAT:
             rel = f"figs/paper/{stem}.png"
@@ -311,11 +311,12 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
             mp = os.path.join(ldir, "latent_metrics.json")
             if os.path.exists(mp):
                 M = json.load(open(mp))
-                out.append("<div class='card'><table class='data'><thead><tr><th>arm</th><th>distance to own class anchor</th><th>nearest-anchor accuracy</th><th>class separation ratio</th><th>class silhouette</th><th>10-NN class purity</th><th>latent scale</th></tr></thead><tbody>")
-                for key, name in [("no_anchors", "No anchors (class centroids used as anchors)"), ("real_anchors", "Class anchors (ours)")]:
+                out.append("<div class='card'><table class='data'><thead><tr><th>arm</th><th>distance to own learnt anchor</th><th>distance to own class centroid</th><th>nearest-anchor accuracy</th><th>class separation ratio</th><th>class silhouette</th><th>10-NN class purity</th><th>latent scale</th></tr></thead><tbody>")
+                for key, name in [("no_anchors", "No anchors (nearest-anchor accuracy uses the class centroids)"), ("real_anchors", "Class anchors (ours)")]:
                     if key in M:
                         m = M[key]
-                        out.append(f"<tr><td class='m'>{name}</td><td>{m['dist_to_own_anchor']:.3f}</td><td>{m['anchor_accuracy']*100:.1f}%</td><td>{m['separation_ratio']:.3f}</td><td>{m['class_silhouette']:.3f}</td><td>{m['knn_purity']*100:.1f}%</td><td>{m['latent_scale']:.2f}</td></tr>")
+                        da = m.get('dist_to_own_anchor'); da = "—" if da is None or da != da else f"{da:.3f}"
+                        out.append(f"<tr><td class='m'>{name}</td><td>{da}</td><td>{m.get('dist_to_class_centroid', float('nan')):.3f}</td><td>{m['anchor_accuracy']*100:.1f}%</td><td>{m['separation_ratio']:.3f}</td><td>{m['class_silhouette']:.3f}</td><td>{m['knn_purity']*100:.1f}%</td><td>{m['latent_scale']:.2f}</td></tr>")
                 out.append("</tbody></table></div>")
     out.append("<p class='legend'>Per-seed series behind every number: runs/v4/summary.json; per-epoch logs: runs/v4/&lt;family&gt;/epochs and the EMBED curve_*.json files.</p>")
     return "".join(out)

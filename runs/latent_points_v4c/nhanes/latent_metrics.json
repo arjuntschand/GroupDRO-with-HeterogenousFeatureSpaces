@@ -1,6 +1,7 @@
 {
  "no_anchors": {
-  "dist_to_own_anchor": 0.8809875721980248,
+  "dist_to_own_anchor": NaN,
+  "dist_to_class_centroid": 0.8809875721980248,
   "anchor_accuracy": 0.6842105263157895,
   "separation_ratio": 0.7675673028751977,
   "class_silhouette": 0.056415786628034086,
@@ -9,19 +10,19 @@
   "anchors_used": false,
   "per_group": {
    "0": {
-    "dist_to_own_anchor": 0.8392081579294449,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.6228893058161351,
     "separation_ratio": 0.830321754193554,
     "knn_purity": 0.8151969981238275
    },
    "1": {
-    "dist_to_own_anchor": 0.7856569681627175,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.6867924528301886,
     "separation_ratio": 0.7763755710505309,
     "knn_purity": 0.8379245283018868
    },
    "2": {
-    "dist_to_own_anchor": 0.8450609407466856,
+    "dist_to_own_anchor": NaN,
     "anchor_accuracy": 0.7048759623609923,
     "separation_ratio": 0.929658628877498,
     "knn_purity": 0.8429426860564585
@@ -30,6 +31,7 @@
  },
  "real_anchors": {
   "dist_to_own_anchor": 0.7837548152749109,
+  "dist_to_class_centroid": 0.7769316655273,
   "anchor_accuracy": 0.6842105263157895,
   "separation_ratio": 1.0459352754694033,
   "class_silhouette": 0.03309352489661974,

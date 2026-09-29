@@ -102,6 +102,11 @@ for j, (key, title, show_anchor) in enumerate(ARMS):
     d = np.load(f"{D['dir']}/{key}_s{SEED}.npz")
     z, y, g, A = d["z"], d["y"], d["g"], d["anchor_m"]
     S_anc = d["anchor_S"] if "anchor_S" in d.files and d["anchor_S"].size else None
+    centroid_panel = not show_anchor
+    if centroid_panel:                    # no learnt anchors: class centroids and per-class variances stand in
+        A = np.stack([z[y == c].mean(0) for c in range(len(D["classes"]))])
+        S_anc = np.stack([np.diag(z[y == c].var(0) + 1e-6) for c in range(len(D["classes"]))])
+        show_anchor = True
     mu, P, var = pca2(z)
     xy = (z - mu) @ P.T; axy = (A - mu) @ P.T
     NG = len(GROUPS)
@@ -140,9 +145,9 @@ for j, (key, title, show_anchor) in enumerate(ARMS):
                         ang = np.degrees(np.arctan2(evec[1, 1], evec[0, 1]))
                         ax.add_patch(Ellipse(axy[c_], width=4 * np.sqrt(max(ev[1], 1e-12)), height=4 * np.sqrt(max(ev[0], 1e-12)),
                                              angle=ang, facecolor=CCOL[c_], alpha=.12, edgecolor=CCOL[c_], lw=1.4, ls="--", zorder=4))
-                    ax.scatter(*axy[c_], marker="*", s=330, color=CCOL[c_], edgecolor=INK, linewidth=1.1, zorder=6)
+                    ax.scatter(*axy[c_], marker=("X" if centroid_panel else "*"), s=(200 if centroid_panel else 330), color=CCOL[c_], edgecolor=INK, linewidth=1.1, zorder=6)
                     if not coincident:
-                        ax.annotate("anchor: " + lab, axy[c_], xytext=(9, 9), textcoords="offset points", fontsize=8.5, color=INK, zorder=7,
+                        ax.annotate(("class centroid: " if centroid_panel else "anchor: ") + lab, axy[c_], xytext=(9, 9), textcoords="offset points", fontsize=8.5, color=INK, zorder=7,
                                     path_effects=[pe.withStroke(linewidth=3, foreground=SURF)])
                 if coincident:
                     ax.annotate(f"all {len(D['classes'])} class anchors (nearly coincident at this scale)", axy[:len(D["classes"])].mean(0),
@@ -162,14 +167,14 @@ for j, (key, title, show_anchor) in enumerate(ARMS):
         bg, bc = w2_stats(z, y, g); src = "this seed"
     note = f"W₂ between groups {bg:.2f}  ·  between classes {bc:.2f}  ({src})"
     if show_anchor and S_anc is not None:
-        note += f"\ncloud → learnt anchor {w2_to_anchor(z, y, g, A, S_anc):.2f} (this seed)"
+        note += f"\ncloud → {'class centroid' if centroid_panel else 'learnt anchor'} {w2_to_anchor(z, y, g, A, S_anc):.2f} (this seed)"
     axes[0][j].set_title(f"{title}\n\n", fontsize=11, color=INK, loc="left")
     axes[0][j].text(0, 1.02, note, transform=axes[0][j].transAxes, fontsize=8, color=INK2, va="bottom", linespacing=1.3)
 h1 = [Line2D([], [], marker="o", ls="", ms=6, color=GCOL[k], alpha=.8, label=GROUPS[k]) for k in range(len(GROUPS))]
 h1 += [Line2D([], [], marker="o", ls="", ms=10, markerfacecolor="#ffffff", markeredgecolor=INK, label="group centroid")]
 axes[0][0].legend(handles=h1, fontsize=7.5 if len(GROUPS) > 4 else 8, frameon=False, loc="lower left")
 h2 = [Line2D([], [], marker="o", ls="", ms=6, color=CCOL[c_], label=D["classes"][c_]) for c_ in range(len(D["classes"]))]
-h2 += [Line2D([], [], marker="*", ls="", ms=11, color=INK2, label="learnt anchor mean"), Line2D([], [], ls="--", color=INK2, label="learnt anchor, 2σ")]
+h2 += [Line2D([], [], marker="*", ls="", ms=11, color=INK2, label="learnt anchor mean"), Line2D([], [], marker="X", ls="", ms=9, color=INK2, label="class centroid (no anchors)"), Line2D([], [], ls="--", color=INK2, label="anchor / centroid, 2σ")]
 axes[1][0].legend(handles=h2, fontsize=8, frameon=False, loc="lower left")
 N_TEST = len(np.load(f"{D['dir']}/{D['arms'][0][0]}_s{SEED}.npz")["y"])
 fig.suptitle(D["title"].replace("the 150 test patients", f"the {N_TEST} test patients") + "\nW₂ values are scale-normalised. Axes are scaled per panel." + ("" if ARGS.dataset == "embed" else " The anchors shrink the latent space by an order of magnitude or more.") + "",

@@ -573,11 +573,13 @@ function sortable(t){
   var tb=t.tBodies[0]; if(!tb) return;
   var rows=[].slice.call(tb.rows);
   rows.forEach(function(r,i){r.dataset.def=i;});
-  [].slice.call(t.tHead.rows[0].cells).forEach(function(th,ci){
+  /* two-row headers (per-group and overview tables): the clickable cells are in the LAST header row, one per column */
+  var hdr=t.tHead.rows[t.tHead.rows.length-1];
+  [].slice.call(hdr.cells).forEach(function(th,ci){
     th.addEventListener('click',function(){
       var next = th.classList.contains('desc') ? 'asc'
                : th.classList.contains('asc')  ? 'def' : 'desc';
-      [].slice.call(t.tHead.rows[0].cells).forEach(function(o){
+      [].slice.call(hdr.cells).forEach(function(o){
         o.classList.remove('asc','desc','def');});
       th.classList.add(next);
       var sorted=rows.slice();

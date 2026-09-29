@@ -38,6 +38,16 @@ GROUP_LABELS = {"nhanes": ["G0 survey", "G1 + exam", "G2 + labs"], "nhanes_noove
 COLS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]
 
 
+EMBED_PARAMS = {"embed": 275716, "embed_disj": 230404}     # inference parameters of our EMBED model (anchors excluded), six- and four-group variants
+
+
+def nparams(tab, key, fam):
+    v = tab.get(key, {}).get("n_params")
+    if (v is None or v != v) and fam.startswith("embed") and key in ("ours", "align_only", "regret_only", "groupdro", "erm", "anchors_only", "dedicated"):
+        v = EMBED_PARAMS[fam]
+    return v
+
+
 def paired_p(a, b):
     from scipy import stats
     k = sorted(set(a) & set(b))
@@ -53,7 +63,7 @@ def fmt(v, dp=1):
     return "—" if v is None or v != v else f"{v:.{dp}f}"
 
 
-def table(tab, rows, full_key):
+def table(tab, rows, full_key, fam=""):
     ent = [(k, lab, kind) for k, lab, kind in rows if k in tab] + [(k, lab, "ext") for k, lab in BASE if k in tab]
     if not ent:
         return "<p class='na'>no runs</p>"
@@ -78,8 +88,8 @@ def table(tab, rows, full_key):
             return f"<td>{'<b>' + s + '</b>' if best.get(c) == k else s}</td>"
         out.append(f"<tr{style}><td class='m'>{html.escape(lab)}{tag}</td>{cell('worst_acc', 1)}{cell('overall_acc', 1)}{cell('worst_loss', 3)}"
                    f"{cell('worst_excess', 3)}{cell('worst_auroc', 3)}<td class='dim'>{fmt(t.get('step'), 2) if t.get('step') else '—'}</td>"
-                   f"<td class='dim'>{fmt(t.get('mean_epoch'), 1)}</td><td class='dim'>{int(t['n_params']):,}</td><td class='dim'>{t['n_seeds']}</td></tr>"
-                   if t.get("n_params") == t.get("n_params") else
+                   f"<td class='dim'>{fmt(t.get('mean_epoch'), 1)}</td><td class='dim'>{int(nparams(tab, k, fam)):,}</td><td class='dim'>{t['n_seeds']}</td></tr>"
+                   if (nparams(tab, k, fam) or 0) == (nparams(tab, k, fam) or 0) and nparams(tab, k, fam) else
                    f"<tr{style}><td class='m'>{html.escape(lab)}{tag}</td>{cell('worst_acc', 1)}{cell('overall_acc', 1)}{cell('worst_loss', 3)}"
                    f"{cell('worst_excess', 3)}{cell('worst_auroc', 3)}<td class='dim'>{fmt(t.get('step'), 2) if t.get('step') else '—'}</td>"
                    f"<td class='dim'>{fmt(t.get('mean_epoch'), 1)}</td><td class='na'>—</td><td class='dim'>{t['n_seeds']}</td></tr>")
@@ -149,8 +159,8 @@ def overview(summ, v, vk=None):
         return ""
     out = ["<div class='card'><table class='data'><thead><tr><th class='it'>full method vs</th>"]
     for _, lab in BASE[:3]:
-        out.append(f"<th colspan='3' style='text-align:center'>{html.escape(lab)}</th>")
-    out.append("</tr><tr><th></th>" + "".join("<th>worst acc</th><th>worst loss</th><th>worst excess</th>" for _ in BASE[:3]) + "</tr></thead><tbody>")
+        out.append(f"<th colspan='4' style='text-align:center'>{html.escape(lab)}</th>")
+    out.append("</tr><tr><th></th>" + "".join("<th>worst acc</th><th>worst loss</th><th>worst excess</th><th>params</th>" for _ in BASE[:3]) + "</tr></thead><tbody>")
     for k, lab in fams:
         tab = summ[k][vk] if vk in summ[k] else summ[k][v]; full = "ours" if k.startswith("embed") else "Ours_Regret"
         if full not in tab:
@@ -170,9 +180,16 @@ def overview(summ, v, vk=None):
                 col = "#1a7f4b" if better else "#b03a3a"
                 bg = ("rgba(31,159,110,.16)" if better else "rgba(176,58,58,.14)") if sig else ("rgba(31,159,110,.06)" if better else "rgba(176,58,58,.05)")
                 cells.append(f"<td style='background:{bg};color:{col};font-weight:600'>{txt}{'*' if sig else ''}</td>")
+            po, pb = nparams(tab, full, k), nparams(tab, bk, k)
+            if po and pb and po == po and pb == pb:
+                r = pb / po; better = r > 1
+                cells.append(f"<td style='color:{'#1a7f4b' if better else '#b03a3a'};font-weight:600'>{r:.1f}× fewer<span class='hint' style='color:var(--dim);font-weight:400'>{int(po):,} vs {int(pb):,}</span></td>" if better else
+                             f"<td style='color:#b03a3a;font-weight:600'>{1/r:.1f}× more<span class='hint' style='color:var(--dim);font-weight:400'>{int(po):,} vs {int(pb):,}</span></td>")
+            else:
+                cells.append("<td class='na'>—</td>")
         out.append(f"<tr><td class='it'>{html.escape(lab.replace('with no common information', ': no common info'))}</td>{''.join(cells)}</tr>")
     out.append("</tbody></table></div><p class='legend'>Full method (per-group encoders + anchors + Regret-DRO) against each published baseline at the selected rule. "
-               "Accuracy in percentage points, loss and excess as relative reduction (baseline minus ours, over baseline). Green = ours better, red = ours worse; "
+               "Accuracy in percentage points, loss and excess as relative reduction (baseline minus ours, over baseline); params = the baseline's inference parameter count over ours. Green = ours better, red = ours worse; "
                "strong shading and * = paired t-test p &lt; 0.05 over seeds. Detailed tables per dataset follow.</p>")
     return "".join(out)
 
@@ -215,7 +232,7 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
     if root != "runs/v4" and os.path.exists("runs/v4/summary.json"):     # EMBED families live under runs/v4
         s0 = json.load(open("runs/v4/summary.json")); c0 = json.load(open("runs/v4/curves.json"))
         for k in ("embed", "embed_disj"):
-            if k in s0:
+            if k in s0 and k not in summ:
                 summ[k] = s0[k]; curves[k] = c0.get(k, {})
     P = toc
     side = [f"<aside class='toc' id='{P}-toc'><div class='toc-t'>On this page</div><a href='#{P}-what' data-t='{P}-what'>Protocol</a>"
@@ -270,7 +287,7 @@ def page(root="runs/v4", title="V3 Updated Baselines (protocol v4a: equal-group 
                 continue
             tab = summ[k][vk]
             out.append(f"<div class='{P}v' data-v='{v}' data-s='{st}'{'' if (v == primary and not st) else ' style=display:none'}>")
-            out.append(f"<div class='card'>{table(tab, rows, full)}</div>")
+            out.append(f"<div class='card'>{table(tab, rows, full, k)}</div>")
             out.append(heat(tab, full))
             if not st:      # per-group tables only for the validated-step blocks (page size)
                 out.append(f"<h4>Per-group metrics</h4>{per_group_table(tab, rows, GROUP_LABELS.get(k, []))}")

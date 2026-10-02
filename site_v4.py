@@ -24,6 +24,7 @@ ROWS_TAB = [("Ours_Regret", "Per-group + anchors + Regret-DRO", "full"), ("Ours_
             ("RegretDRO", "Per-group encoders + Regret-DRO", "base"), ("GroupDRO", "Per-group encoders + GroupDRO", "base"),
             ("AnchorsOnly", "Per-group encoders + anchors + ERM", "base"), ("PerGroupOnly", "Per-group encoders + ERM", "base"),
             ("Independent", "Dedicated model per group", "base"),
+            ("Ours_Regret_RandAnchor", "Randomly assigned anchors (control: alignment targets permuted)", "base"),
             ("Shared_Anchors_GDRO", "Anchors + GroupDRO, common features", "base"), ("Shared_GDRO", "GroupDRO, common features", "base"),
             ("ERM", "ERM, common features", "base")]
 ROWS_EM = [("ours", "Per-group + anchors + Regret-DRO", "full"), ("align_only", "Per-group + anchors + GroupDRO", "abl"),

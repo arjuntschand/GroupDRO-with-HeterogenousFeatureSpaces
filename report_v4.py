@@ -104,6 +104,12 @@ def embed_family(fam):
                                  test_auroc=float("nan"), weight=(lam[gi] if gi is not None else float("nan")),
                                  R_star=v.get("R_star", 0.0), n_params=n_params))
     df = pd.DataFrame(rows)
+    # One reference vector per family for EVERY method: the baselines' own script estimated its own
+    # references (group-only fits, and for the disjoint runs the six-group vector), so their excess
+    # was not comparable to ours. Excess is recomputed here as loss - R*_g with our arms' vector.
+    ref_path = f"{OUT}/{fam}_g2.0/rstar.json"
+    if os.path.exists(ref_path):
+        ref = json.load(open(ref_path)); df["R_star"] = df["group"].map(lambda g: float(ref.get(g, float("nan"))))
     # REMIND at its published gamma is a separate row from REMIND with a validated gamma
     df.loc[(df.method == "REMIND") & (df.step == 0.02), "method"] = "REMIND_pub"
     last = int(df.epoch.max())

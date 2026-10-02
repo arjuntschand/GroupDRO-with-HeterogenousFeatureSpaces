@@ -262,7 +262,7 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
             mv = group_metrics(fwd(Xva, gva), yva, gva, G); mt = group_metrics(fwd(Xte, gte), yte, gte, G)
         model.train()
         for k in range(G):
-            rows.append(dict(method=method, step=step, seed=seed, fold=fold, epoch=ep, group=f"g{k}",
+            rows.append(dict(method=method + ("_RandAnchor" if args.random_anchors else ""), step=step, seed=seed, fold=fold, epoch=ep, group=f"g{k}",
                              n_val=mv[k]["n"], val_loss=mv[k]["loss"], val_acc=mv[k]["acc"], val_auroc=mv[k]["auroc"],
                              n_test=mt[k]["n"], test_loss=mt[k]["loss"], test_acc=mt[k]["acc"], test_f1=mt[k]["f1"],
                              test_auroc=mt[k]["auroc"], weight=(float(lam[k]) if dro else float("nan")),
@@ -372,7 +372,8 @@ def main():
     cache = {}
     t0 = time.time()
     for ji, (m, st, sd) in enumerate(jobs):
-        path = os.path.join(args.out, "epochs", f"{m}__step{st:g}__s{sd}.csv")
+        mlabel = m + ("_RandAnchor" if args.random_anchors else "")        # control: alignment targets permuted within the batch
+        path = os.path.join(args.out, "epochs", f"{mlabel}__step{st:g}__s{sd}.csv")
         if os.path.exists(path):
             continue
         rows = []

@@ -8,11 +8,13 @@ figure has to be embedded as a data URI and the doctype/html/head/body wrapper h
 Usage: python make_shareable.py            -> writes site/shareable.html
 """
 from __future__ import annotations
-import base64, mimetypes, os, re, sys
+import base64, json, mimetypes, os, re, sys
 
 SRC = "site/index.html"
 FIGS = "site/figs"
 OUT = "site/shareable.html"
+FILES_OUT = "site/shareable_files.json"
+EXTERNAL = "--external" in sys.argv     # figures as separate published files instead of data URIs
 
 
 
@@ -38,7 +40,15 @@ def main():
         b64 = base64.b64encode(open(path, "rb").read()).decode()
         embedded += 1
         return f'src="data:{mime};base64,{b64}"'
-    body = re.sub(r'src=["\'](figs/[^"\']+)["\']', sub, body)
+    if EXTERNAL:
+        # keep the relative figure paths and list them for the publisher's `files` map; the page
+        # itself then stays well under the 16 MB limit (figures were 8 MB of data URIs)
+        figs = sorted(set(re.findall(r'src=["\'](figs/[^"\']+)["\']', body)))
+        files = {fn: os.path.join(os.path.dirname(SRC), fn) for fn in figs if os.path.exists(os.path.join(os.path.dirname(SRC), fn))}
+        json.dump(files, open(FILES_OUT, "w"), indent=1)
+        print(f"wrote {FILES_OUT}  ({len(files)} figures to publish as files)")
+    else:
+        body = re.sub(r'src=["\'](figs/[^"\']+)["\']', sub, body)
 
     # the publisher reads <title> out of the file to name the tab and gallery card
     title = "<title>GroupDRO with Heterogeneous Feature Spaces</title>"

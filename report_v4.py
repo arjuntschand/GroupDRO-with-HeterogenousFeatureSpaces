@@ -87,6 +87,8 @@ def embed_family(fam):
         m = re.search(r"curve_(.+)_s(\d+)\.json$", os.path.basename(f))
         method, seed = m.group(1), int(m.group(2))
         d = os.path.basename(os.path.dirname(f))
+        if "matched" in d:                      # capacity-matched baselines (runs/v4m on the box) are separate rows
+            method += "_matched"
         g = re.search(r"g([\d.]+)$", d)
         step = float(g.group(1)) if g else (0.02 if "REMIND" in os.path.basename(f) else 0.0)   # the plain *_bl dirs ran REMIND at its published 0.02
         c = json.load(open(f))

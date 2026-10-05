@@ -32,6 +32,7 @@ ROWS_EM = [("ours", "Per-group + anchors + Regret-DRO", "full"), ("align_only", 
            ("anchors_only", "Per-group encoders + anchors + ERM", "base"), ("erm", "Per-group encoders + ERM", "base"),
            ("dedicated", "Dedicated model per group", "base")]
 BASE = [("Reweigh", "Reweigh"), ("FlexMoE", "Flex-MoE"), ("REMIND_pub", "REMIND (published gamma 0.02)")]
+# capacity-matched rows (*_matched in runs/v4c) are computed but not shown: the V4 tab is frozen (2026-10-03)
 GROUP_LABELS = {"nhanes": ["G0 survey", "G1 + exam", "G2 + labs"], "nhanes_nooverlap": ["G0 survey", "G1 body + HbA1c/HDL", "G2 BP + lipids"],
                 "nhanes_designed": ["G0 questionnaire only", "G1 age, gender, body", "G2 labs + BP"],
                 "fedheart": ["Cleveland", "Hungarian", "Switzerland", "VA"], "fedheart_nooverlap": ["Cleveland", "Hungarian", "Switzerland", "VA"],

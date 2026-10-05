@@ -236,12 +236,16 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
         fwd = lambda X, g, **kw: model(X, g)[0]
     else:
         dro, regret, use_anchors = (method == "REMIND"), False, False
+        # released sizes (Flex-MoE 16 experts d=128; Soft-MoE 4 experts) or, with --capacity-matched, the
+        # sizes run_baselines_tabular.py uses to sit near our parameter count (Flex-MoE 4 experts d=64;
+        # Soft-MoE 2 experts)
         if method == "FlexMoE":
-            model = FlexMoESparse(len(blocks), group_blocks, [len(b) for b in blocks], d_model=128, n_experts=16,
-                                  top_k=4, num_classes=2)
+            dm, ne = (64, 4) if args.capacity_matched else (128, 16)
+            model = FlexMoESparse(len(blocks), group_blocks, [len(b) for b in blocks], d_model=dm, n_experts=ne,
+                                  top_k=min(4, ne), num_classes=2)
         else:
             model = FlexMoEModel([len(b) for b in blocks], group_blocks, latent_dim=cfg.get("latent_dim", 64),
-                                 num_classes=2, n_experts=4, group_routing=(method == "REMIND"))
+                                 num_classes=2, n_experts=2 if args.capacity_matched else 4, group_routing=(method == "REMIND"))
         params = list(model.parameters()); n_params = sum(p.numel() for p in params)
         def fwd(X, g, warmup=False):
             xb = [X[:, idx] for idx in blocks]
@@ -252,8 +256,11 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
              if args.schedule == "cosine" else None)          # v4a: constant for everyone; v4b: cosine for everyone
     a_fit, a_sep = args.alpha_align, args.alpha_sep
     lam = torch.full((G,), 1.0 / G)
-    Lbar = R.clone() if regret else None                          # Algorithm 1 line 6; GroupDRO: first batch
     Rref = R if regret else torch.zeros(G)
+    # Algorithm 2 line 2: the running average starts at the reference (zero for the GroupDRO arms).
+    # Until 2026-10-05 our GroupDRO-type arms started at the first minibatch instead; REMIND keeps
+    # its own rule (first minibatch), as its paper does not specify one.
+    Lbar = Rref.clone() if method in OURS else None
     rows, gstep = [], 0
 
     def log_epoch(ep):
@@ -262,7 +269,7 @@ def run_one(method, step, seed, fold, data, feat, cfg, rstar, args, blocks=None,
             mv = group_metrics(fwd(Xva, gva), yva, gva, G); mt = group_metrics(fwd(Xte, gte), yte, gte, G)
         model.train()
         for k in range(G):
-            rows.append(dict(method=method + ("_RandAnchor" if args.random_anchors else ""), step=step, seed=seed, fold=fold, epoch=ep, group=f"g{k}",
+            rows.append(dict(method=method + ("_RandAnchor" if args.random_anchors else "") + ("_matched" if args.capacity_matched and method in BASELINES else ""), step=step, seed=seed, fold=fold, epoch=ep, group=f"g{k}",
                              n_val=mv[k]["n"], val_loss=mv[k]["loss"], val_acc=mv[k]["acc"], val_auroc=mv[k]["auroc"],
                              n_test=mt[k]["n"], test_loss=mt[k]["loss"], test_acc=mt[k]["acc"], test_f1=mt[k]["f1"],
                              test_auroc=mt[k]["auroc"], weight=(float(lam[k]) if dro else float("nan")),
@@ -346,6 +353,7 @@ def main():
     ap.add_argument("--latents-fold", type=int, default=0)
     ap.add_argument("--random-anchors", action="store_true", help="control: alignment targets use permuted labels")
     ap.add_argument("--sep-stopgrad", action="store_true", help="separation loss trains the anchors only (head detached in that term)")
+    ap.add_argument("--capacity-matched", action="store_true", help="baselines resized to about our parameter count (Flex-MoE 4 experts d=64, Soft-MoE 2 experts)")
     args = ap.parse_args()
     torch.set_num_threads(1)
     if args.per_group is None:
@@ -372,7 +380,7 @@ def main():
     cache = {}
     t0 = time.time()
     for ji, (m, st, sd) in enumerate(jobs):
-        mlabel = m + ("_RandAnchor" if args.random_anchors else "")        # control: alignment targets permuted within the batch
+        mlabel = m + ("_RandAnchor" if args.random_anchors else "") + ("_matched" if args.capacity_matched and m in BASELINES else "")
         path = os.path.join(args.out, "epochs", f"{mlabel}__step{st:g}__s{sd}.csv")
         if os.path.exists(path):
             continue

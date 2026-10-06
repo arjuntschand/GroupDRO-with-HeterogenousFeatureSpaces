@@ -1,27 +1,31 @@
-"""Protocol v4 trainer for the tabular datasets (documentation/PROTOCOL_V4_2026-09-22.md).
+"""Protocol v4 trainer for the tabular datasets (documentation/PROTOCOL_V4_2026-09-22.md and its amendments).
 
-One code path for every method, ours and the published baselines, so the sampler, the budget and
-the logging are identical by construction:
+One code path for every method, ours and the published baselines, so the sampler, the schedule, the
+budget and the logging are identical by construction. The paper's runs (runs/v4c) use:
 
-  * equal-group batches: every step draws --per-group samples from every group
-  * uniform initial group weights, logged as epoch 0
-  * constant learning rate for every method; fixed --epochs (10), no early stopping; every epoch stores per-group validation and test metrics
-    and the group weights, so any validation-based selection rule can be applied afterwards
-    (report_v4.py)
-  * our arms follow Algorithm 1 of the draft literally:
-        J = sum_g lambda_g [ (L_g - R_g) + a_align L_align_g ] + a_sep L_sep
-        Lbar_g <- rho Lbar_g + (1 - rho) (L_g + a_align L_align_g)      (training batches)
-        every N steps: lambda_g <- lambda_g exp(gamma (Lbar_g - R_g)), renormalised   (signed excess)
-    with R_g = 0 for GroupDRO. N = min(50, steps per epoch).
+  * --sampler proportional: batches follow the group proportions of the training set (128 on NHANES,
+    64 on Fed-Heart, at least one patient per group); --sampler equal was protocol v4a
+  * --schedule cosine, 1e-3 to 1e-5 over --epochs 30; the paper reports epoch 10 (report_v4.py applies
+    the fixed-budget and validation-selection views afterwards from the per-epoch logs)
+  * uniform initial group weights, logged as epoch 0; the running average of each group's loss
+    (task plus alignment, training batches, rho = 0.9) starts at the group's reference, which is
+    zero for the GroupDRO arms; every N = min(50, steps per epoch) steps
+        lambda_g <- lambda_g exp(gamma (Lbar_g - R_g)), renormalised            (signed excess)
+  * --sep-stopgrad: the separation loss updates the anchors only (head detached in that term)
+  * --steps: the gamma grid of our DRO arms, {0.1, 0.5, 2, 10}; REMIND runs at its published 0.02
+  * --capacity-matched: baselines at about our parameter count (Flex-MoE 4 experts d=64, Soft-MoE
+    2 experts); rows get the _matched suffix
 
-Class weights: 'auto' on NHANES (10% positive) for every method, none on Fed-Heart for every method.
-The training objective uses the class-weighted loss; the weight signal and every reported loss use
-the unweighted loss, which is what the references R_g are estimated in.
+Class weights: inverse-frequency on NHANES for every method, none on Fed-Heart. The training
+objective uses the class-weighted loss; the weight signal and every reported loss are unweighted,
+which is what the references R_g are estimated in.
 
   python train_v4_tabular.py --dataset nhanes --base experiments/nhanes_v3.yaml \
-      --rstar runs/rstar_v3/nhanes/nested.json --out runs/v4/nhanes
+      --rstar runs/rstar_v3/nhanes/nested.json --out runs/v4c/nhanes \
+      --sampler proportional --schedule cosine --epochs 30 --sep-stopgrad
   python train_v4_tabular.py --dataset fedheart --base experiments/fedheart_v3.yaml \
-      --rstar runs/rstar_v3/fedheart --folds 5 --out runs/v4/fedheart
+      --rstar runs/rstar_v3/fedheart --folds 5 --out runs/v4c/fedheart \
+      --sampler proportional --schedule cosine --epochs 30 --sep-stopgrad
 """
 import argparse, csv, json, math, os, sys, time
 import numpy as np
